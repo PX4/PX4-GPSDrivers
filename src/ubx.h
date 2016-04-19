@@ -563,7 +563,7 @@ public:
 	GPSDriverUBX(GPSCallbackPtr callback, void *callback_user, struct vehicle_gps_position_s *gps_position,
 		     struct satellite_info_s *satellite_info);
 	virtual ~GPSDriverUBX();
-	int receive(const unsigned timeout);
+	int receive(unsigned timeout);
 	int configure(unsigned &baudrate, OutputMode output_mode);
 
 	int restartSurveyIn();

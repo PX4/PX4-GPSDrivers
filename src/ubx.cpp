@@ -369,7 +369,7 @@ GPSDriverUBX::waitForAck(const uint16_t msg, const unsigned timeout, const bool 
 }
 
 int	// -1 = error, 0 = no message handled, 1 = message handled, 2 = sat info message handled
-GPSDriverUBX::receive(const unsigned timeout)
+GPSDriverUBX::receive(unsigned timeout)
 {
 	uint8_t buf[128];
 
