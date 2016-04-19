@@ -38,7 +38,7 @@
 #pragma once
 
 #include "gps_helper.h"
-#include "../definitions.h"
+#include "../../definitions.h"
 
 #define ASHTECH_RECV_BUFFER_SIZE 512
 

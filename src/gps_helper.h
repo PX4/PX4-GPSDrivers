@@ -40,7 +40,7 @@
 #pragma once
 
 #include <cstdint>
-#include "../definitions.h"
+#include "../../definitions.h"
 
 enum class GPSCallbackType {
 	/**
