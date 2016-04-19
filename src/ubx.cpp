@@ -297,6 +297,7 @@ int GPSDriverUBX::restartSurveyIn()
 	if (_output_mode != OutputMode::RTCM) {
 		return -1;
 	}
+
 	//disable RTCM output
 	configureMessageRate(UBX_MSG_RTCM3_1005, 0);
 	configureMessageRate(UBX_MSG_RTCM3_1077, 0);
