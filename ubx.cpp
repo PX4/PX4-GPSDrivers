@@ -1254,7 +1254,7 @@ GPSDriverUBX::configureMessageRateAndAck(uint16_t msg, uint8_t rate, bool report
 bool
 GPSDriverUBX::sendMessage(const uint16_t msg, const uint8_t *payload, const uint16_t length)
 {
-	ubx_header_t   header = {UBX_SYNC1, UBX_SYNC2};
+	ubx_header_t   header = {UBX_SYNC1, UBX_SYNC2, 0, 0};
 	ubx_checksum_t checksum = {0, 0};
 
 	// Populate header
