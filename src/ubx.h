@@ -168,7 +168,7 @@
 
 /* RTCM3 */
 #define RTCM3_PREAMBLE					0xD3
-#define RTCM_BUFFER_LENGTH				110		/**< maximum message length of an RTCM message */
+#define RTCM_BUFFER_LENGTH				300		/**< maximum message length of an RTCM message */
 
 typedef struct {
 	uint8_t			buffer[RTCM_BUFFER_LENGTH];

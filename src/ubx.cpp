@@ -562,8 +562,7 @@ GPSDriverUBX::parseChar(const uint8_t b)
 			}
 
 		} else if (_rtcm_message->message_length + 6 == ++_rtcm_message->pos) {
-			//FIXME: remove this length limit
-			UBX_WARN("RTCM message too long!");
+			UBX_WARN("RTCM message too long (%i)!", _rtcm_message->pos);
 			decodeInit();
 		}
 
