@@ -163,7 +163,7 @@
 
 /* TX CFG-TMODE3 message contents */
 #define UBX_TX_CFG_TMODE3_FLAGS     	1 	    	/**< start survey-in */
-#define UBX_TX_CFG_TMODE3_SVINMINDUR    (2*60)		/**< survey-in: minimum duration [s] (higher=higher precision) */
+#define UBX_TX_CFG_TMODE3_SVINMINDUR    (3*60)		/**< survey-in: minimum duration [s] (higher=higher precision) */
 #define UBX_TX_CFG_TMODE3_SVINACCLIMIT  (10000)	/**< survey-in: position accuracy limit 0.1[mm] */
 
 /* RTCM3 */
