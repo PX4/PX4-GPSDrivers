@@ -600,6 +600,16 @@ GPSDriverUBX::payloadRxInit()
 
 		break;
 
+	case UBX_MSG_INF_DEBUG:
+	case UBX_MSG_INF_ERROR:
+	case UBX_MSG_INF_NOTICE:
+	case UBX_MSG_INF_WARNING:
+		if (_rx_payload_length >= sizeof(ubx_buf_t)) {
+			_rx_payload_length = sizeof(ubx_buf_t) - 1; //avoid buffer overflow
+		}
+
+		break;
+
 	case UBX_MSG_NAV_POSLLH:
 		if (_rx_payload_length != sizeof(ubx_payload_rx_nav_posllh_t)) {
 			_rx_state = UBX_RXMSG_ERROR_LENGTH;
@@ -985,6 +995,22 @@ GPSDriverUBX::payloadRxDone(void)
 		_got_velned = true;
 
 		ret = 1;
+		break;
+
+	case UBX_MSG_INF_DEBUG:
+	case UBX_MSG_INF_NOTICE: {
+			uint8_t *p_buf = (uint8_t *)&_buf;
+			p_buf[_rx_payload_length] = 0;
+			UBX_DEBUG("ubx msg: %s", p_buf);
+		}
+		break;
+
+	case UBX_MSG_INF_ERROR:
+	case UBX_MSG_INF_WARNING: {
+			uint8_t *p_buf = (uint8_t *)&_buf;
+			p_buf[_rx_payload_length] = 0;
+			UBX_WARN("ubx msg: %s", p_buf);
+		}
 		break;
 
 	case UBX_MSG_NAV_POSLLH:
