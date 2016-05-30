@@ -1142,15 +1142,15 @@ GPSDriverUBX::payloadRxDone(void)
 				configureMessageRate(UBX_MSG_NAV_SVIN, 0);
 
 				/* enable RTCM3 messages */
-				if (!configureMessageRate(UBX_MSG_RTCM3_1005, 1)) {
+				if (!configureMessageRate(UBX_MSG_RTCM3_1005, 5)) {
 					return -1;
 				}
 
-				if (!configureMessageRate(UBX_MSG_RTCM3_1077, 1)) {
+				if (!configureMessageRate(UBX_MSG_RTCM3_1077, 5)) {
 					return -1;
 				}
 
-				if (!configureMessageRate(UBX_MSG_RTCM3_1087, 1)) {
+				if (!configureMessageRate(UBX_MSG_RTCM3_1087, 5)) {
 					return -1;
 				}
 			}
