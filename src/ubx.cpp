@@ -96,7 +96,10 @@ GPSDriverUBX::GPSDriverUBX(GPSCallbackPtr callback, void *callback_user, struct 
 
 GPSDriverUBX::~GPSDriverUBX()
 {
-	if (_rtcm_message) { delete(_rtcm_message); }
+	if (_rtcm_message) {
+		delete[](_rtcm_message->buffer);
+		delete(_rtcm_message);
+	}
 }
 
 int
@@ -548,21 +551,25 @@ GPSDriverUBX::parseChar(const uint8_t b)
 		break;
 
 	case UBX_DECODE_RTCM3:
-		if (_rtcm_message->pos < RTCM_BUFFER_LENGTH) {
-			_rtcm_message->buffer[_rtcm_message->pos++] = b;
+		_rtcm_message->buffer[_rtcm_message->pos++] = b;
 
-			if (_rtcm_message->pos == 3) {
-				_rtcm_message->message_length = (((uint16_t)_rtcm_message->buffer[1] & 3) << 8) | (_rtcm_message->buffer[2]);
-				UBX_DEBUG("got RTCM message with length %i", (int)_rtcm_message->message_length);
+		if (_rtcm_message->pos == 3) {
+			_rtcm_message->message_length = (((uint16_t)_rtcm_message->buffer[1] & 3) << 8) | (_rtcm_message->buffer[2]);
+			UBX_DEBUG("got RTCM message with length %i", (int)_rtcm_message->message_length);
+
+			if (_rtcm_message->message_length + 6 > _rtcm_message->buffer_len) {
+				uint16_t new_buffer_len = _rtcm_message->message_length + 6;
+				uint8_t *new_buffer = new uint8_t[new_buffer_len];
+				memcpy(new_buffer, _rtcm_message->buffer, 3);
+				delete[](_rtcm_message->buffer);
+				_rtcm_message->buffer = new_buffer;
+				_rtcm_message->buffer_len = new_buffer_len;
 			}
+		}
 
-			if (_rtcm_message->message_length + 6 == _rtcm_message->pos) {
-				gotRTCMMessage(_rtcm_message->buffer, _rtcm_message->pos);
-				decodeInit();
-			}
+		if (_rtcm_message->message_length + 6 == _rtcm_message->pos) {
 
-		} else if (_rtcm_message->message_length + 6 == ++_rtcm_message->pos) {
-			UBX_WARN("RTCM message too long (%i)!", _rtcm_message->pos);
+			gotRTCMMessage(_rtcm_message->buffer, _rtcm_message->pos);
 			decodeInit();
 		}
 
@@ -1242,10 +1249,12 @@ GPSDriverUBX::decodeInit(void)
 	if (_output_mode == OutputMode::RTCM) {
 		if (!_rtcm_message) {
 			_rtcm_message = new rtcm_message_t;
+			_rtcm_message->buffer = new uint8_t[RTCM_INITIAL_BUFFER_LENGTH];
+			_rtcm_message->buffer_len = RTCM_INITIAL_BUFFER_LENGTH;
 		}
 
 		_rtcm_message->pos = 0;
-		_rtcm_message->message_length = RTCM_BUFFER_LENGTH;
+		_rtcm_message->message_length = _rtcm_message->buffer_len;
 	}
 }
 
