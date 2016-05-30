@@ -132,6 +132,7 @@
 #define UBX_RX_NAV_PVT_FLAGS_DIFFSOLN		0x02	/**< diffSoln (1 if differential corrections were applied) */
 #define UBX_RX_NAV_PVT_FLAGS_PSMSTATE		0x1C	/**< psmState (Power Save Mode state (see Power Management)) */
 #define UBX_RX_NAV_PVT_FLAGS_HEADVEHVALID	0x20	/**< headVehValid (Heading of vehicle is valid) */
+#define UBX_RX_NAV_PVT_FLAGS_CARRSOLN		0xC0	/**< Carrier phase range solution (RTK mode) */
 
 /* RX NAV-TIMEUTC message content details */
 /*   Bitfield "valid" masks */
@@ -164,11 +165,6 @@
 #define UBX_TX_CFG_SBAS_MODE_ENABLED	1				/**< SBAS enabled */
 #define UBX_TX_CFG_SBAS_MODE_DISABLED	0				/**< SBAS disabled */
 #define UBX_TX_CFG_SBAS_MODE		UBX_TX_CFG_SBAS_MODE_DISABLED	/**< SBAS enabled or disabled */
-
-/* TX CFG-MSG message contents */
-#define UBX_TX_CFG_MSG_RATE1_5HZ	0x01 		/**< {0x00, 0x01, 0x00, 0x00, 0x00, 0x00} the second entry is for UART1 */
-#define UBX_TX_CFG_MSG_RATE1_1HZ	0x05		/**< {0x00, 0x05, 0x00, 0x00, 0x00, 0x00} the second entry is for UART1 */
-#define UBX_TX_CFG_MSG_RATE1_05HZ	10
 
 /* TX CFG-TMODE3 message contents */
 #define UBX_TX_CFG_TMODE3_FLAGS     	1 	    	/**< start survey-in */

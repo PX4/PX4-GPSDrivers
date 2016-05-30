@@ -915,7 +915,16 @@ GPSDriverUBX::payloadRxDone(void)
 			_gps_position->fix_type		 = _buf.payload_rx_nav_pvt.fixType;
 
 			if (_buf.payload_rx_nav_pvt.flags & UBX_RX_NAV_PVT_FLAGS_DIFFSOLN) {
-				_gps_position->fix_type = 6; //RTK (we just assume it's fixed-type RTK)
+				_gps_position->fix_type = 4; //DGPS
+			}
+
+			uint8_t carr_soln = _buf.payload_rx_nav_pvt.flags >> 6;
+
+			if (carr_soln == 1) {
+				_gps_position->fix_type = 5; //Float RTK
+
+			} else if (carr_soln == 2) {
+				_gps_position->fix_type = 6; //Fixed RTK
 			}
 
 			_gps_position->vel_ned_valid = true;
