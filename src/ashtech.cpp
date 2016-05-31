@@ -549,7 +549,7 @@ int GPSDriverAshtech::receive(unsigned timeout)
 {
 	{
 
-		uint8_t buf[32];
+		uint8_t buf[GPS_READ_BUFFER_SIZE];
 
 		/* timeout additional to poll */
 		uint64_t time_started = gps_absolute_time();

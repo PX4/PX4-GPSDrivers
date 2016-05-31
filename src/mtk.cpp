@@ -113,7 +113,7 @@ errout:
 int
 GPSDriverMTK::receive(unsigned timeout)
 {
-	uint8_t buf[128];
+	uint8_t buf[GPS_READ_BUFFER_SIZE];
 	gps_mtk_packet_t packet;
 
 	/* timeout additional to poll */

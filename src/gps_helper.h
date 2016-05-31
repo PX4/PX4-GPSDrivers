@@ -42,6 +42,10 @@
 #include <cstdint>
 #include "../../definitions.h"
 
+#ifndef GPS_READ_BUFFER_SIZE
+#define GPS_READ_BUFFER_SIZE 128
+#endif
+
 enum class GPSCallbackType {
 	/**
 	 * Read data from device. This is a blocking operation with a timeout.
