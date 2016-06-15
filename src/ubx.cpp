@@ -1000,8 +1000,6 @@ GPSDriverUBX::payloadRxDone(void)
 		}
 
 		_gps_position->timestamp_time		= gps_absolute_time();
-		_gps_position->timestamp_velocity 	= gps_absolute_time();
-		_gps_position->timestamp_variance 	= gps_absolute_time();
 		_gps_position->timestamp		= gps_absolute_time();
 
 		_rate_count_vel++;
@@ -1054,8 +1052,6 @@ GPSDriverUBX::payloadRxDone(void)
 		_gps_position->s_variance_m_s	= (float)_buf.payload_rx_nav_sol.sAcc * 1e-2f;	// from cm to m
 		_gps_position->satellites_used	= _buf.payload_rx_nav_sol.numSV;
 
-		_gps_position->timestamp_variance = gps_absolute_time();
-
 		ret = 1;
 		break;
 
@@ -1064,8 +1060,6 @@ GPSDriverUBX::payloadRxDone(void)
 
 		_gps_position->hdop		= _buf.payload_rx_nav_dop.hDOP * 0.01f;	// from cm to m
 		_gps_position->vdop		= _buf.payload_rx_nav_dop.vDOP * 0.01f;	// from cm to m
-
-		_gps_position->timestamp_variance = gps_absolute_time();
 
 		ret = 1;
 		break;
@@ -1169,8 +1163,6 @@ GPSDriverUBX::payloadRxDone(void)
 		_gps_position->cog_rad		= (float)_buf.payload_rx_nav_velned.heading * M_DEG_TO_RAD_F * 1e-5f;
 		_gps_position->c_variance_rad	= (float)_buf.payload_rx_nav_velned.cAcc * M_DEG_TO_RAD_F * 1e-5f;
 		_gps_position->vel_ned_valid	= true;
-
-		_gps_position->timestamp_velocity = gps_absolute_time();
 
 		_rate_count_vel++;
 		_got_velned = true;

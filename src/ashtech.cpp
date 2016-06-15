@@ -256,7 +256,6 @@ int GPSDriverAshtech::handleMessage(int len)
 			0;                                  /**< Course over ground (NOT heading, but direction of movement) in rad, -PI..PI */
 		_gps_position->vel_ned_valid = true;                         /**< Flag to indicate if NED speed is valid */
 		_gps_position->c_variance_rad = 0.1f;
-		_gps_position->timestamp_velocity = gps_absolute_time();
 		return 1;
 
 	} else if ((memcmp(_rx_buffer, "$PASHR,POS,", 11) == 0) && (uiCalcComma == 18)) {
@@ -394,7 +393,6 @@ int GPSDriverAshtech::handleMessage(int len)
 			track_rad;				/** Course over ground (NOT heading, but direction of movement) in rad, -PI..PI */
 		_gps_position->vel_ned_valid = true;				/** Flag to indicate if NED speed is valid */
 		_gps_position->c_variance_rad = 0.1f;
-		_gps_position->timestamp_velocity = gps_absolute_time();
 		return 1;
 
 	} else if ((memcmp(_rx_buffer + 3, "GST,", 3) == 0) && (uiCalcComma == 8)) {
@@ -447,7 +445,6 @@ int GPSDriverAshtech::handleMessage(int len)
 		_gps_position->epv = static_cast<float>(alt_err);
 
 		_gps_position->s_variance_m_s = 0;
-		_gps_position->timestamp_variance = gps_absolute_time();
 
 	} else if ((memcmp(_rx_buffer + 3, "GSV,", 3) == 0)) {
 		/*
