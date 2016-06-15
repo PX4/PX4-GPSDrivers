@@ -246,7 +246,7 @@ int GPSDriverAshtech::handleMessage(int len)
 			_gps_position->fix_type = 3 + fix_quality - 1;
 		}
 
-		_gps_position->timestamp_position = gps_absolute_time();
+		_gps_position->timestamp = gps_absolute_time();
 
 		_gps_position->vel_m_s = 0;                                  /**< GPS ground speed (m/s) */
 		_gps_position->vel_n_m_s = 0;                                /**< GPS ground speed in m/s */
@@ -378,7 +378,7 @@ int GPSDriverAshtech::handleMessage(int len)
 			_gps_position->fix_type = 3 + fix_quality;
 		}
 
-		_gps_position->timestamp_position = gps_absolute_time();
+		_gps_position->timestamp = gps_absolute_time();
 
 		float track_rad = static_cast<float>(track_true) * M_PI_F / 180.0f;
 

@@ -1002,7 +1002,7 @@ GPSDriverUBX::payloadRxDone(void)
 		_gps_position->timestamp_time		= gps_absolute_time();
 		_gps_position->timestamp_velocity 	= gps_absolute_time();
 		_gps_position->timestamp_variance 	= gps_absolute_time();
-		_gps_position->timestamp_position	= gps_absolute_time();
+		_gps_position->timestamp		= gps_absolute_time();
 
 		_rate_count_vel++;
 		_rate_count_lat_lon++;
@@ -1039,7 +1039,7 @@ GPSDriverUBX::payloadRxDone(void)
 		_gps_position->epv	= (float)_buf.payload_rx_nav_posllh.vAcc * 1e-3f; // from mm to m
 		_gps_position->alt_ellipsoid = _buf.payload_rx_nav_posllh.height;
 
-		_gps_position->timestamp_position = gps_absolute_time();
+		_gps_position->timestamp = gps_absolute_time();
 
 		_rate_count_lat_lon++;
 		_got_posllh = true;
