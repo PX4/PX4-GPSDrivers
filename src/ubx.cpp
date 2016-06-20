@@ -82,6 +82,7 @@ GPSDriverUBX::GPSDriverUBX(GPSCallbackPtr callback, void *callback_user, struct 
 	GPSHelper(callback, callback_user),
 	_gps_position(gps_position),
 	_satellite_info(satellite_info),
+	_last_timestamp_time(0),
 	_configured(false),
 	_ack_state(UBX_ACK_IDLE),
 	_got_posllh(false),
@@ -999,8 +1000,8 @@ GPSDriverUBX::payloadRxDone(void)
 #endif
 		}
 
-		_gps_position->timestamp_time		= gps_absolute_time();
-		_gps_position->timestamp		= gps_absolute_time();
+		_gps_position->timestamp = gps_absolute_time();
+		_last_timestamp_time = _gps_position->timestamp;
 
 		_rate_count_vel++;
 		_rate_count_lat_lon++;
@@ -1104,7 +1105,7 @@ GPSDriverUBX::payloadRxDone(void)
 #endif
 		}
 
-		_gps_position->timestamp_time = gps_absolute_time();
+		_last_timestamp_time = gps_absolute_time();
 
 		ret = 1;
 		break;
@@ -1224,6 +1225,10 @@ GPSDriverUBX::payloadRxDone(void)
 
 	default:
 		break;
+	}
+
+	if (ret > 0) {
+		_gps_position->timestamp_time_relative = (int32_t)(_last_timestamp_time - _gps_position->timestamp);
 	}
 
 	return ret;

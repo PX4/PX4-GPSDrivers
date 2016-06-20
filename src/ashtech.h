@@ -74,6 +74,7 @@ private:
 
 	struct satellite_info_s *_satellite_info;
 	struct vehicle_gps_position_s *_gps_position;
+	uint64_t _last_timestamp_time;
 	int _ashtechlog_fd;
 
 	ashtech_decode_state_t _decode_state;

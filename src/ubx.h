@@ -642,6 +642,7 @@ private:
 
 	struct vehicle_gps_position_s *_gps_position;
 	struct satellite_info_s *_satellite_info;
+	uint64_t _last_timestamp_time;
 	bool			_configured;
 	ubx_ack_state_t		_ack_state;
 	bool			_got_posllh;

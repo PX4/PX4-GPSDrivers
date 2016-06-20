@@ -289,7 +289,8 @@ GPSDriverMTK::handleMessage(gps_mtk_packet_t &packet)
 	_gps_position->time_utc_usec = 0;
 #endif
 
-	_gps_position->timestamp = _gps_position->timestamp_time = gps_absolute_time();
+	_gps_position->timestamp = gps_absolute_time();
+	_gps_position->timestamp_time_relative = 0;
 
 	// Position and velocity update always at the same time
 	_rate_count_vel++;

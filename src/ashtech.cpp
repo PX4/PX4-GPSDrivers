@@ -44,7 +44,8 @@ GPSDriverAshtech::GPSDriverAshtech(GPSCallbackPtr callback, void *callback_user,
 				   struct satellite_info_s *satellite_info):
 	GPSHelper(callback, callback_user),
 	_satellite_info(satellite_info),
-	_gps_position(gps_position)
+	_gps_position(gps_position),
+	_last_timestamp_time(0)
 {
 	decodeInit();
 	_decode_state = NME_DECODE_UNINIT;
@@ -73,6 +74,7 @@ int GPSDriverAshtech::handleMessage(int len)
 	}
 
 	char *bufptr = (char *)(_rx_buffer + 6);
+	int ret = 0;
 
 	if ((memcmp(_rx_buffer + 3, "ZDA,", 3) == 0) && (uiCalcComma == 6)) {
 		/*
@@ -152,7 +154,7 @@ int GPSDriverAshtech::handleMessage(int len)
 		_gps_position->time_utc_usec = 0;
 #endif
 
-		_gps_position->timestamp_time = gps_absolute_time();
+		_last_timestamp_time = gps_absolute_time();
 	}
 
 	else if ((memcmp(_rx_buffer + 3, "GGA,", 3) == 0) && (uiCalcComma == 14)) {
@@ -256,7 +258,7 @@ int GPSDriverAshtech::handleMessage(int len)
 			0;                                  /**< Course over ground (NOT heading, but direction of movement) in rad, -PI..PI */
 		_gps_position->vel_ned_valid = true;                         /**< Flag to indicate if NED speed is valid */
 		_gps_position->c_variance_rad = 0.1f;
-		return 1;
+		ret = 1;
 
 	} else if ((memcmp(_rx_buffer, "$PASHR,POS,", 11) == 0) && (uiCalcComma == 18)) {
 		/*
@@ -393,7 +395,7 @@ int GPSDriverAshtech::handleMessage(int len)
 			track_rad;				/** Course over ground (NOT heading, but direction of movement) in rad, -PI..PI */
 		_gps_position->vel_ned_valid = true;				/** Flag to indicate if NED speed is valid */
 		_gps_position->c_variance_rad = 0.1f;
-		return 1;
+		ret = 1;
 
 	} else if ((memcmp(_rx_buffer + 3, "GST,", 3) == 0) && (uiCalcComma == 8)) {
 		/*
@@ -538,7 +540,11 @@ int GPSDriverAshtech::handleMessage(int len)
 		}
 	}
 
-	return 0;
+	if (ret > 0) {
+		_gps_position->timestamp_time_relative = (int32_t)(_last_timestamp_time - _gps_position->timestamp);
+	}
+
+	return ret;
 }
 
 
