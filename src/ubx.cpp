@@ -1134,18 +1134,33 @@ GPSDriverUBX::payloadRxDone(void)
 			surveyInStatus(status);
 
 			if (svin.valid == 1 && svin.active == 0) {
+				/* We now switch to 1 Hz update rate, which is enough for RTCM output.
+				 * For the survey-in, we still want 5 Hz, because this speeds up the process */
+				memset(&_buf.payload_tx_cfg_rate, 0, sizeof(_buf.payload_tx_cfg_rate));
+				_buf.payload_tx_cfg_rate.measRate	= 1000;
+				_buf.payload_tx_cfg_rate.navRate	= UBX_TX_CFG_RATE_NAVRATE;
+				_buf.payload_tx_cfg_rate.timeRef	= UBX_TX_CFG_RATE_TIMEREF;
+
+				if (!sendMessage(UBX_MSG_CFG_RATE, (uint8_t *)&_buf, sizeof(_buf.payload_tx_cfg_rate))) {
+					return -1;
+				}
+
+				if (waitForAck(UBX_MSG_CFG_RATE, UBX_CONFIG_TIMEOUT, true) < 0) {
+					return -1;
+				}
+
 				configureMessageRate(UBX_MSG_NAV_SVIN, 0);
 
 				/* enable RTCM3 messages */
-				if (!configureMessageRate(UBX_MSG_RTCM3_1005, 5)) {
+				if (!configureMessageRate(UBX_MSG_RTCM3_1005, 1)) {
 					return -1;
 				}
 
-				if (!configureMessageRate(UBX_MSG_RTCM3_1077, 5)) {
+				if (!configureMessageRate(UBX_MSG_RTCM3_1077, 1)) {
 					return -1;
 				}
 
-				if (!configureMessageRate(UBX_MSG_RTCM3_1087, 5)) {
+				if (!configureMessageRate(UBX_MSG_RTCM3_1087, 1)) {
 					return -1;
 				}
 			}
