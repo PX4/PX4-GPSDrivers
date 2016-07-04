@@ -1146,9 +1146,10 @@ GPSDriverUBX::payloadRxDone(void)
 					return -1;
 				}
 
-				if (waitForAck(UBX_MSG_CFG_RATE, UBX_CONFIG_TIMEOUT, true) < 0) {
-					return -1;
-				}
+				//according to the spec, we should receive an (N)ACK here, but we don't
+//				if (waitForAck(UBX_MSG_CFG_RATE, UBX_CONFIG_TIMEOUT, true) < 0) {
+//					return -1;
+//				}
 
 				configureMessageRate(UBX_MSG_NAV_SVIN, 0);
 
