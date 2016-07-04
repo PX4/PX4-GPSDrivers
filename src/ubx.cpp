@@ -543,12 +543,13 @@ GPSDriverUBX::parseChar(const uint8_t b)
 	case UBX_DECODE_CHKSUM2:
 		if (_rx_ck_b != b) {
 			UBX_WARN("ubx checksum err");
+			decodeInit();
 
 		} else {
+			decodeInit();
 			ret = payloadRxDone();	// finish payload processing
 		}
 
-		decodeInit();
 		break;
 
 	case UBX_DECODE_RTCM3:
