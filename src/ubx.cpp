@@ -295,6 +295,53 @@ GPSDriverUBX::configure(unsigned &baudrate, OutputMode output_mode)
 		}
 	}
 
+	//debug messages
+	//*
+	int ret;
+	const unsigned char msg1[11] = { 0xB5, 0x62, 0x06, 0x01, 0x03, 0x00, 0x01, 0x07, 0x01, 0x13, 0x51};
+	if ((ret=write((void *)msg1, sizeof(msg1))) != sizeof(msg1)) printf("msg1 failed %i\n", ret);
+	const unsigned char msg2[11] = { 0xB5, 0x62, 0x06, 0x01, 0x03, 0x00, 0x01, 0x3C, 0x01, 0x48, 0xBB};
+	if ((ret=write((void *)msg2, sizeof(msg1))) != sizeof(msg1)) printf("msg2 failed %i\n", ret);
+	const unsigned char msg3[11] = { 0xB5, 0x62, 0x06, 0x01, 0x03, 0x00, 0x01, 0x35, 0x01, 0x41, 0xAD};
+	if ((ret=write((void *)msg3, sizeof(msg1))) != sizeof(msg1)) printf("msg3 failed %i\n", ret);
+	const unsigned char msg4[11] = { 0xB5, 0x62, 0x06, 0x01, 0x03, 0x00, 0x0C, 0x49, 0x01, 0x60, 0xF6};
+	if ((ret=write((void *)msg4, sizeof(msg1))) != sizeof(msg1)) printf("msg4 failed %i\n", ret);
+	const unsigned char msg5[11] = { 0xB5, 0x62, 0x06, 0x01, 0x03, 0x00, 0x0C, 0x41, 0x01, 0x58, 0xE6};
+	if ((ret=write((void *)msg5, sizeof(msg1))) != sizeof(msg1)) printf("msg5 failed %i\n", ret);
+	const unsigned char msg6[11] = { 0xB5, 0x62, 0x06, 0x01, 0x03, 0x00, 0x0C, 0x10, 0x01, 0x27, 0x84};
+	if ((ret=write((void *)msg6, sizeof(msg1))) != sizeof(msg1)) printf("msg6 failed %i\n", ret);
+	const unsigned char msg7[11] = { 0xB5, 0x62, 0x06, 0x01, 0x03, 0x00, 0x0C, 0x43, 0x01, 0x5A, 0xEA};
+	if ((ret=write((void *)msg7, sizeof(msg1))) != sizeof(msg1)) printf("msg7 failed %i\n", ret);
+	const unsigned char msg8[11] = { 0xB5, 0x62, 0x06, 0x01, 0x03, 0x00, 0x0C, 0x20, 0x01, 0x37, 0xA4};
+	if ((ret=write((void *)msg8, sizeof(msg1))) != sizeof(msg1)) printf("msg8 failed %i\n", ret);
+	const unsigned char msg9[11] = { 0xB5, 0x62, 0x06, 0x01, 0x03, 0x00, 0x0A, 0x11, 0x01, 0x26, 0x80};
+	if ((ret=write((void *)msg9, sizeof(msg1))) != sizeof(msg1)) printf("msg9 failed %i\n", ret);
+	const unsigned char msg10[11] = { 0xB5, 0x62, 0x06, 0x01, 0x03, 0x00, 0x0A, 0x06, 0x01, 0x1B, 0x6A};
+	if ((ret=write((void *)msg10, sizeof(msg1))) != sizeof(msg1)) printf("msg10 failed %i\n", ret);
+	const unsigned char msg11[11] = { 0xB5, 0x62, 0x06, 0x01, 0x03, 0x00, 0x0A, 0x05, 0x01, 0x1A, 0x68};
+	if ((ret=write((void *)msg11, sizeof(msg1))) != sizeof(msg1)) printf("msg11 failed %i\n", ret);
+	const unsigned char msg12[11] = { 0xB5, 0x62, 0x06, 0x01, 0x03, 0x00, 0x03, 0x10, 0x01, 0x1E, 0x69};
+	if ((ret=write((void *)msg12, sizeof(msg1))) != sizeof(msg1)) printf("msg12 failed %i\n", ret);
+	const unsigned char msg13[11] = { 0xB5, 0x62, 0x06, 0x01, 0x03, 0x00, 0x03, 0x0F, 0x01, 0x1D, 0x67};
+	if ((ret=write((void *)msg13, sizeof(msg1))) != sizeof(msg1)) printf("msg13 failed %i\n", ret);
+	//*/
+
+	//optional, if enough bandwidth:
+	/*
+	{const unsigned char msg[11] = { 0xB5, 0x62, 0x06, 0x01, 0x03, 0x00, 0x01, 0x22, 0x01, 0x2E, 0x87};
+	if (write((void *)msg, sizeof(msg)) != sizeof(msg)) return -1;}
+	{const unsigned char msg[11] = { 0xB5, 0x62, 0x06, 0x01, 0x03, 0x00, 0x0A, 0x26, 0x01, 0x3B, 0xAA};
+	if (write((void *)msg, sizeof(msg)) != sizeof(msg)) return -1;}
+	{const unsigned char msg[11] = { 0xB5, 0x62, 0x06, 0x01, 0x03, 0x00, 0x0A, 0x02, 0x01, 0x17, 0x62};
+	if (write((void *)msg, sizeof(msg)) != sizeof(msg)) return -1;}
+	{const unsigned char msg[11] = { 0xB5, 0x62, 0x06, 0x01, 0x03, 0x00, 0x01, 0x34, 0x01, 0x40, 0xAB};
+	if (write((void *)msg, sizeof(msg)) != sizeof(msg)) return -1;}
+	{const unsigned char msg[11] = { 0xB5, 0x62, 0x06, 0x01, 0x03, 0x00, 0x03, 0x09, 0x01, 0x17, 0x5B};
+	if (write((void *)msg, sizeof(msg)) != sizeof(msg)) return -1;}
+	{const unsigned char msg[11] = { 0xB5, 0x62, 0x06, 0x01, 0x03, 0x00, 0x0C, 0x34, 0x01, 0x4B, 0xCC};
+	if (write((void *)msg, sizeof(msg)) != sizeof(msg)) return -1;}
+	//*/
+
 	_configured = true;
 	return 0;
 }
@@ -389,6 +436,13 @@ GPSDriverUBX::receive(unsigned timeout)
 	while (true) {
 		bool ready_to_return = _configured ? (_got_posllh && _got_velned) : handled;
 
+		/* return success if ready */
+		if (ready_to_return) {
+			_got_posllh = false;
+			_got_velned = false;
+			return handled;
+		}
+
 		/* Wait for only UBX_PACKET_TIMEOUT if something already received. */
 		int ret = read(buf, sizeof(buf), ready_to_return ? UBX_PACKET_TIMEOUT : timeout);
 
@@ -397,15 +451,7 @@ GPSDriverUBX::receive(unsigned timeout)
 			UBX_WARN("ubx poll_or_read err");
 			return -1;
 
-		} else if (ret == 0) {
-			/* return success if ready */
-			if (ready_to_return) {
-				_got_posllh = false;
-				_got_velned = false;
-				return handled;
-			}
-
-		} else {
+		} else if (ret > 0) {
 			//UBX_DEBUG("read %d bytes", ret);
 
 			/* pass received bytes to the packet decoder */
@@ -485,6 +531,9 @@ GPSDriverUBX::parseChar(const uint8_t b)
 		UBX_TRACE_PARSER("F");
 		addByteToChecksum(b);
 		_rx_payload_length |= b << 8;	// calculate payload size
+		if (_rx_payload_index > sizeof(_buf)) {
+			PX4_ERR("gps msg too long");
+		}
 
 		if (payloadRxInit() != 0) {	// start payload reception
 			// payload will not be handled, discard message
@@ -754,13 +803,13 @@ GPSDriverUBX::payloadRxInit()
 		break;
 
 	case UBX_RXMSG_DISABLE:	// disable unexpected messages
+		/*
 		UBX_DEBUG("ubx msg 0x%04x len %u unexpected", SWAP16((unsigned)_rx_msg), (unsigned)_rx_payload_length);
 
 		{
 			gps_abstime t = gps_absolute_time();
 
 			if (t > _disable_cmd_last + DISABLE_MSG_INTERVAL) {
-				/* don't attempt for every message to disable, some might not be disabled */
 				_disable_cmd_last = t;
 				UBX_DEBUG("ubx disabling msg 0x%04x", SWAP16((unsigned)_rx_msg));
 
@@ -769,8 +818,9 @@ GPSDriverUBX::payloadRxInit()
 				}
 			}
 		}
+*/
 
-		ret = -1;	// return error, abort handling this message
+		ret = 0;
 		break;
 
 	case UBX_RXMSG_ERROR_LENGTH:	// error: invalid length

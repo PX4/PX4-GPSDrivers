@@ -527,6 +527,7 @@ typedef union {
 	ubx_payload_tx_cfg_sbas_t		payload_tx_cfg_sbas;
 	ubx_payload_tx_cfg_msg_t		payload_tx_cfg_msg;
 	ubx_payload_tx_cfg_tmode3_t		payload_tx_cfg_tmode3;
+	char this_should_make_it_large_enough[3000];
 } ubx_buf_t;
 
 #pragma pack(pop)
