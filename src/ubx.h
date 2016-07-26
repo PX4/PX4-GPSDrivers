@@ -146,7 +146,8 @@
 #define UBX_TX_CFG_PRT_PORTID_USB	0x03		/**< USB */
 #define UBX_TX_CFG_PRT_MODE		0x000008D0	/**< 0b0000100011010000: 8N1 */
 #define UBX_TX_CFG_PRT_BAUDRATE		38400		/**< choose 38400 as GPS baudrate */
-#define UBX_TX_CFG_PRT_INPROTOMASK	((1<<5) | (1<<2) | 0x01)	/**< RTCM3 in and RTCM2 in and UBX in */
+#define UBX_TX_CFG_PRT_INPROTOMASK_GPS	((1<<5) | 0x01)	/**< RTCM3 in and UBX in */
+#define UBX_TX_CFG_PRT_INPROTOMASK_RTCM	(0x01)	/**< UBX in */
 #define UBX_TX_CFG_PRT_OUTPROTOMASK_GPS	(0x01)			/**< UBX out */
 #define UBX_TX_CFG_PRT_OUTPROTOMASK_RTCM	((1<<5) | 0x01)		/**< RTCM3 out and UBX out */
 
