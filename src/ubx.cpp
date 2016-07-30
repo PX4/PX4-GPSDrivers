@@ -1146,6 +1146,7 @@ GPSDriverUBX::payloadRxDone(void)
 				}
 
 				//according to the spec, we should receive an (N)ACK here, but we don't
+//				decodeInit();
 //				if (waitForAck(UBX_MSG_CFG_RATE, UBX_CONFIG_TIMEOUT, true) < 0) {
 //					return -1;
 //				}
