@@ -116,6 +116,9 @@ GPSDriverUBX::configure(unsigned &baudrate, OutputMode output_mode)
 	uint16_t out_proto_mask = output_mode == OutputMode::GPS ?
 				  UBX_TX_CFG_PRT_OUTPROTOMASK_GPS :
 				  UBX_TX_CFG_PRT_OUTPROTOMASK_RTCM;
+	uint16_t in_proto_mask = output_mode == OutputMode::GPS ?
+				 UBX_TX_CFG_PRT_INPROTOMASK_GPS :
+				 UBX_TX_CFG_PRT_INPROTOMASK_RTCM;
 	//FIXME: RTCM3 output needs at least protocol version 20. The protocol version can be checked via the version
 	//output:
 	//WARN  VER ext "                  PROTVER=20.00"
@@ -138,12 +141,12 @@ GPSDriverUBX::configure(unsigned &baudrate, OutputMode output_mode)
 		cfg_prt[0].portID		= UBX_TX_CFG_PRT_PORTID;
 		cfg_prt[0].mode		= UBX_TX_CFG_PRT_MODE;
 		cfg_prt[0].baudRate	= baudrate;
-		cfg_prt[0].inProtoMask	= UBX_TX_CFG_PRT_INPROTOMASK;
+		cfg_prt[0].inProtoMask	= in_proto_mask;
 		cfg_prt[0].outProtoMask	= out_proto_mask;
 		cfg_prt[1].portID		= UBX_TX_CFG_PRT_PORTID_USB;
 		cfg_prt[1].mode		= UBX_TX_CFG_PRT_MODE;
 		cfg_prt[1].baudRate	= baudrate;
-		cfg_prt[1].inProtoMask	= UBX_TX_CFG_PRT_INPROTOMASK;
+		cfg_prt[1].inProtoMask	= in_proto_mask;
 		cfg_prt[1].outProtoMask	= out_proto_mask;
 
 		if (!sendMessage(UBX_MSG_CFG_PRT, (uint8_t *)cfg_prt, 2 * sizeof(ubx_payload_tx_cfg_prt_t))) {
@@ -160,12 +163,12 @@ GPSDriverUBX::configure(unsigned &baudrate, OutputMode output_mode)
 		cfg_prt[0].portID		= UBX_TX_CFG_PRT_PORTID;
 		cfg_prt[0].mode		= UBX_TX_CFG_PRT_MODE;
 		cfg_prt[0].baudRate	= UBX_TX_CFG_PRT_BAUDRATE;
-		cfg_prt[0].inProtoMask	= UBX_TX_CFG_PRT_INPROTOMASK;
+		cfg_prt[0].inProtoMask	= in_proto_mask;
 		cfg_prt[0].outProtoMask	= out_proto_mask;
 		cfg_prt[1].portID		= UBX_TX_CFG_PRT_PORTID_USB;
 		cfg_prt[1].mode		= UBX_TX_CFG_PRT_MODE;
 		cfg_prt[1].baudRate	= UBX_TX_CFG_PRT_BAUDRATE;
-		cfg_prt[1].inProtoMask	= UBX_TX_CFG_PRT_INPROTOMASK;
+		cfg_prt[1].inProtoMask	= in_proto_mask;
 		cfg_prt[1].outProtoMask	= out_proto_mask;
 
 		if (!sendMessage(UBX_MSG_CFG_PRT, (uint8_t *)cfg_prt, 2 * sizeof(ubx_payload_tx_cfg_prt_t))) {
@@ -543,13 +546,12 @@ GPSDriverUBX::parseChar(const uint8_t b)
 	case UBX_DECODE_CHKSUM2:
 		if (_rx_ck_b != b) {
 			UBX_WARN("ubx checksum err");
-			decodeInit();
 
 		} else {
-			decodeInit();
 			ret = payloadRxDone();	// finish payload processing
 		}
 
+		decodeInit();
 		break;
 
 	case UBX_DECODE_RTCM3:
@@ -1147,6 +1149,7 @@ GPSDriverUBX::payloadRxDone(void)
 				}
 
 				//according to the spec, we should receive an (N)ACK here, but we don't
+//				decodeInit();
 //				if (waitForAck(UBX_MSG_CFG_RATE, UBX_CONFIG_TIMEOUT, true) < 0) {
 //					return -1;
 //				}
