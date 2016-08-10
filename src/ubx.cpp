@@ -109,7 +109,7 @@ GPSDriverUBX::configure(unsigned &baudrate, OutputMode output_mode)
 	_configured = false;
 	_output_mode = output_mode;
 	/* try different baudrates */
-	const unsigned baudrates[] = {9600, 38400, 19200, 57600, 115200};
+	const unsigned baudrates[] = {9600, 38400, 19200, 57600, 115200, 921600};
 
 	unsigned baud_i;
 	ubx_payload_tx_cfg_prt_t cfg_prt[2];
@@ -532,7 +532,7 @@ GPSDriverUBX::parseChar(const uint8_t b)
 		addByteToChecksum(b);
 		_rx_payload_length |= b << 8;	// calculate payload size
 		if (_rx_payload_index > sizeof(_buf)) {
-			PX4_ERR("gps msg too long");
+			UBX_WARN("gps msg too long");
 		}
 
 		if (payloadRxInit() != 0) {	// start payload reception
