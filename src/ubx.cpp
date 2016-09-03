@@ -108,10 +108,12 @@ GPSDriverUBX::configure(unsigned &baudrate, OutputMode output_mode)
 {
 	_configured = false;
 	_output_mode = output_mode;
+#if !defined(__PX4_POSIX_RPI)
 	/* try different baudrates */
 	const unsigned baudrates[] = {9600, 38400, 19200, 57600, 115200};
 
 	unsigned baud_i;
+#endif
 	ubx_payload_tx_cfg_prt_t cfg_prt[2];
 	uint16_t out_proto_mask = output_mode == OutputMode::GPS ?
 				  UBX_TX_CFG_PRT_OUTPROTOMASK_GPS :
@@ -125,6 +127,8 @@ GPSDriverUBX::configure(unsigned &baudrate, OutputMode output_mode)
 	//However this is a string and it is not well documented, that PROTVER is always contained. Maybe there is a
 	//better way to check the protocol version?
 
+
+#if !defined(__PX4_POSIX_RPI)
 
 	for (baud_i = 0; baud_i < sizeof(baudrates) / sizeof(baudrates[0]); baud_i++) {
 		baudrate = baudrates[baud_i];
@@ -190,6 +194,23 @@ GPSDriverUBX::configure(unsigned &baudrate, OutputMode output_mode)
 	if (baud_i >= sizeof(baudrates) / sizeof(baudrates[0])) {
 		return -1;	// connection and/or baudrate detection failed
 	}
+
+#else
+	memset(cfg_prt, 0, 2 * sizeof(ubx_payload_tx_cfg_prt_t));
+	cfg_prt[0].portID		= UBX_TX_CFG_PRT_PORTID_SPI;
+	cfg_prt[0].mode			= UBX_TX_CFG_PRT_MODE;
+	cfg_prt[0].inProtoMask	= in_proto_mask;
+	cfg_prt[0].outProtoMask	= out_proto_mask;
+
+	if (!sendMessage(UBX_MSG_CFG_PRT,
+			 (uint8_t *)cfg_prt,
+			 sizeof(ubx_payload_tx_cfg_prt_t))) {
+		return -1;
+	}
+
+	/* no ACK is expected here, but read the buffer anyway in case we actually get an ACK */
+	waitForAck(UBX_MSG_CFG_PRT, UBX_CONFIG_TIMEOUT, false);
+#endif
 
 	/* Send a CFG-RATE message to define update rate */
 	memset(&_buf.payload_tx_cfg_rate, 0, sizeof(_buf.payload_tx_cfg_rate));
@@ -413,6 +434,18 @@ GPSDriverUBX::receive(unsigned timeout)
 				handled |= parseChar(buf[i]);
 				//UBX_DEBUG("parsed %d: 0x%x", i, buf[i]);
 			}
+
+#if defined(__PX4_POSIX_RPI)
+
+			if (buf[ret - 1] == 0xff) {
+				if (ready_to_return) {
+					_got_posllh = false;
+					_got_velned = false;
+					return handled;
+				}
+			}
+
+#endif
 		}
 
 		/* abort after timeout if no useful packets received */
