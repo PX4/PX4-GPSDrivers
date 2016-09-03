@@ -122,6 +122,12 @@ public:
 		RTCM        ///< request RTCM output. This is used for (fixed position) base stations
 	};
 
+	enum class Interface {
+		UART = 0,
+		SPI
+	};
+
+
 	GPSHelper(GPSCallbackPtr callback, void *callback_user);
 	virtual ~GPSHelper();
 

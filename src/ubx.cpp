@@ -77,7 +77,8 @@
 #define UBX_WARN(...)		{GPS_WARN(__VA_ARGS__);}
 #define UBX_DEBUG(...)		{/*GPS_WARN(__VA_ARGS__);*/}
 
-GPSDriverUBX::GPSDriverUBX(GPSCallbackPtr callback, void *callback_user, struct vehicle_gps_position_s *gps_position,
+GPSDriverUBX::GPSDriverUBX(Interface interface, GPSCallbackPtr callback, void *callback_user,
+			   struct vehicle_gps_position_s *gps_position,
 			   struct satellite_info_s *satellite_info) :
 	GPSHelper(callback, callback_user),
 	_gps_position(gps_position),
@@ -90,7 +91,8 @@ GPSDriverUBX::GPSDriverUBX(GPSCallbackPtr callback, void *callback_user, struct 
 	_disable_cmd_last(0),
 	_ack_waiting_msg(0),
 	_ubx_version(0),
-	_use_nav_pvt(false)
+	_use_nav_pvt(false),
+	_interface(interface)
 {
 	decodeInit();
 }
@@ -108,12 +110,10 @@ GPSDriverUBX::configure(unsigned &baudrate, OutputMode output_mode)
 {
 	_configured = false;
 	_output_mode = output_mode;
-#if !defined(__PX4_POSIX_RPI)
 	/* try different baudrates */
 	const unsigned baudrates[] = {9600, 38400, 19200, 57600, 115200};
 
 	unsigned baud_i;
-#endif
 	ubx_payload_tx_cfg_prt_t cfg_prt[2];
 	uint16_t out_proto_mask = output_mode == OutputMode::GPS ?
 				  UBX_TX_CFG_PRT_OUTPROTOMASK_GPS :
@@ -128,89 +128,91 @@ GPSDriverUBX::configure(unsigned &baudrate, OutputMode output_mode)
 	//better way to check the protocol version?
 
 
-#if !defined(__PX4_POSIX_RPI)
+	if (_interface == GPSHelper::Interface::UART) {
+		for (baud_i = 0; baud_i < sizeof(baudrates) / sizeof(baudrates[0]); baud_i++) {
+			baudrate = baudrates[baud_i];
+			setBaudrate(baudrate);
 
-	for (baud_i = 0; baud_i < sizeof(baudrates) / sizeof(baudrates[0]); baud_i++) {
-		baudrate = baudrates[baud_i];
-		setBaudrate(baudrate);
+			/* flush input and wait for at least 20 ms silence */
+			decodeInit();
+			receive(20);
+			decodeInit();
 
-		/* flush input and wait for at least 20 ms silence */
-		decodeInit();
-		receive(20);
-		decodeInit();
+			/* Send a CFG-PRT message to set the UBX protocol for in and out
+			 * and leave the baudrate as it is, we just want an ACK-ACK for this */
+			memset(cfg_prt, 0, 2 * sizeof(ubx_payload_tx_cfg_prt_t));
+			cfg_prt[0].portID		= UBX_TX_CFG_PRT_PORTID;
+			cfg_prt[0].mode		= UBX_TX_CFG_PRT_MODE;
+			cfg_prt[0].baudRate	= baudrate;
+			cfg_prt[0].inProtoMask	= in_proto_mask;
+			cfg_prt[0].outProtoMask	= out_proto_mask;
+			cfg_prt[1].portID		= UBX_TX_CFG_PRT_PORTID_USB;
+			cfg_prt[1].mode		= UBX_TX_CFG_PRT_MODE;
+			cfg_prt[1].baudRate	= baudrate;
+			cfg_prt[1].inProtoMask	= in_proto_mask;
+			cfg_prt[1].outProtoMask	= out_proto_mask;
 
-		/* Send a CFG-PRT message to set the UBX protocol for in and out
-		 * and leave the baudrate as it is, we just want an ACK-ACK for this */
-		memset(cfg_prt, 0, 2 * sizeof(ubx_payload_tx_cfg_prt_t));
-		cfg_prt[0].portID		= UBX_TX_CFG_PRT_PORTID;
-		cfg_prt[0].mode		= UBX_TX_CFG_PRT_MODE;
-		cfg_prt[0].baudRate	= baudrate;
-		cfg_prt[0].inProtoMask	= in_proto_mask;
-		cfg_prt[0].outProtoMask	= out_proto_mask;
-		cfg_prt[1].portID		= UBX_TX_CFG_PRT_PORTID_USB;
-		cfg_prt[1].mode		= UBX_TX_CFG_PRT_MODE;
-		cfg_prt[1].baudRate	= baudrate;
-		cfg_prt[1].inProtoMask	= in_proto_mask;
-		cfg_prt[1].outProtoMask	= out_proto_mask;
+			if (!sendMessage(UBX_MSG_CFG_PRT, (uint8_t *)cfg_prt, 2 * sizeof(ubx_payload_tx_cfg_prt_t))) {
+				continue;
+			}
 
-		if (!sendMessage(UBX_MSG_CFG_PRT, (uint8_t *)cfg_prt, 2 * sizeof(ubx_payload_tx_cfg_prt_t))) {
-			continue;
+			if (waitForAck(UBX_MSG_CFG_PRT, UBX_CONFIG_TIMEOUT, false) < 0) {
+				/* try next baudrate */
+				continue;
+			}
+
+			/* Send a CFG-PRT message again, this time change the baudrate */
+			memset(cfg_prt, 0, 2 * sizeof(ubx_payload_tx_cfg_prt_t));
+			cfg_prt[0].portID		= UBX_TX_CFG_PRT_PORTID;
+			cfg_prt[0].mode		= UBX_TX_CFG_PRT_MODE;
+			cfg_prt[0].baudRate	= UBX_TX_CFG_PRT_BAUDRATE;
+			cfg_prt[0].inProtoMask	= in_proto_mask;
+			cfg_prt[0].outProtoMask	= out_proto_mask;
+			cfg_prt[1].portID		= UBX_TX_CFG_PRT_PORTID_USB;
+			cfg_prt[1].mode		= UBX_TX_CFG_PRT_MODE;
+			cfg_prt[1].baudRate	= UBX_TX_CFG_PRT_BAUDRATE;
+			cfg_prt[1].inProtoMask	= in_proto_mask;
+			cfg_prt[1].outProtoMask	= out_proto_mask;
+
+			if (!sendMessage(UBX_MSG_CFG_PRT, (uint8_t *)cfg_prt, 2 * sizeof(ubx_payload_tx_cfg_prt_t))) {
+				continue;
+			}
+
+			/* no ACK is expected here, but read the buffer anyway in case we actually get an ACK */
+			waitForAck(UBX_MSG_CFG_PRT, UBX_CONFIG_TIMEOUT, false);
+
+			if (UBX_TX_CFG_PRT_BAUDRATE != baudrate) {
+				setBaudrate(UBX_TX_CFG_PRT_BAUDRATE);
+				baudrate = UBX_TX_CFG_PRT_BAUDRATE;
+			}
+
+			/* at this point we have correct baudrate on both ends */
+			break;
 		}
 
-		if (waitForAck(UBX_MSG_CFG_PRT, UBX_CONFIG_TIMEOUT, false) < 0) {
-			/* try next baudrate */
-			continue;
+		if (baud_i >= sizeof(baudrates) / sizeof(baudrates[0])) {
+			return -1;	// connection and/or baudrate detection failed
 		}
 
-		/* Send a CFG-PRT message again, this time change the baudrate */
+	} else if (_interface == GPSHelper::Interface::SPI) {
 		memset(cfg_prt, 0, 2 * sizeof(ubx_payload_tx_cfg_prt_t));
-		cfg_prt[0].portID		= UBX_TX_CFG_PRT_PORTID;
-		cfg_prt[0].mode		= UBX_TX_CFG_PRT_MODE;
-		cfg_prt[0].baudRate	= UBX_TX_CFG_PRT_BAUDRATE;
+		cfg_prt[0].portID		= UBX_TX_CFG_PRT_PORTID_SPI;
+		cfg_prt[0].mode			= UBX_TX_CFG_PRT_MODE_SPI;
 		cfg_prt[0].inProtoMask	= in_proto_mask;
 		cfg_prt[0].outProtoMask	= out_proto_mask;
-		cfg_prt[1].portID		= UBX_TX_CFG_PRT_PORTID_USB;
-		cfg_prt[1].mode		= UBX_TX_CFG_PRT_MODE;
-		cfg_prt[1].baudRate	= UBX_TX_CFG_PRT_BAUDRATE;
-		cfg_prt[1].inProtoMask	= in_proto_mask;
-		cfg_prt[1].outProtoMask	= out_proto_mask;
 
-		if (!sendMessage(UBX_MSG_CFG_PRT, (uint8_t *)cfg_prt, 2 * sizeof(ubx_payload_tx_cfg_prt_t))) {
-			continue;
+		if (!sendMessage(UBX_MSG_CFG_PRT,
+				 (uint8_t *)cfg_prt,
+				 sizeof(ubx_payload_tx_cfg_prt_t))) {
+			return -1;
 		}
 
 		/* no ACK is expected here, but read the buffer anyway in case we actually get an ACK */
 		waitForAck(UBX_MSG_CFG_PRT, UBX_CONFIG_TIMEOUT, false);
 
-		if (UBX_TX_CFG_PRT_BAUDRATE != baudrate) {
-			setBaudrate(UBX_TX_CFG_PRT_BAUDRATE);
-			baudrate = UBX_TX_CFG_PRT_BAUDRATE;
-		}
-
-		/* at this point we have correct baudrate on both ends */
-		break;
-	}
-
-	if (baud_i >= sizeof(baudrates) / sizeof(baudrates[0])) {
-		return -1;	// connection and/or baudrate detection failed
-	}
-
-#else
-	memset(cfg_prt, 0, 2 * sizeof(ubx_payload_tx_cfg_prt_t));
-	cfg_prt[0].portID		= UBX_TX_CFG_PRT_PORTID_SPI;
-	cfg_prt[0].mode			= UBX_TX_CFG_PRT_MODE;
-	cfg_prt[0].inProtoMask	= in_proto_mask;
-	cfg_prt[0].outProtoMask	= out_proto_mask;
-
-	if (!sendMessage(UBX_MSG_CFG_PRT,
-			 (uint8_t *)cfg_prt,
-			 sizeof(ubx_payload_tx_cfg_prt_t))) {
+	} else {
 		return -1;
 	}
-
-	/* no ACK is expected here, but read the buffer anyway in case we actually get an ACK */
-	waitForAck(UBX_MSG_CFG_PRT, UBX_CONFIG_TIMEOUT, false);
-#endif
 
 	/* Send a CFG-RATE message to define update rate */
 	memset(&_buf.payload_tx_cfg_rate, 0, sizeof(_buf.payload_tx_cfg_rate));

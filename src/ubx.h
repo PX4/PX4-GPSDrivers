@@ -145,11 +145,8 @@
 #define UBX_TX_CFG_PRT_PORTID		0x01		/**< UART1 */
 #define UBX_TX_CFG_PRT_PORTID_USB	0x03		/**< USB */
 #define UBX_TX_CFG_PRT_PORTID_SPI	0x04		/**< SPI */
-#if !defined(__PX4_POSIX_RPI)
 #define UBX_TX_CFG_PRT_MODE		0x000008D0	/**< 0b0000100011010000: 8N1 */
-#else
-#define UBX_TX_CFG_PRT_MODE		0x00003200
-#endif
+#define UBX_TX_CFG_PRT_MODE_SPI	0x00000100
 #define UBX_TX_CFG_PRT_BAUDRATE		38400		/**< choose 38400 as GPS baudrate */
 #define UBX_TX_CFG_PRT_INPROTOMASK_GPS	((1<<5) | 0x01)	/**< RTCM3 in and UBX in */
 #define UBX_TX_CFG_PRT_INPROTOMASK_RTCM	(0x01)	/**< UBX in */
@@ -572,7 +569,8 @@ typedef enum {
 class GPSDriverUBX : public GPSHelper
 {
 public:
-	GPSDriverUBX(GPSCallbackPtr callback, void *callback_user, struct vehicle_gps_position_s *gps_position,
+	GPSDriverUBX(Interface interface, GPSCallbackPtr callback, void *callback_user,
+		     struct vehicle_gps_position_s *gps_position,
 		     struct satellite_info_s *satellite_info);
 	virtual ~GPSDriverUBX();
 	int receive(unsigned timeout);
@@ -668,6 +666,8 @@ private:
 	OutputMode		_output_mode = OutputMode::GPS;
 
 	rtcm_message_t	*_rtcm_message = nullptr;
+
+	Interface		_interface;
 };
 
 #endif /* UBX_H_ */
