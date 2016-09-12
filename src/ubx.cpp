@@ -77,7 +77,7 @@
 #define UBX_WARN(...)		{GPS_WARN(__VA_ARGS__);}
 #define UBX_DEBUG(...)		{/*GPS_WARN(__VA_ARGS__);*/}
 
-GPSDriverUBX::GPSDriverUBX(Interface interface, GPSCallbackPtr callback, void *callback_user,
+GPSDriverUBX::GPSDriverUBX(gps_interface interface, GPSCallbackPtr callback, void *callback_user,
 			   struct vehicle_gps_position_s *gps_position,
 			   struct satellite_info_s *satellite_info) :
 	GPSHelper(callback, callback_user),
@@ -128,7 +128,7 @@ GPSDriverUBX::configure(unsigned &baudrate, OutputMode output_mode)
 	//better way to check the protocol version?
 
 
-	if (_interface == GPSHelper::Interface::UART) {
+	if (_interface == INTERFACE_UART) {
 		for (baud_i = 0; baud_i < sizeof(baudrates) / sizeof(baudrates[0]); baud_i++) {
 			baudrate = baudrates[baud_i];
 			setBaudrate(baudrate);
@@ -194,7 +194,7 @@ GPSDriverUBX::configure(unsigned &baudrate, OutputMode output_mode)
 			return -1;	// connection and/or baudrate detection failed
 		}
 
-	} else if (_interface == GPSHelper::Interface::SPI) {
+	} else if (_interface == INTERFACE_SPI) {
 		memset(cfg_prt, 0, 2 * sizeof(ubx_payload_tx_cfg_prt_t));
 		cfg_prt[0].portID		= UBX_TX_CFG_PRT_PORTID_SPI;
 		cfg_prt[0].mode			= UBX_TX_CFG_PRT_MODE_SPI;
@@ -1404,4 +1404,3 @@ GPSDriverUBX::fnv1_32_str(uint8_t *str, uint32_t hval)
 	/* return our new hash value */
 	return hval;
 }
-

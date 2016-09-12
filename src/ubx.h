@@ -569,9 +569,9 @@ typedef enum {
 class GPSDriverUBX : public GPSHelper
 {
 public:
-	GPSDriverUBX(Interface interface, GPSCallbackPtr callback, void *callback_user,
-		     struct vehicle_gps_position_s *gps_position,
-		     struct satellite_info_s *satellite_info);
+	GPSDriverUBX(gps_interface interface, GPSCallbackPtr callback, void *callback_user,
+			 struct vehicle_gps_position_s *gps_position,
+			 struct satellite_info_s *satellite_info);
 	virtual ~GPSDriverUBX();
 	int receive(unsigned timeout);
 	int configure(unsigned &baudrate, OutputMode output_mode);
@@ -667,7 +667,7 @@ private:
 
 	rtcm_message_t	*_rtcm_message = nullptr;
 
-	Interface		_interface;
+	gps_interface		_interface;
 };
 
 #endif /* UBX_H_ */
