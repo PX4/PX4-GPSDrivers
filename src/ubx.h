@@ -667,7 +667,7 @@ private:
 
 	rtcm_message_t	*_rtcm_message = nullptr;
 
-	Interface		_interface;
+	const Interface		_interface;
 };
 
 #endif /* UBX_H_ */

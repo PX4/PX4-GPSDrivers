@@ -128,7 +128,7 @@ GPSDriverUBX::configure(unsigned &baudrate, OutputMode output_mode)
 	//better way to check the protocol version?
 
 
-	if (_interface == GPSHelper::Interface::UART) {
+	if (_interface == Interface::UART) {
 		for (baud_i = 0; baud_i < sizeof(baudrates) / sizeof(baudrates[0]); baud_i++) {
 			baudrate = baudrates[baud_i];
 			setBaudrate(baudrate);
@@ -194,16 +194,14 @@ GPSDriverUBX::configure(unsigned &baudrate, OutputMode output_mode)
 			return -1;	// connection and/or baudrate detection failed
 		}
 
-	} else if (_interface == GPSHelper::Interface::SPI) {
+	} else if (_interface == Interface::SPI) {
 		memset(cfg_prt, 0, 2 * sizeof(ubx_payload_tx_cfg_prt_t));
 		cfg_prt[0].portID		= UBX_TX_CFG_PRT_PORTID_SPI;
 		cfg_prt[0].mode			= UBX_TX_CFG_PRT_MODE_SPI;
 		cfg_prt[0].inProtoMask	= in_proto_mask;
 		cfg_prt[0].outProtoMask	= out_proto_mask;
 
-		if (!sendMessage(UBX_MSG_CFG_PRT,
-				 (uint8_t *)cfg_prt,
-				 sizeof(ubx_payload_tx_cfg_prt_t))) {
+		if (!sendMessage(UBX_MSG_CFG_PRT, (uint8_t *)cfg_prt, sizeof(ubx_payload_tx_cfg_prt_t))) {
 			return -1;
 		}
 
@@ -437,17 +435,15 @@ GPSDriverUBX::receive(unsigned timeout)
 				//UBX_DEBUG("parsed %d: 0x%x", i, buf[i]);
 			}
 
-#if defined(__PX4_POSIX_RPI)
-
-			if (buf[ret - 1] == 0xff) {
-				if (ready_to_return) {
-					_got_posllh = false;
-					_got_velned = false;
-					return handled;
+			if (_interface == Interface::SPI) {
+				if (buf[ret - 1] == 0xff) {
+					if (ready_to_return) {
+						_got_posllh = false;
+						_got_velned = false;
+						return handled;
+					}
 				}
 			}
-
-#endif
 		}
 
 		/* abort after timeout if no useful packets received */
