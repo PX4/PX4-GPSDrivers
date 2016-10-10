@@ -395,6 +395,7 @@ int GPSDriverAshtech::handleMessage(int len)
 			track_rad;				/** Course over ground (NOT heading, but direction of movement) in rad, -PI..PI */
 		_gps_position->vel_ned_valid = true;				/** Flag to indicate if NED speed is valid */
 		_gps_position->c_variance_rad = 0.1f;
+		_rate_count_vel++;
 		ret = 1;
 
 	} else if ((memcmp(_rx_buffer + 3, "GST,", 3) == 0) && (uiCalcComma == 8)) {
