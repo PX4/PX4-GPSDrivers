@@ -80,7 +80,8 @@ private:
 	ashtech_decode_state_t _decode_state;
 	uint8_t _rx_buffer[ASHTECH_RECV_BUFFER_SIZE];
 	uint16_t _rx_buffer_bytes;
-	bool _parse_error; /** parse error flag */
-	char *_parse_pos; /** parse position */
+	bool _got_pashr_pos_message; /**< If we got a PASHR,POS message, we will ignore GGA messages */
+	bool _parse_error; /**< parse error flag */
+	char *_parse_pos; /**< parse position */
 };
 

@@ -45,7 +45,8 @@ GPSDriverAshtech::GPSDriverAshtech(GPSCallbackPtr callback, void *callback_user,
 	GPSHelper(callback, callback_user),
 	_satellite_info(satellite_info),
 	_gps_position(gps_position),
-	_last_timestamp_time(0)
+	_last_timestamp_time(0),
+	_got_pashr_pos_message(false)
 {
 	decodeInit();
 	_decode_state = NME_DECODE_UNINIT;
@@ -157,7 +158,7 @@ int GPSDriverAshtech::handleMessage(int len)
 		_last_timestamp_time = gps_absolute_time();
 	}
 
-	else if ((memcmp(_rx_buffer + 3, "GGA,", 3) == 0) && (uiCalcComma == 14)) {
+	else if ((memcmp(_rx_buffer + 3, "GGA,", 3) == 0) && (uiCalcComma == 14) && !_got_pashr_pos_message) {
 		/*
 		  Time, position, and fix related data
 		  An example of the GBS message string is:
@@ -261,6 +262,7 @@ int GPSDriverAshtech::handleMessage(int len)
 		ret = 1;
 
 	} else if ((memcmp(_rx_buffer, "$PASHR,POS,", 11) == 0) && (uiCalcComma == 18)) {
+		_got_pashr_pos_message = true;
 		/*
 		Example $PASHR,POS,2,10,125410.00,5525.8138702,N,03833.9587380,E,131.555,1.0,0.0,0.007,-0.001,2.0,1.0,1.7,1.0,*34
 
