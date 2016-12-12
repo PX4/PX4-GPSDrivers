@@ -111,7 +111,7 @@ GPSDriverUBX::configure(unsigned &baudrate, OutputMode output_mode)
 	_configured = false;
 	_output_mode = output_mode;
 	/* try different baudrates */
-	const unsigned baudrates[] = {9600, 38400, 19200, 57600, 115200};
+	const unsigned baudrates[] = {4800, 9600, 38400, 19200, 57600, 115200, 230400};
 
 	unsigned baud_i;
 	ubx_payload_tx_cfg_prt_t cfg_prt[2];
