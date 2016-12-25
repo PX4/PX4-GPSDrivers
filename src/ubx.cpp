@@ -127,13 +127,35 @@ GPSDriverUBX::configure(unsigned &baudrate, OutputMode output_mode)
 		for (baud_i = 0; baud_i < sizeof(baudrates) / sizeof(baudrates[0]); baud_i++) {
 			unsigned test_baudrate = baudrates[baud_i];
 
+			UBX_DEBUG("baudrate set to %i", test_baudrate);
+
 			if (baudrate > 0 && baudrate != test_baudrate) {
 				continue; // skip to next baudrate
 			}
 
 			setBaudrate(test_baudrate);
 
-			UBX_DEBUG("baudrate set to %i", test_baudrate);
+			/* reset all configuration on the module - this is necessary as some vendors lock
+			 * lock bad configurations
+			 */
+			ubx_payload_tx_cfg_cfg_t cfg_cfg = {};
+			cfg_cfg.clearMask = ((1 << 12) | (1 << 11) | (1 << 10) | (1 << 9) |
+					     (1 << 8) | (1 << 4) | (1 << 3) | (1 << 2) | (1 << 1) | (1 << 0));
+			cfg_cfg.deviceMask = (1 << 2) | (1 << 1) | (1 << 0);
+
+			if (!sendMessage(UBX_MSG_CFG_CFG, (uint8_t *)&cfg_cfg, sizeof(ubx_payload_tx_cfg_cfg_t))) {
+				UBX_DEBUG("cfg reset: UART TX failed");
+			}
+
+			if (waitForAck(UBX_MSG_CFG_CFG, UBX_CONFIG_TIMEOUT, true) < 0) {
+				UBX_DEBUG("cfg reset failed");
+
+			} else {
+				UBX_DEBUG("cfg reset ACK");
+			}
+
+			/* allow the module to re-initialize */
+			usleep(200000);
 
 			/* flush input and wait for at least 20 ms silence */
 			decodeInit();
