@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (c) 2012-2016 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2012-2018 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -83,6 +83,7 @@
 #define UBX_ID_CFG_PRT		0x00
 #define UBX_ID_CFG_MSG		0x01
 #define UBX_ID_CFG_RATE		0x08
+#define UBX_ID_CFG_CFG		0x09
 #define UBX_ID_CFG_NAV5		0x24
 #define UBX_ID_CFG_SBAS		0x16
 #define UBX_ID_CFG_TMODE3	0x71
@@ -112,6 +113,7 @@
 #define UBX_MSG_CFG_PRT		((UBX_CLASS_CFG) | UBX_ID_CFG_PRT << 8)
 #define UBX_MSG_CFG_MSG		((UBX_CLASS_CFG) | UBX_ID_CFG_MSG << 8)
 #define UBX_MSG_CFG_RATE	((UBX_CLASS_CFG) | UBX_ID_CFG_RATE << 8)
+#define UBX_MSG_CFG_CFG		((UBX_CLASS_CFG) | UBX_ID_CFG_CFG << 8)
 #define UBX_MSG_CFG_NAV5	((UBX_CLASS_CFG) | UBX_ID_CFG_NAV5 << 8)
 #define UBX_MSG_CFG_SBAS	((UBX_CLASS_CFG) | UBX_ID_CFG_SBAS << 8)
 #define UBX_MSG_CFG_TMODE3	((UBX_CLASS_CFG) | UBX_ID_CFG_TMODE3 << 8)
@@ -432,6 +434,14 @@ typedef struct {
 	uint16_t	timeRef;	/**< Alignment to reference time: 0 = UTC time, 1 = GPS time */
 } ubx_payload_tx_cfg_rate_t;
 
+/* Tx CFG-CFG */
+typedef struct {
+	uint32_t	clearMask;	/**< Clear settings */
+	uint32_t	saveMask;	/**< Save settings */
+	uint32_t	loadMask;	/**< Load settings */
+	uint8_t		deviceMask; /**< Storage devices to apply this top */
+} ubx_payload_tx_cfg_cfg_t;
+
 /* Tx CFG-NAV5 */
 typedef struct {
 	uint16_t	mask;
@@ -518,6 +528,7 @@ typedef union {
 	ubx_payload_tx_cfg_sbas_t		payload_tx_cfg_sbas;
 	ubx_payload_tx_cfg_msg_t		payload_tx_cfg_msg;
 	ubx_payload_tx_cfg_tmode3_t		payload_tx_cfg_tmode3;
+	ubx_payload_tx_cfg_cfg_t		payload_tx_cfg_cfg;
 } ubx_buf_t;
 
 #pragma pack(pop)
