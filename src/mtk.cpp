@@ -248,7 +248,7 @@ GPSDriverMTK::handleMessage(gps_mtk_packet_t &packet)
 	_gps_position->satellites_used = packet.satellites;
 
 	/* convert time and date information to unix timestamp */
-	struct tm timeinfo;
+	struct tm timeinfo = {};
 	uint32_t timeinfo_conversion_temp;
 
 	timeinfo.tm_mday = packet.date / 10000;
@@ -262,6 +262,8 @@ GPSDriverMTK::handleMessage(gps_mtk_packet_t &packet)
 	timeinfo_conversion_temp -= timeinfo.tm_min * 100000;
 	timeinfo.tm_sec = timeinfo_conversion_temp / 1000;
 	timeinfo_conversion_temp -= timeinfo.tm_sec * 1000;
+
+	timeinfo.tm_isdst = 0;
 
 #ifndef NO_MKTIME
 
