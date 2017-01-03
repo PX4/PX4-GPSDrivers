@@ -120,13 +120,14 @@ int GPSDriverAshtech::handleMessage(int len)
 		/*
 		 * convert to unix timestamp
 		 */
-		struct tm timeinfo;
+		struct tm timeinfo = {};
 		timeinfo.tm_year = year - 1900;
 		timeinfo.tm_mon = month - 1;
 		timeinfo.tm_mday = day;
 		timeinfo.tm_hour = ashtech_hour;
 		timeinfo.tm_min = ashtech_minute;
 		timeinfo.tm_sec = int(ashtech_sec);
+		timeinfo.tm_isdst = 0;
 
 #ifndef NO_MKTIME
 		time_t epoch = mktime(&timeinfo);
