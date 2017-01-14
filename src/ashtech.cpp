@@ -536,7 +536,7 @@ int GPSDriverAshtech::handleMessage(int len)
 				if (bufptr && *(++bufptr) != ',') { sat[y].snr = strtol(bufptr, &endp, 10); bufptr = endp; }
 
 				_satellite_info->svid[y + (this_msg_num - 1) * 4]      = sat[y].svid;
-				_satellite_info->used[y + (this_msg_num - 1) * 4]      = ((sat[y].snr > 0) ? true : false);
+				_satellite_info->used[y + (this_msg_num - 1) * 4]      = (sat[y].snr > 0);
 				_satellite_info->snr[y + (this_msg_num - 1) * 4]       = sat[y].snr;
 				_satellite_info->elevation[y + (this_msg_num - 1) * 4] = sat[y].elevation;
 				_satellite_info->azimuth[y + (this_msg_num - 1) * 4]   = sat[y].azimuth;
