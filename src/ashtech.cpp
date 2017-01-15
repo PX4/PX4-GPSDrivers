@@ -670,7 +670,7 @@ int GPSDriverAshtech::parseChar(uint8_t b)
 	return iRet;
 }
 
-void GPSDriverAshtech::decodeInit(void)
+void GPSDriverAshtech::decodeInit()
 {
 
 }

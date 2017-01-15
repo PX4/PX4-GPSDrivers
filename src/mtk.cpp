@@ -154,7 +154,7 @@ GPSDriverMTK::receive(unsigned timeout)
 }
 
 void
-GPSDriverMTK::decodeInit(void)
+GPSDriverMTK::decodeInit()
 {
 	_rx_ck_a = 0;
 	_rx_ck_b = 0;
