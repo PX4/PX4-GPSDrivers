@@ -937,7 +937,7 @@ GPSDriverUBX::payloadRxAddMonVer(const uint8_t b)
  * Finish payload rx
  */
 int	// 0 = no message handled, 1 = message handled, 2 = sat info message handled
-GPSDriverUBX::payloadRxDone(void)
+GPSDriverUBX::payloadRxDone()
 {
 	int ret = 0;
 
@@ -1287,7 +1287,7 @@ GPSDriverUBX::payloadRxDone(void)
 }
 
 void
-GPSDriverUBX::decodeInit(void)
+GPSDriverUBX::decodeInit()
 {
 	_decode_state = UBX_DECODE_SYNC1;
 	_rx_ck_a = 0;
