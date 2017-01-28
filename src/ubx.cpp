@@ -101,7 +101,7 @@ GPSDriverUBX::~GPSDriverUBX()
 {
 	if (_rtcm_message) {
 		delete[](_rtcm_message->buffer);
-		delete(_rtcm_message);
+		delete (_rtcm_message);
 	}
 }
 

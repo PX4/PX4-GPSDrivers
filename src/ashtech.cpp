@@ -301,7 +301,7 @@ int GPSDriverAshtech::handleMessage(int len)
 		int coordinatesFound = 0;
 		double ashtech_time __attribute__((unused)) = 0.0, lat = 0.0, lon = 0.0, alt = 0.0;
 		int num_of_sv __attribute__((unused)) = 0, fix_quality = 0;
-		double track_true = 0.0, ground_speed = 0.0 , age_of_corr __attribute__((unused)) = 0.0;
+		double track_true = 0.0, ground_speed = 0.0, age_of_corr __attribute__((unused)) = 0.0;
 		double hdop = 99.9, vdop = 99.9,  pdop __attribute__((unused)) = 99.9,
 		       tdop __attribute__((unused)) = 99.9, vertic_vel = 0.0;
 		char ns = '?', ew = '?';
