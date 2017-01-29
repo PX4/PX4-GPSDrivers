@@ -297,8 +297,6 @@ GPSDriverMTK::handleMessage(gps_mtk_packet_t &packet)
 	// Position and velocity update always at the same time
 	_rate_count_vel++;
 	_rate_count_lat_lon++;
-
-	return;
 }
 
 void
