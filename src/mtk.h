@@ -89,7 +89,8 @@ class GPSDriverMTK : public GPSHelper
 {
 public:
 	GPSDriverMTK(GPSCallbackPtr callback, void *callback_user, struct vehicle_gps_position_s *gps_position);
-	virtual ~GPSDriverMTK();
+	virtual ~GPSDriverMTK() = default;
+
 	int receive(unsigned timeout);
 	int configure(unsigned &baudrate, OutputMode output_mode);
 
@@ -114,10 +115,10 @@ private:
 	 */
 	void addByteToChecksum(uint8_t);
 
-	struct vehicle_gps_position_s *_gps_position;
-	mtk_decode_state_t _decode_state;
-	uint8_t _mtk_revision;
-	unsigned _rx_count;
-	uint8_t _rx_ck_a;
-	uint8_t _rx_ck_b;
+	struct vehicle_gps_position_s *_gps_position {nullptr};
+	mtk_decode_state_t _decode_state{MTK_DECODE_UNINIT};
+	uint8_t _mtk_revision{0};
+	unsigned _rx_count{};
+	uint8_t _rx_ck_a{};
+	uint8_t _rx_ck_b{};
 };

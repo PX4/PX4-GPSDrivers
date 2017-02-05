@@ -48,10 +48,10 @@ class GPSDriverAshtech : public GPSHelper
 public:
 	GPSDriverAshtech(GPSCallbackPtr callback, void *callback_user, struct vehicle_gps_position_s *gps_position,
 			 struct satellite_info_s *satellite_info);
-	virtual ~GPSDriverAshtech();
+	virtual ~GPSDriverAshtech() = default;
+
 	int receive(unsigned timeout);
 	int configure(unsigned &baudrate, OutputMode output_mode);
-
 
 private:
 	void decodeInit(void);
@@ -72,16 +72,16 @@ private:
 		NME_DECODE_GOT_FIRST_CS_BYTE
 	};
 
-	struct satellite_info_s *_satellite_info;
-	struct vehicle_gps_position_s *_gps_position;
-	uint64_t _last_timestamp_time;
-	int _ashtechlog_fd;
+	struct satellite_info_s *_satellite_info {nullptr};
+	struct vehicle_gps_position_s *_gps_position {nullptr};
+	uint64_t _last_timestamp_time{0};
+	int _ashtechlog_fd{-1};
 
-	ashtech_decode_state_t _decode_state;
-	uint8_t _rx_buffer[ASHTECH_RECV_BUFFER_SIZE];
-	uint16_t _rx_buffer_bytes;
-	bool _got_pashr_pos_message; /**< If we got a PASHR,POS message, we will ignore GGA messages */
-	bool _parse_error; /**< parse error flag */
-	char *_parse_pos; /**< parse position */
+	ashtech_decode_state_t _decode_state{NME_DECODE_UNINIT};
+	uint8_t _rx_buffer[ASHTECH_RECV_BUFFER_SIZE] {};
+	uint16_t _rx_buffer_bytes{};
+	bool _got_pashr_pos_message{false}; /**< If we got a PASHR,POS message, we will ignore GGA messages */
+	bool _parse_error{}; /**< parse error flag */
+	char *_parse_pos{}; /**< parse position */
 };
 

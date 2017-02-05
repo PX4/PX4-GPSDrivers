@@ -129,7 +129,7 @@ public:
 
 
 	GPSHelper(GPSCallbackPtr callback, void *callback_user);
-	virtual ~GPSHelper();
+	virtual ~GPSHelper() = default;
 
 	/**
 	 * configure the device
@@ -214,14 +214,14 @@ protected:
 		_callback(GPSCallbackType::setClock, &t, 0, _callback_user);
 	}
 
-	GPSCallbackPtr _callback;
-	void *_callback_user;
+	GPSCallbackPtr _callback{nullptr};
+	void *_callback_user{};
 
-	uint8_t _rate_count_lat_lon;
-	uint8_t _rate_count_vel;
+	uint8_t _rate_count_lat_lon{};
+	uint8_t _rate_count_vel{};
 
-	float _rate_lat_lon = 0.0f;
-	float _rate_vel = 0.0f;
+	float _rate_lat_lon{0.0f};
+	float _rate_vel{0.0f};
 
-	uint64_t _interval_rate_start;
+	uint64_t _interval_rate_start{0};
 };

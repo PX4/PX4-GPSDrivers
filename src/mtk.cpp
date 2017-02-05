@@ -49,14 +49,9 @@
 
 GPSDriverMTK::GPSDriverMTK(GPSCallbackPtr callback, void *callback_user, struct vehicle_gps_position_s *gps_position) :
 	GPSHelper(callback, callback_user),
-	_gps_position(gps_position),
-	_mtk_revision(0)
+	_gps_position(gps_position)
 {
 	decodeInit();
-}
-
-GPSDriverMTK::~GPSDriverMTK()
-{
 }
 
 int
@@ -114,7 +109,7 @@ int
 GPSDriverMTK::receive(unsigned timeout)
 {
 	uint8_t buf[GPS_READ_BUFFER_SIZE];
-	gps_mtk_packet_t packet;
+	gps_mtk_packet_t packet{};
 
 	/* timeout additional to poll */
 	gps_abstime time_started = gps_absolute_time();
@@ -274,7 +269,7 @@ GPSDriverMTK::handleMessage(gps_mtk_packet_t &packet)
 		// and control its drift. Since we rely on the HRT for our monotonic
 		// clock, updating it from time to time is safe.
 
-		timespec ts;
+		timespec ts{};
 		ts.tv_sec = epoch;
 		ts.tv_nsec = timeinfo_conversion_temp * 1000000ULL;
 
