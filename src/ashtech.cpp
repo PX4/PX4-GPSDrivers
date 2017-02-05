@@ -41,20 +41,14 @@
 
 GPSDriverAshtech::GPSDriverAshtech(GPSCallbackPtr callback, void *callback_user,
 				   struct vehicle_gps_position_s *gps_position,
-				   struct satellite_info_s *satellite_info):
+				   struct satellite_info_s *satellite_info) :
 	GPSHelper(callback, callback_user),
 	_satellite_info(satellite_info),
-	_gps_position(gps_position),
-	_last_timestamp_time(0),
-	_got_pashr_pos_message(false)
+	_gps_position(gps_position)
 {
 	decodeInit();
 	_decode_state = NME_DECODE_UNINIT;
 	_rx_buffer_bytes = 0;
-}
-
-GPSDriverAshtech::~GPSDriverAshtech()
-{
 }
 
 /*
@@ -66,7 +60,9 @@ int GPSDriverAshtech::handleMessage(int len)
 {
 	char *endp;
 
-	if (len < 7) { return 0; }
+	if (len < 7) {
+		return 0;
+	}
 
 	int uiCalcComma = 0;
 
@@ -139,7 +135,7 @@ int GPSDriverAshtech::handleMessage(int len)
 			// and control its drift. Since we rely on the HRT for our monotonic
 			// clock, updating it from time to time is safe.
 
-			timespec ts;
+			timespec ts{};
 			ts.tv_sec = epoch;
 			ts.tv_nsec = usecs * 1000;
 

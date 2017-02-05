@@ -83,15 +83,6 @@ GPSDriverUBX::GPSDriverUBX(Interface interface, GPSCallbackPtr callback, void *c
 	GPSHelper(callback, callback_user),
 	_gps_position(gps_position),
 	_satellite_info(satellite_info),
-	_last_timestamp_time(0),
-	_configured(false),
-	_ack_state(UBX_ACK_IDLE),
-	_got_posllh(false),
-	_got_velned(false),
-	_disable_cmd_last(0),
-	_ack_waiting_msg(0),
-	_ubx_version(0),
-	_use_nav_pvt(false),
 	_interface(interface)
 {
 	decodeInit();
@@ -1000,7 +991,7 @@ GPSDriverUBX::payloadRxDone()
 		    && (_buf.payload_rx_nav_pvt.valid & UBX_RX_NAV_PVT_VALID_VALIDTIME)
 		    && (_buf.payload_rx_nav_pvt.valid & UBX_RX_NAV_PVT_VALID_FULLYRESOLVED)) {
 			/* convert to unix timestamp */
-			struct tm timeinfo;
+			struct tm timeinfo {};
 			timeinfo.tm_year	= _buf.payload_rx_nav_pvt.year - 1900;
 			timeinfo.tm_mon		= _buf.payload_rx_nav_pvt.month - 1;
 			timeinfo.tm_mday	= _buf.payload_rx_nav_pvt.day;
@@ -1016,7 +1007,7 @@ GPSDriverUBX::payloadRxDone()
 				// and control its drift. Since we rely on the HRT for our monotonic
 				// clock, updating it from time to time is safe.
 
-				timespec ts;
+				timespec ts{};
 				ts.tv_sec = epoch;
 				ts.tv_nsec = _buf.payload_rx_nav_pvt.nano;
 
@@ -1122,7 +1113,7 @@ GPSDriverUBX::payloadRxDone()
 				// and control its drift. Since we rely on the HRT for our monotonic
 				// clock, updating it from time to time is safe.
 
-				timespec ts;
+				timespec ts{};
 				ts.tv_sec = epoch;
 				ts.tv_nsec = _buf.payload_rx_nav_timeutc.nano;
 
@@ -1162,7 +1153,7 @@ GPSDriverUBX::payloadRxDone()
 			UBX_DEBUG("Survey-in status: %is cur accuracy: %imm nr obs: %i valid: %i active: %i",
 				  svin.dur, svin.meanAcc / 10, svin.obs, (int)svin.valid, (int)svin.active);
 
-			SurveyInStatus status;
+			SurveyInStatus status{};
 			status.duration = svin.dur;
 			status.mean_accuracy = svin.meanAcc / 10;
 			status.flags = (svin.valid & 1) | ((svin.active & 1) << 1);
@@ -1326,7 +1317,7 @@ GPSDriverUBX::calcChecksum(const uint8_t *buffer, const uint16_t length, ubx_che
 bool
 GPSDriverUBX::configureMessageRate(const uint16_t msg, const uint8_t rate)
 {
-	ubx_payload_tx_cfg_msg_t cfg_msg;	// don't use _buf (allow interleaved operation)
+	ubx_payload_tx_cfg_msg_t cfg_msg{};	// don't use _buf (allow interleaved operation)
 
 	cfg_msg.msg	= msg;
 	cfg_msg.rate	= rate;

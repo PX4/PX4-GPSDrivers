@@ -45,10 +45,6 @@ GPSHelper::GPSHelper(GPSCallbackPtr callback, void *callback_user)
 {
 }
 
-GPSHelper::~GPSHelper()
-{
-}
-
 void
 GPSHelper::resetUpdateRates()
 {

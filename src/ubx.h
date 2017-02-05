@@ -644,28 +644,28 @@ private:
 	 */
 	uint32_t fnv1_32_str(uint8_t *str, uint32_t hval);
 
-	struct vehicle_gps_position_s *_gps_position;
-	struct satellite_info_s *_satellite_info;
-	uint64_t _last_timestamp_time;
-	bool			_configured;
-	ubx_ack_state_t		_ack_state;
-	bool			_got_posllh;
-	bool			_got_velned;
-	ubx_decode_state_t	_decode_state;
-	uint16_t		_rx_msg;
-	ubx_rxmsg_state_t	_rx_state;
-	uint16_t		_rx_payload_length;
-	uint16_t		_rx_payload_index;
-	uint8_t			_rx_ck_a;
-	uint8_t			_rx_ck_b;
-	gps_abstime		_disable_cmd_last;
-	uint16_t		_ack_waiting_msg;
-	ubx_buf_t		_buf;
-	uint32_t		_ubx_version;
-	bool			_use_nav_pvt;
-	OutputMode		_output_mode = OutputMode::GPS;
+	struct vehicle_gps_position_s *_gps_position {nullptr};
+	struct satellite_info_s *_satellite_info {nullptr};
+	uint64_t		_last_timestamp_time{0};
+	bool			_configured{false};
+	ubx_ack_state_t		_ack_state{UBX_ACK_IDLE};
+	bool			_got_posllh{false};
+	bool			_got_velned{false};
+	ubx_decode_state_t	_decode_state{};
+	uint16_t		_rx_msg{};
+	ubx_rxmsg_state_t	_rx_state{UBX_RXMSG_IGNORE};
+	uint16_t		_rx_payload_length{};
+	uint16_t		_rx_payload_index{};
+	uint8_t			_rx_ck_a{};
+	uint8_t			_rx_ck_b{};
+	gps_abstime		_disable_cmd_last{0};
+	uint16_t		_ack_waiting_msg{0};
+	ubx_buf_t		_buf{};
+	uint32_t		_ubx_version{0};
+	bool			_use_nav_pvt{false};
+	OutputMode		_output_mode{OutputMode::GPS};
 
-	rtcm_message_t	*_rtcm_message = nullptr;
+	rtcm_message_t	*_rtcm_message{nullptr};
 
 	const Interface		_interface;
 };
