@@ -115,7 +115,7 @@ int GPSDriverAshtech::handleMessage(int len)
 
 		int ashtech_hour = static_cast<int>(ashtech_time / 10000);
 		int ashtech_minute = static_cast<int>((ashtech_time - ashtech_hour * 10000) / 100);
-		double ashtech_sec = static_cast<float>(ashtech_time - ashtech_hour * 10000 - ashtech_minute * 100);
+		double ashtech_sec = static_cast<double>(ashtech_time - ashtech_hour * 10000 - ashtech_minute * 100);
 
 		/*
 		 * convert to unix timestamp
