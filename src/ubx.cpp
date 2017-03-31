@@ -1023,7 +1023,7 @@ GPSDriverUBX::payloadRxDone()
 				setClock(ts);
 
 				_gps_position->time_utc_usec = static_cast<uint64_t>(epoch) * 1000000ULL;
-				_gps_position->time_utc_usec += _buf.payload_rx_nav_timeutc.nano / 1000;
+				_gps_position->time_utc_usec += _buf.payload_rx_nav_pvt.nano / 1000;
 
 			} else {
 				_gps_position->time_utc_usec = 0;
