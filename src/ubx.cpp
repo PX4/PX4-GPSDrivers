@@ -79,11 +79,13 @@
 
 GPSDriverUBX::GPSDriverUBX(Interface interface, GPSCallbackPtr callback, void *callback_user,
 			   struct vehicle_gps_position_s *gps_position,
-			   struct satellite_info_s *satellite_info) :
-	GPSHelper(callback, callback_user),
-	_gps_position(gps_position),
-	_satellite_info(satellite_info),
-	_interface(interface)
+               struct satellite_info_s *satellite_info)
+	: GPSHelper(callback, callback_user)
+	, _gps_position(gps_position)
+	, _satellite_info(satellite_info)
+	, _interface(interface)
+	, _survey_in_acc_limit(UBX_TX_CFG_TMODE3_SVINACCLIMIT)
+	, _survey_in_min_dur(UBX_TX_CFG_TMODE3_SVINMINDUR)
 {
 	decodeInit();
 }
@@ -339,8 +341,8 @@ int GPSDriverUBX::restartSurveyIn()
 
 	memset(&_buf.payload_tx_cfg_tmode3, 0, sizeof(_buf.payload_tx_cfg_tmode3));
 	_buf.payload_tx_cfg_tmode3.flags        = UBX_TX_CFG_TMODE3_FLAGS;
-	_buf.payload_tx_cfg_tmode3.svinMinDur   = UBX_TX_CFG_TMODE3_SVINMINDUR;
-	_buf.payload_tx_cfg_tmode3.svinAccLimit = UBX_TX_CFG_TMODE3_SVINACCLIMIT;
+    _buf.payload_tx_cfg_tmode3.svinMinDur   = _survey_in_min_dur;
+    _buf.payload_tx_cfg_tmode3.svinAccLimit = _survey_in_acc_limit;
 
 	if (!sendMessage(UBX_MSG_CFG_TMODE3, (uint8_t *)&_buf, sizeof(_buf.payload_tx_cfg_tmode3))) {
 		return -1;
@@ -1391,5 +1393,12 @@ GPSDriverUBX::fnv1_32_str(uint8_t *str, uint32_t hval)
 
 	/* return our new hash value */
 	return hval;
+}
+
+void
+GPSDriverUBX::setSurveyInSpecs(uint32_t survey_in_acc_limit, uint32_t survey_in_min_dur)
+{
+	_survey_in_acc_limit = survey_in_acc_limit;
+	_survey_in_min_dur = survey_in_min_dur;
 }
 
