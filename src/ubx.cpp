@@ -79,7 +79,7 @@
 
 GPSDriverUBX::GPSDriverUBX(Interface interface, GPSCallbackPtr callback, void *callback_user,
 			   struct vehicle_gps_position_s *gps_position,
-               struct satellite_info_s *satellite_info)
+			   struct satellite_info_s *satellite_info)
 	: GPSHelper(callback, callback_user)
 	, _gps_position(gps_position)
 	, _satellite_info(satellite_info)
@@ -341,8 +341,8 @@ int GPSDriverUBX::restartSurveyIn()
 
 	memset(&_buf.payload_tx_cfg_tmode3, 0, sizeof(_buf.payload_tx_cfg_tmode3));
 	_buf.payload_tx_cfg_tmode3.flags        = UBX_TX_CFG_TMODE3_FLAGS;
-    _buf.payload_tx_cfg_tmode3.svinMinDur   = _survey_in_min_dur;
-    _buf.payload_tx_cfg_tmode3.svinAccLimit = _survey_in_acc_limit;
+	_buf.payload_tx_cfg_tmode3.svinMinDur   = _survey_in_min_dur;
+	_buf.payload_tx_cfg_tmode3.svinAccLimit = _survey_in_acc_limit;
 
 	if (!sendMessage(UBX_MSG_CFG_TMODE3, (uint8_t *)&_buf, sizeof(_buf.payload_tx_cfg_tmode3))) {
 		return -1;
