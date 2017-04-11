@@ -569,7 +569,7 @@ typedef enum {
 class GPSDriverUBX : public GPSHelper
 {
 public:
-	GPSDriverUBX(Interface interface, GPSCallbackPtr callback, void *callback_user,
+	GPSDriverUBX(Interface gpsInterface, GPSCallbackPtr callback, void *callback_user,
 		     struct vehicle_gps_position_s *gps_position,
 		     struct satellite_info_s *satellite_info);
 	virtual ~GPSDriverUBX();

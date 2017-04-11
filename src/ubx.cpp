@@ -77,13 +77,13 @@
 #define UBX_WARN(...)		{GPS_WARN(__VA_ARGS__);}
 #define UBX_DEBUG(...)		{/*GPS_WARN(__VA_ARGS__);*/}
 
-GPSDriverUBX::GPSDriverUBX(Interface interface, GPSCallbackPtr callback, void *callback_user,
+GPSDriverUBX::GPSDriverUBX(Interface gpsInterface, GPSCallbackPtr callback, void *callback_user,
 			   struct vehicle_gps_position_s *gps_position,
 			   struct satellite_info_s *satellite_info)
 	: GPSHelper(callback, callback_user)
 	, _gps_position(gps_position)
 	, _satellite_info(satellite_info)
-	, _interface(interface)
+	, _interface(gpsInterface)
 	, _survey_in_acc_limit(UBX_TX_CFG_TMODE3_SVINACCLIMIT)
 	, _survey_in_min_dur(UBX_TX_CFG_TMODE3_SVINMINDUR)
 {
