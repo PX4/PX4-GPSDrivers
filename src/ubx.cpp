@@ -993,7 +993,8 @@ GPSDriverUBX::payloadRxDone()
 		    && (_buf.payload_rx_nav_pvt.valid & UBX_RX_NAV_PVT_VALID_VALIDTIME)
 		    && (_buf.payload_rx_nav_pvt.valid & UBX_RX_NAV_PVT_VALID_FULLYRESOLVED)) {
 			/* convert to unix timestamp */
-			struct tm timeinfo {};
+			struct tm timeinfo;
+			memset(&timeinfo, 0, sizeof(timeinfo));
 			timeinfo.tm_year	= _buf.payload_rx_nav_pvt.year - 1900;
 			timeinfo.tm_mon		= _buf.payload_rx_nav_pvt.month - 1;
 			timeinfo.tm_mday	= _buf.payload_rx_nav_pvt.day;
@@ -1009,7 +1010,8 @@ GPSDriverUBX::payloadRxDone()
 				// and control its drift. Since we rely on the HRT for our monotonic
 				// clock, updating it from time to time is safe.
 
-				timespec ts{};
+				timespec ts;
+				memset(&ts, 0, sizeof(ts));
 				ts.tv_sec = epoch;
 				ts.tv_nsec = _buf.payload_rx_nav_pvt.nano;
 
@@ -1096,8 +1098,9 @@ GPSDriverUBX::payloadRxDone()
 		UBX_TRACE_RXMSG("Rx NAV-TIMEUTC");
 
 		if (_buf.payload_rx_nav_timeutc.valid & UBX_RX_NAV_TIMEUTC_VALID_VALIDUTC) {
-			// convert to unix timestamp
-			struct tm timeinfo = {};
+            // convert to unix timestamp
+			struct tm timeinfo;
+			memset(&timeinfo, 0, sizeof(tm));
 			timeinfo.tm_year	= _buf.payload_rx_nav_timeutc.year - 1900;
 			timeinfo.tm_mon		= _buf.payload_rx_nav_timeutc.month - 1;
 			timeinfo.tm_mday	= _buf.payload_rx_nav_timeutc.day;
@@ -1115,7 +1118,8 @@ GPSDriverUBX::payloadRxDone()
 				// and control its drift. Since we rely on the HRT for our monotonic
 				// clock, updating it from time to time is safe.
 
-				timespec ts{};
+				timespec ts;
+				memset(&ts, 0, sizeof(ts));
 				ts.tv_sec = epoch;
 				ts.tv_nsec = _buf.payload_rx_nav_timeutc.nano;
 
@@ -1155,7 +1159,8 @@ GPSDriverUBX::payloadRxDone()
 			UBX_DEBUG("Survey-in status: %is cur accuracy: %imm nr obs: %i valid: %i active: %i",
 				  svin.dur, svin.meanAcc / 10, svin.obs, (int)svin.valid, (int)svin.active);
 
-			SurveyInStatus status{};
+			SurveyInStatus status;
+			memset(&status, 0, sizeof(status));
 			status.duration = svin.dur;
 			status.mean_accuracy = svin.meanAcc / 10;
 			status.flags = (svin.valid & 1) | ((svin.active & 1) << 1);
@@ -1319,7 +1324,8 @@ GPSDriverUBX::calcChecksum(const uint8_t *buffer, const uint16_t length, ubx_che
 bool
 GPSDriverUBX::configureMessageRate(const uint16_t msg, const uint8_t rate)
 {
-	ubx_payload_tx_cfg_msg_t cfg_msg{};	// don't use _buf (allow interleaved operation)
+	ubx_payload_tx_cfg_msg_t cfg_msg;	// don't use _buf (allow interleaved operation)
+	memset(&cfg_msg, 0, sizeof(cfg_msg));
 
 	cfg_msg.msg	= msg;
 	cfg_msg.rate	= rate;
