@@ -1098,7 +1098,7 @@ GPSDriverUBX::payloadRxDone()
 		UBX_TRACE_RXMSG("Rx NAV-TIMEUTC");
 
 		if (_buf.payload_rx_nav_timeutc.valid & UBX_RX_NAV_TIMEUTC_VALID_VALIDUTC) {
-            // convert to unix timestamp
+			// convert to unix timestamp
 			struct tm timeinfo;
 			memset(&timeinfo, 0, sizeof(tm));
 			timeinfo.tm_year	= _buf.payload_rx_nav_timeutc.year - 1900;
