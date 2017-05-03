@@ -42,8 +42,9 @@
 #include <cstdint>
 #include "../../definitions.h"
 
+/* MON_VER from u-blox modules can be ~190 bytes */
 #ifndef GPS_READ_BUFFER_SIZE
-#define GPS_READ_BUFFER_SIZE 128
+#define GPS_READ_BUFFER_SIZE 250
 #endif
 
 enum class GPSCallbackType {
