@@ -88,9 +88,13 @@
 #define UBX_ID_CFG_TMODE3	0x71
 #define UBX_ID_MON_VER		0x04
 #define UBX_ID_MON_HW		0x09
-#define UBX_ID_RTCM3_1005	0x05
-#define UBX_ID_RTCM3_1077	0x4D
-#define UBX_ID_RTCM3_1087	0x57
+#define UBX_ID_RTCM3_1005	0x05 // Stationary RTK reference station ARP
+#define UBX_ID_RTCM3_1077	0x4D // GPS MSM7, Multiple Signal Messages message (contains raw measurement information:
+								// Pseudorange, PhaseRange, Doppler, CNR, with high resolution)
+#define UBX_ID_RTCM3_1087	0x57 // GLONASS MSM7
+//#define UBX_ID_RTCM3_1097	 // Galileo MSM7 (not supported)
+#define UBX_ID_RTCM3_1127	0x7F // BeiDou MSM7
+
 
 /* Message Classes & IDs */
 #define UBX_MSG_NAV_POSLLH	((UBX_CLASS_NAV) | UBX_ID_NAV_POSLLH << 8)
@@ -120,6 +124,7 @@
 #define UBX_MSG_RTCM3_1005	((UBX_CLASS_RTCM3) | UBX_ID_RTCM3_1005 << 8)
 #define UBX_MSG_RTCM3_1077	((UBX_CLASS_RTCM3) | UBX_ID_RTCM3_1077 << 8)
 #define UBX_MSG_RTCM3_1087	((UBX_CLASS_RTCM3) | UBX_ID_RTCM3_1087 << 8)
+#define UBX_MSG_RTCM3_1127	((UBX_CLASS_RTCM3) | UBX_ID_RTCM3_1127 << 8)
 
 /* RX NAV-PVT message content details */
 /*   Bitfield "valid" masks */

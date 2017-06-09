@@ -323,6 +323,7 @@ int GPSDriverUBX::restartSurveyIn()
 	configureMessageRate(UBX_MSG_RTCM3_1005, 0);
 	configureMessageRate(UBX_MSG_RTCM3_1077, 0);
 	configureMessageRate(UBX_MSG_RTCM3_1087, 0);
+	configureMessageRate(UBX_MSG_RTCM3_1127, 0);
 
 	//stop it first
 	//FIXME: stopping the survey-in process does not seem to work
@@ -1197,6 +1198,10 @@ GPSDriverUBX::payloadRxDone()
 				}
 
 				if (!configureMessageRate(UBX_MSG_RTCM3_1087, 1)) {
+					return -1;
+				}
+
+				if (!configureMessageRate(UBX_MSG_RTCM3_1127, 1)) {
 					return -1;
 				}
 			}
