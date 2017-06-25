@@ -79,13 +79,15 @@
 
 GPSDriverUBX::GPSDriverUBX(Interface gpsInterface, GPSCallbackPtr callback, void *callback_user,
 			   struct vehicle_gps_position_s *gps_position,
-			   struct satellite_info_s *satellite_info)
+			   struct satellite_info_s *satellite_info,
+			   uint8_t dynamic_model)
 	: GPSHelper(callback, callback_user)
 	, _gps_position(gps_position)
 	, _satellite_info(satellite_info)
 	, _interface(gpsInterface)
 	, _survey_in_acc_limit(UBX_TX_CFG_TMODE3_SVINACCLIMIT)
 	, _survey_in_min_dur(UBX_TX_CFG_TMODE3_SVINMINDUR)
+	, _dyn_model(dynamic_model)
 {
 	decodeInit();
 }
@@ -219,12 +221,15 @@ GPSDriverUBX::configure(unsigned &baudrate, OutputMode output_mode)
 		return -1;
 	}
 
+	if (output_mode != OutputMode::GPS) {
+		// RTCM mode force stationary dynamic model
+		_dyn_model = 2;
+	}
+
 	/* send a NAV5 message to set the options for the internal filter */
 	memset(&_buf.payload_tx_cfg_nav5, 0, sizeof(_buf.payload_tx_cfg_nav5));
 	_buf.payload_tx_cfg_nav5.mask		= UBX_TX_CFG_NAV5_MASK;
-	_buf.payload_tx_cfg_nav5.dynModel	= output_mode == OutputMode::GPS ?
-			UBX_TX_CFG_NAV5_DYNMODEL :
-			UBX_TX_CFG_NAV5_DYNMODEL_RTCM;
+	_buf.payload_tx_cfg_nav5.dynModel	= _dyn_model;
 	_buf.payload_tx_cfg_nav5.fixMode	= UBX_TX_CFG_NAV5_FIXMODE;
 
 	if (!sendMessage(UBX_MSG_CFG_NAV5, (uint8_t *)&_buf, sizeof(_buf.payload_tx_cfg_nav5))) {

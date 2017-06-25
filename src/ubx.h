@@ -160,8 +160,6 @@
 
 /* TX CFG-NAV5 message contents */
 #define UBX_TX_CFG_NAV5_MASK		0x0005		/**< Only update dynamic model and fix mode */
-#define UBX_TX_CFG_NAV5_DYNMODEL	7		/**< 0 Portable, 2 Stationary, 3 Pedestrian, 4 Automotive, 5 Sea, 6 Airborne <1g, 7 Airborne <2g, 8 Airborne <4g */
-#define UBX_TX_CFG_NAV5_DYNMODEL_RTCM	2
 #define UBX_TX_CFG_NAV5_FIXMODE		2		/**< 1 2D only, 2 3D only, 3 Auto 2D/3D */
 
 /* TX CFG-SBAS message contents */
@@ -571,13 +569,17 @@ class GPSDriverUBX : public GPSHelper
 public:
 	GPSDriverUBX(Interface gpsInterface, GPSCallbackPtr callback, void *callback_user,
 		     struct vehicle_gps_position_s *gps_position,
-		     struct satellite_info_s *satellite_info);
-	virtual ~GPSDriverUBX();
-	int receive(unsigned timeout);
-	int configure(unsigned &baudrate, OutputMode output_mode);
-	void setSurveyInSpecs(uint32_t survey_in_acc_limit, uint32_t survey_in_min_dur);
+		     struct satellite_info_s *satellite_info,
+		     uint8_t dynamic_model = 7);
 
-	int restartSurveyIn();
+	virtual ~GPSDriverUBX();
+
+	int receive(unsigned timeout) override;
+	int configure(unsigned &baudrate, OutputMode output_mode) override;
+
+	int restartSurveyIn() override;
+
+	void setSurveyInSpecs(uint32_t survey_in_acc_limit, uint32_t survey_in_min_dur);
 private:
 
 	/**
@@ -671,6 +673,9 @@ private:
 	const Interface		_interface;
 	uint32_t _survey_in_acc_limit;
 	uint32_t _survey_in_min_dur;
+
+	// ublox Dynamic platform model default 7: airborne with <2g acceleration
+	uint8_t _dyn_model{7};
 };
 
 #endif /* UBX_H_ */
