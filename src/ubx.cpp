@@ -106,7 +106,7 @@ GPSDriverUBX::configure(unsigned &baudrate, OutputMode output_mode)
 	_configured = false;
 	_output_mode = output_mode;
 	/* try different baudrates */
-	const unsigned baudrates[] = {9600, 38400, 19200, 57600, 115200, 230400};
+	const unsigned baudrates[] = {38400, 57600, 9600, 19200, 115200};
 
 	unsigned baud_i;
 	ubx_payload_tx_cfg_prt_t cfg_prt[2];
@@ -562,7 +562,7 @@ GPSDriverUBX::parseChar(const uint8_t b)
 	/* Expecting first checksum byte */
 	case UBX_DECODE_CHKSUM1:
 		if (_rx_ck_a != b) {
-			UBX_WARN("ubx checksum err");
+			UBX_DEBUG("ubx checksum err");
 			decodeInit();
 
 		} else {
@@ -574,7 +574,7 @@ GPSDriverUBX::parseChar(const uint8_t b)
 	/* Expecting second checksum byte */
 	case UBX_DECODE_CHKSUM2:
 		if (_rx_ck_b != b) {
-			UBX_WARN("ubx checksum err");
+			UBX_DEBUG("ubx checksum err");
 
 		} else {
 			ret = payloadRxDone();	// finish payload processing
