@@ -47,8 +47,6 @@ GPSDriverAshtech::GPSDriverAshtech(GPSCallbackPtr callback, void *callback_user,
 	_gps_position(gps_position)
 {
 	decodeInit();
-	_decode_state = NME_DECODE_UNINIT;
-	_rx_buffer_bytes = 0;
 }
 
 /*
@@ -612,26 +610,26 @@ int GPSDriverAshtech::parseChar(uint8_t b)
 
 	switch (_decode_state) {
 	/* First, look for sync1 */
-	case NME_DECODE_UNINIT:
+	case NMEADecodeState::uninit:
 		if (b == '$') {
-			_decode_state = NME_DECODE_GOT_SYNC1;
+			_decode_state = NMEADecodeState::got_sync1;
 			_rx_buffer_bytes = 0;
 			_rx_buffer[_rx_buffer_bytes++] = b;
 		}
 
 		break;
 
-	case NME_DECODE_GOT_SYNC1:
+	case NMEADecodeState::got_sync1:
 		if (b == '$') {
-			_decode_state = NME_DECODE_GOT_SYNC1;
+			_decode_state = NMEADecodeState::got_sync1;
 			_rx_buffer_bytes = 0;
 
 		} else if (b == '*') {
-			_decode_state = NME_DECODE_GOT_ASTERIKS;
+			_decode_state = NMEADecodeState::got_asteriks;
 		}
 
 		if (_rx_buffer_bytes >= (sizeof(_rx_buffer) - 5)) {
-			_decode_state = NME_DECODE_UNINIT;
+			_decode_state = NMEADecodeState::uninit;
 			_rx_buffer_bytes = 0;
 
 		} else {
@@ -640,12 +638,12 @@ int GPSDriverAshtech::parseChar(uint8_t b)
 
 		break;
 
-	case NME_DECODE_GOT_ASTERIKS:
+	case NMEADecodeState::got_asteriks:
 		_rx_buffer[_rx_buffer_bytes++] = b;
-		_decode_state = NME_DECODE_GOT_FIRST_CS_BYTE;
+		_decode_state = NMEADecodeState::got_first_cs_byte;
 		break;
 
-	case NME_DECODE_GOT_FIRST_CS_BYTE:
+	case NMEADecodeState::got_first_cs_byte:
 		_rx_buffer[_rx_buffer_bytes++] = b;
 		uint8_t checksum = 0;
 		uint8_t *buffer = _rx_buffer + 1;
@@ -658,7 +656,7 @@ int GPSDriverAshtech::parseChar(uint8_t b)
 			iRet = _rx_buffer_bytes;
 		}
 
-		_decode_state = NME_DECODE_UNINIT;
+		_decode_state = NMEADecodeState::uninit;
 		_rx_buffer_bytes = 0;
 		break;
 	}
@@ -668,6 +666,8 @@ int GPSDriverAshtech::parseChar(uint8_t b)
 
 void GPSDriverAshtech::decodeInit()
 {
+	_rx_buffer_bytes = 0;
+	_decode_state = NMEADecodeState::uninit;
 
 }
 

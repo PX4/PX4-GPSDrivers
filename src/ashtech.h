@@ -65,23 +65,20 @@ private:
 	/** Read char ASHTECH parameter */
 	char read_char();
 
-	enum ashtech_decode_state_t {
-		NME_DECODE_UNINIT,
-		NME_DECODE_GOT_SYNC1,
-		NME_DECODE_GOT_ASTERIKS,
-		NME_DECODE_GOT_FIRST_CS_BYTE
+	enum class NMEADecodeState {
+		uninit,
+		got_sync1,
+		got_asteriks,
+		got_first_cs_byte
 	};
 
 	struct satellite_info_s *_satellite_info {nullptr};
 	struct vehicle_gps_position_s *_gps_position {nullptr};
 	uint64_t _last_timestamp_time{0};
-	int _ashtechlog_fd{-1};
 
-	ashtech_decode_state_t _decode_state{NME_DECODE_UNINIT};
-	uint8_t _rx_buffer[ASHTECH_RECV_BUFFER_SIZE] {};
+	NMEADecodeState _decode_state{NMEADecodeState::uninit};
+	uint8_t _rx_buffer[ASHTECH_RECV_BUFFER_SIZE];
 	uint16_t _rx_buffer_bytes{};
 	bool _got_pashr_pos_message{false}; /**< If we got a PASHR,POS message, we will ignore GGA messages */
-	bool _parse_error{}; /**< parse error flag */
-	char *_parse_pos{}; /**< parse position */
 };
 
