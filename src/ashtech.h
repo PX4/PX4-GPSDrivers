@@ -42,6 +42,7 @@
 
 #define ASHTECH_RECV_BUFFER_SIZE 512
 
+#define ASH_RESPONSE_TIMEOUT	200		// ms, timeout for waiting for a response
 
 class GPSDriverAshtech : public GPSHelper
 {
@@ -54,16 +55,18 @@ public:
 	int configure(unsigned &baudrate, OutputMode output_mode);
 
 private:
-	void decodeInit(void);
-	int handleMessage(int len);
-	int parseChar(uint8_t b);
+	enum class NMEACommand {
+		Acked, // Command that returns a (N)Ack
+		PRT,   // port config
+		RID    // board identification
+	};
 
-	/** Read int ASHTECH parameter */
-	int32_t read_int();
-	/** Read float ASHTECH parameter */
-	double read_float();
-	/** Read char ASHTECH parameter */
-	char read_char();
+	enum class NMEACommandState {
+		idle,
+		waiting,
+		nack,
+		received
+	};
 
 	enum class NMEADecodeState {
 		uninit,
@@ -71,6 +74,28 @@ private:
 		got_asteriks,
 		got_first_cs_byte
 	};
+
+	enum class AshtechBoard {
+		trimble_mb_two,
+		other
+	};
+
+	void decodeInit(void);
+	int handleMessage(int len);
+	int parseChar(uint8_t b);
+
+	/**
+	 * Write a command and wait for a (N)Ack
+	 * @return 0 on success, <0 otherwise
+	 */
+	int writeAckedCommand(const void *buf, int buf_length, unsigned timeout);
+
+	int waitForReply(NMEACommand command, const unsigned timeout);
+
+	/**
+	 * receive data for at least the specified amount of time
+	 */
+	void receiveWait(unsigned timeout_min);
 
 	struct satellite_info_s *_satellite_info {nullptr};
 	struct vehicle_gps_position_s *_gps_position {nullptr};
@@ -80,5 +105,10 @@ private:
 	uint8_t _rx_buffer[ASHTECH_RECV_BUFFER_SIZE];
 	uint16_t _rx_buffer_bytes{};
 	bool _got_pashr_pos_message{false}; /**< If we got a PASHR,POS message, we will ignore GGA messages */
+
+	NMEACommand _waiting_for_command;
+	NMEACommandState _command_state;
+	char _port{'A'}; /**< port we are connected to (e.g. 'A') */
+	AshtechBoard _board{AshtechBoard::other}; /**< board we are connected to */
 };
 
