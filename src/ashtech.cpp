@@ -39,6 +39,9 @@
 
 #include "ashtech.h"
 
+//#define ASH_DEBUG(...)		{GPS_WARN(__VA_ARGS__);}
+#define ASH_DEBUG(...)		{/*GPS_WARN(__VA_ARGS__);*/}
+
 GPSDriverAshtech::GPSDriverAshtech(GPSCallbackPtr callback, void *callback_user,
 				   struct vehicle_gps_position_s *gps_position,
 				   struct satellite_info_s *satellite_info) :
@@ -255,6 +258,26 @@ int GPSDriverAshtech::handleMessage(int len)
 		_gps_position->vel_ned_valid = true;                         /**< Flag to indicate if NED speed is valid */
 		_gps_position->c_variance_rad = 0.1f;
 		ret = 1;
+
+	} else if (memcmp(_rx_buffer, "$GPHDT,", 7) == 0 && uiCalcComma == 2) {
+		/*
+		Heading message
+		Example $GPHDT,121.2,T*35
+
+		f1 Last computed heading value, in degrees (0-359.99)
+		T “T” for “True”
+		 */
+
+		float heading = 0.f;
+
+		if (bufptr && *(++bufptr) != ',') {
+			heading = strtof(bufptr, &endp); bufptr = endp;
+
+			ASH_DEBUG("heading: %.3f", (double)heading);
+
+			heading *= M_PI_F / 180.0f; // deg to rad, now in range [0, 2PI]
+			// TODO: return the value
+		}
 
 	} else if ((memcmp(_rx_buffer, "$PASHR,POS,", 11) == 0) && (uiCalcComma == 18)) {
 		_got_pashr_pos_message = true;
@@ -536,6 +559,41 @@ int GPSDriverAshtech::handleMessage(int len)
 				_satellite_info->azimuth[y + (this_msg_num - 1) * 4]   = sat[y].azimuth;
 			}
 		}
+
+	} else if (memcmp(_rx_buffer, "$PASHR,NAK", 10) == 0) {
+		ASH_DEBUG("Nack received");
+
+		if (_command_state == NMEACommandState::waiting) {
+			_command_state = NMEACommandState::nack;
+		}
+
+	} else if (memcmp(_rx_buffer, "$PASHR,ACK", 10) == 0) {
+		ASH_DEBUG("Ack received");
+
+		if (_command_state == NMEACommandState::waiting && _waiting_for_command == NMEACommand::Acked) {
+			_command_state = NMEACommandState::received;
+		}
+
+	} else if (memcmp(_rx_buffer, "$PASHR,PRT,", 11) == 0 && uiCalcComma == 3) {
+		if (_command_state == NMEACommandState::waiting && _waiting_for_command == NMEACommand::PRT) {
+			_command_state = NMEACommandState::received;
+			_port = _rx_buffer[11];
+			ASH_DEBUG("Connected port: %c", _port);
+		}
+
+	} else if (memcmp(_rx_buffer, "$PASHR,RID,", 11) == 0) {
+		if (_command_state == NMEACommandState::waiting && _waiting_for_command == NMEACommand::RID) {
+			_command_state = NMEACommandState::received;
+
+			if (memcmp(_rx_buffer + 11, "MB2", 3) == 0) {
+				_board = AshtechBoard::trimble_mb_two;
+
+			} else {
+				_board = AshtechBoard::other;
+			}
+
+			ASH_DEBUG("Connected board: %i", (int)_board);
+		}
 	}
 
 	if (ret > 0) {
@@ -545,6 +603,14 @@ int GPSDriverAshtech::handleMessage(int len)
 	return ret;
 }
 
+void GPSDriverAshtech::receiveWait(unsigned timeout_min)
+{
+	gps_abstime time_started = gps_absolute_time();
+
+	while (gps_absolute_time() < time_started + timeout_min * 1000) {
+		receive(timeout_min);
+	}
+}
 
 int GPSDriverAshtech::receive(unsigned timeout)
 {
@@ -668,21 +734,33 @@ void GPSDriverAshtech::decodeInit()
 {
 	_rx_buffer_bytes = 0;
 	_decode_state = NMEADecodeState::uninit;
-
+	_command_state = NMEACommandState::idle;
 }
 
-/*
- * ashtech board configuration script
- */
+int GPSDriverAshtech::writeAckedCommand(const void *buf, int buf_length, unsigned timeout)
+{
+	if (write(buf, buf_length) != buf_length) {
+		return -1;
+	}
 
-const char comm[] = "$PASHS,POP,20\r\n"\
-		    "$PASHS,NME,ZDA,B,ON,3\r\n"\
-		    "$PASHS,NME,GGA,B,OFF\r\n"\
-		    "$PASHS,NME,GST,B,ON,3\r\n"\
-		    "$PASHS,NME,POS,B,ON,0.05\r\n"\
-		    "$PASHS,NME,GSV,B,ON,3\r\n"\
-		    "$PASHS,SPD,A,8\r\n"\
-		    "$PASHS,SPD,B,9\r\n";
+	return waitForReply(NMEACommand::Acked, timeout);
+}
+
+int GPSDriverAshtech::waitForReply(NMEACommand command, const unsigned timeout)
+{
+	gps_abstime time_started = gps_absolute_time();
+
+	ASH_DEBUG("waiting for reply for command %i", (int)command);
+
+	_command_state = NMEACommandState::waiting;
+	_waiting_for_command = command;
+
+	while (_command_state == NMEACommandState::waiting && gps_absolute_time() < time_started + timeout * 1000) {
+		receive(timeout);
+	}
+
+	return _command_state == NMEACommandState::received ? 0 : -1;
+}
 
 int GPSDriverAshtech::configure(unsigned &baudrate, OutputMode output_mode)
 {
@@ -691,18 +769,167 @@ int GPSDriverAshtech::configure(unsigned &baudrate, OutputMode output_mode)
 		return -1;
 	}
 
-	/* try different baudrates */
+	/* Try different baudrates (115200 is the default for Trimble) and request the baudrate that we want.
+	 *
+	 * These are Ashtech proprietary commands, we can use them for auto-detection:
+	 * $PASHS for setting
+	 * $PASHQ for querying
+	 * $PASHR for a response
+	 */
 	const unsigned baudrates_to_try[] = {9600, 38400, 19200, 57600, 115200};
+	bool success = false;
 
-
-	for (unsigned int baud_i = 0; baud_i < sizeof(baudrates_to_try) / sizeof(baudrates_to_try[0]); baud_i++) {
+	for (unsigned int baud_i = 0; !success && baud_i < sizeof(baudrates_to_try) / sizeof(baudrates_to_try[0]); baud_i++) {
 		baudrate = baudrates_to_try[baud_i];
 		setBaudrate(baudrate);
 
-		if (write(comm, sizeof(comm)) != sizeof(comm)) {
+		ASH_DEBUG("baudrate set to %i", baudrate);
+
+		const char port_config[] = "$PASHQ,PRT\r\n";  // ask for the current port configuration
+
+		for (int run = 0; run < 2; ++run) { // try several times
+			write(port_config, sizeof(port_config) - 1);
+
+			if (waitForReply(NMEACommand::PRT, ASH_RESPONSE_TIMEOUT) == 0) {
+				ASH_DEBUG("got port for baudrate %i", baudrate);
+				success = true;
+				break;
+			}
+		}
+	}
+
+	if (!success) {
+		return -1;
+	}
+
+	// We successfully got a response and know to which port we are connected. Now set the desired baudrate
+	// if it's different from the current one.
+	const unsigned desired_baudrate = 115200; // changing this requires also changing the SPD command
+
+	if (baudrate != desired_baudrate) {
+		baudrate = desired_baudrate;
+		const char baud_config[] = "$PASHS,SPD,%c,9\r\n"; // configure baudrate to 115200
+		char baud_config_str[sizeof(baud_config)];
+		int len = snprintf(baud_config_str, sizeof(baud_config_str), baud_config, _port);
+		write(baud_config_str, len);
+		decodeInit();
+		receiveWait(200);
+		decodeInit();
+		setBaudrate(baudrate);
+
+		success = false;
+
+		for (int run = 0; run < 10; ++run) {
+			// We ask for the port config again. If we get a reply, we know that the changed settings work.
+			const char port_config[] = "$PASHQ,PRT\r\n";
+			write(port_config, sizeof(port_config) - 1);
+
+			if (waitForReply(NMEACommand::PRT, ASH_RESPONSE_TIMEOUT) == 0) {
+				success = true;
+				break;
+			}
+		}
+
+		if (!success) {
+			return -1;
+		}
+
+		ASH_DEBUG("Successfully configured the baudrate");
+	}
+
+
+// Additional commands that might be useful:
+//		Reading firmware version:
+//			$PASHQ,VER
+//		Reading installed firmware options:
+//			$PASHQ,OPTION
+//		The output for the Trimble MB-two is:
+//			$PASHR,OPTION,0,SERIAL NUMBER,5730C00370*3E
+//			$PASHR,OPTION,@1,GEOFENCING_WW,034017C7114ED*36
+//			$PASHR,OPTION,N,GPS,0340173F8924D*66
+//			$PASHR,OPTION,G,GLONASS,0340178A9E138*69
+//			$PASHR,OPTION,B,BEIDOU,03401434EC35A*4D
+//			$PASHR,OPTION,X,L1TRACKING,0340119C547B8*40
+//			$PASHR,OPTION,Y,L2TRACKING,034012CD03607*42
+//			$PASHR,OPTION,W,20HZ,034016B5A5225*2A
+//			$PASHR,OPTION,J,RTKROVER,034010C800693*41
+//			$PASHR,OPTION,K,RTKBASE,03401065AB099*7E
+//			$PASHR,OPTION,D,DUO,0340138851415*70
+//			$PASHR,OPTION,S,L3TRACKING,034011C7AB73D*48
+//		Reset the full configuration (however it will lead to a reboot and requires about 15s waiting time)
+//			$PASHS,RST
+
+	// get the board identification
+	const char board_identification[] = "$PASHQ,RID\r\n";
+
+	if (write(board_identification, sizeof(board_identification) - 1) == sizeof(board_identification) - 1) {
+		if (waitForReply(NMEACommand::RID, ASH_RESPONSE_TIMEOUT) != 0) {
+			ASH_DEBUG("command %s failed", board_identification);
 			return -1;
 		}
 	}
 
-	return setBaudrate(115200);
+	// Now configure the messages we want
+
+	const char update_rate[] = "$PASHS,POP,20\r\n"; // set internal update rate to 20 Hz
+
+	if (writeAckedCommand(update_rate, sizeof(update_rate) - 1, ASH_RESPONSE_TIMEOUT) != 0) {
+		ASH_DEBUG("command %s failed", update_rate);
+		// for some reason we don't get a response here
+	}
+
+	// Enable dual antenna mode (2: both antennas are L1/L2 GNSS capable, flex mode, avoids the need to determine
+	// the baseline length through a prior calibration stage)
+	// Needs to be set before other commands
+	const bool use_dual_mode = output_mode == OutputMode::GPS && _board == AshtechBoard::trimble_mb_two;
+
+	if (use_dual_mode) {
+		ASH_DEBUG("Enabling DUO mode");
+		const char duo_mode[] = "$PASHS,SNS,DUO,2\r\n";
+
+		if (writeAckedCommand(duo_mode, sizeof(duo_mode) - 1, ASH_RESPONSE_TIMEOUT) != 0) {
+			ASH_DEBUG("command %s failed", duo_mode);
+		}
+
+	} else {
+		const char solo_mode[] = "$PASHS,SNS,SOL\r\n";
+
+		if (writeAckedCommand(solo_mode, sizeof(solo_mode) - 1, ASH_RESPONSE_TIMEOUT) != 0) {
+			ASH_DEBUG("command %s failed", solo_mode);
+		}
+	}
+
+	char buffer[40];
+	const char *config_options[] = {
+		"$PASHS,NME,ALL,%c,OFF\r\n",    // disable all NMEA and NMEA-Like Messages
+		"$PASHS,ATM,ALL,%c,OFF\r\n",    // disable all ATM (ATOM) Messages
+		"$PASHS,OUT,%c,ON\r\n",         // enable periodic output
+		"$PASHS,NME,ZDA,%c,ON,3\r\n",   // enable ZDA (date & time) output every 3s
+		"$PASHS,NME,GST,%c,ON,3\r\n",   // position accuracy messages
+		"$PASHS,NME,POS,%c,ON,0.05\r\n",// position & velocity (we can go up to 20Hz if FW option [W] is given and to 50Hz if [8] is given)
+		"$PASHS,NME,GSV,%c,ON,1\r\n"    // satellite status
+	};
+
+	for (unsigned int conf_i = 0; conf_i < sizeof(config_options) / sizeof(config_options[0]); conf_i++) {
+		int len = snprintf(buffer, sizeof(buffer), config_options[conf_i], _port);
+
+		if (writeAckedCommand(buffer, len, ASH_RESPONSE_TIMEOUT) != 0) {
+			ASH_DEBUG("command %s failed", buffer);
+			// some commands are not acked (e.g. GSV), so don't make this fatal
+		}
+	}
+
+	if (use_dual_mode) {
+		// enable heading output
+		const char heading_output[] = "$PASHS,NME,HDT,%c,ON,0.05\r\n";
+		int len = snprintf(buffer, sizeof(buffer), heading_output, _port);
+
+		if (writeAckedCommand(buffer, len, ASH_RESPONSE_TIMEOUT) != 0) {
+			ASH_DEBUG("command %s failed", buffer);
+		}
+	}
+
+	}
+
+	return 0;
 }
