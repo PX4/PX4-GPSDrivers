@@ -40,6 +40,8 @@
 #include "gps_helper.h"
 #include "../../definitions.h"
 
+class RTCMParsing;
+
 #define ASHTECH_RECV_BUFFER_SIZE 512
 
 #define ASH_RESPONSE_TIMEOUT	200		// ms, timeout for waiting for a response
@@ -49,7 +51,7 @@ class GPSDriverAshtech : public GPSHelper
 public:
 	GPSDriverAshtech(GPSCallbackPtr callback, void *callback_user, struct vehicle_gps_position_s *gps_position,
 			 struct satellite_info_s *satellite_info);
-	virtual ~GPSDriverAshtech() = default;
+	virtual ~GPSDriverAshtech();
 
 	int receive(unsigned timeout);
 	int configure(unsigned &baudrate, OutputMode output_mode);
@@ -72,7 +74,8 @@ private:
 		uninit,
 		got_sync1,
 		got_asteriks,
-		got_first_cs_byte
+		got_first_cs_byte,
+		decode_rtcm3
 	};
 
 	enum class AshtechBoard {
@@ -107,8 +110,12 @@ private:
 	bool _got_pashr_pos_message{false}; /**< If we got a PASHR,POS message, we will ignore GGA messages */
 
 	NMEACommand _waiting_for_command;
-	NMEACommandState _command_state;
+	NMEACommandState _command_state{NMEACommandState::idle};
 	char _port{'A'}; /**< port we are connected to (e.g. 'A') */
 	AshtechBoard _board{AshtechBoard::other}; /**< board we are connected to */
+
+	RTCMParsing	*_rtcm_parsing{nullptr};
+
+	OutputMode _output_mode{OutputMode::GPS};
 };
 

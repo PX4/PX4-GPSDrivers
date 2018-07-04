@@ -38,6 +38,7 @@
 #include <ctime>
 
 #include "ashtech.h"
+#include "rtcm.h"
 
 //#define ASH_DEBUG(...)		{GPS_WARN(__VA_ARGS__);}
 #define ASH_DEBUG(...)		{/*GPS_WARN(__VA_ARGS__);*/}
@@ -50,6 +51,13 @@ GPSDriverAshtech::GPSDriverAshtech(GPSCallbackPtr callback, void *callback_user,
 	_gps_position(gps_position)
 {
 	decodeInit();
+}
+
+GPSDriverAshtech::~GPSDriverAshtech()
+{
+	if (_rtcm_parsing) {
+		delete (_rtcm_parsing);
+	}
 }
 
 /*
@@ -681,6 +689,11 @@ int GPSDriverAshtech::parseChar(uint8_t b)
 			_decode_state = NMEADecodeState::got_sync1;
 			_rx_buffer_bytes = 0;
 			_rx_buffer[_rx_buffer_bytes++] = b;
+
+		} else if (b == RTCM3_PREAMBLE && _rtcm_parsing) {
+			_decode_state = NMEADecodeState::decode_rtcm3;
+			_rtcm_parsing->addByte(b);
+
 		}
 
 		break;
@@ -695,6 +708,7 @@ int GPSDriverAshtech::parseChar(uint8_t b)
 		}
 
 		if (_rx_buffer_bytes >= (sizeof(_rx_buffer) - 5)) {
+			ASH_DEBUG("buffer overflow");
 			_decode_state = NMEADecodeState::uninit;
 			_rx_buffer_bytes = 0;
 
@@ -709,21 +723,30 @@ int GPSDriverAshtech::parseChar(uint8_t b)
 		_decode_state = NMEADecodeState::got_first_cs_byte;
 		break;
 
-	case NMEADecodeState::got_first_cs_byte:
-		_rx_buffer[_rx_buffer_bytes++] = b;
-		uint8_t checksum = 0;
-		uint8_t *buffer = _rx_buffer + 1;
-		uint8_t *bufend = _rx_buffer + _rx_buffer_bytes - 3;
+	case NMEADecodeState::got_first_cs_byte: {
+			_rx_buffer[_rx_buffer_bytes++] = b;
+			uint8_t checksum = 0;
+			uint8_t *buffer = _rx_buffer + 1;
+			uint8_t *bufend = _rx_buffer + _rx_buffer_bytes - 3;
 
-		for (; buffer < bufend; buffer++) { checksum ^= *buffer; }
+			for (; buffer < bufend; buffer++) { checksum ^= *buffer; }
 
-		if ((HEXDIGIT_CHAR(checksum >> 4) == *(_rx_buffer + _rx_buffer_bytes - 2)) &&
-		    (HEXDIGIT_CHAR(checksum & 0x0F) == *(_rx_buffer + _rx_buffer_bytes - 1))) {
-			iRet = _rx_buffer_bytes;
+			if ((HEXDIGIT_CHAR(checksum >> 4) == *(_rx_buffer + _rx_buffer_bytes - 2)) &&
+			    (HEXDIGIT_CHAR(checksum & 0x0F) == *(_rx_buffer + _rx_buffer_bytes - 1))) {
+				iRet = _rx_buffer_bytes;
+			}
+
+			decodeInit();
+		}
+		break;
+
+	case NMEADecodeState::decode_rtcm3:
+		if (_rtcm_parsing->addByte(b)) {
+			ASH_DEBUG("got RTCM message with length %i", (int)_rtcm_parsing->messageLength());
+			gotRTCMMessage(_rtcm_parsing->message(), _rtcm_parsing->messageLength());
+			decodeInit();
 		}
 
-		_decode_state = NMEADecodeState::uninit;
-		_rx_buffer_bytes = 0;
 		break;
 	}
 
@@ -734,7 +757,14 @@ void GPSDriverAshtech::decodeInit()
 {
 	_rx_buffer_bytes = 0;
 	_decode_state = NMEADecodeState::uninit;
-	_command_state = NMEACommandState::idle;
+
+	if (_output_mode == OutputMode::RTCM) {
+		if (!_rtcm_parsing) {
+			_rtcm_parsing = new RTCMParsing();
+		}
+
+		_rtcm_parsing->reset();
+	}
 }
 
 int GPSDriverAshtech::writeAckedCommand(const void *buf, int buf_length, unsigned timeout)
@@ -764,10 +794,7 @@ int GPSDriverAshtech::waitForReply(NMEACommand command, const unsigned timeout)
 
 int GPSDriverAshtech::configure(unsigned &baudrate, OutputMode output_mode)
 {
-	if (output_mode != OutputMode::GPS) {
-		GPS_WARN("ASHTECH: Unsupported Output Mode %i", (int)output_mode);
-		return -1;
-	}
+	_output_mode = output_mode;
 
 	/* Try different baudrates (115200 is the default for Trimble) and request the baudrate that we want.
 	 *
