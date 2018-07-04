@@ -172,16 +172,7 @@
 #define UBX_TX_CFG_TMODE3_SVINMINDUR    (3*60)		/**< survey-in: minimum duration [s] (higher=higher precision) */
 #define UBX_TX_CFG_TMODE3_SVINACCLIMIT  (10000)	/**< survey-in: position accuracy limit 0.1[mm] */
 
-/* RTCM3 */
-#define RTCM3_PREAMBLE					0xD3
-#define RTCM_INITIAL_BUFFER_LENGTH			300		/**< initial maximum message length of an RTCM message */
-
-typedef struct {
-	uint8_t			*buffer;
-	uint16_t		buffer_len;
-	uint16_t		pos;						///< next position in buffer
-	uint16_t		message_length;					///< message length without header & CRC (both 3 bytes)
-} rtcm_message_t;
+class RTCMParsing;
 
 
 /*** u-blox protocol binary message and payload definitions ***/
@@ -668,7 +659,7 @@ private:
 	bool			_use_nav_pvt{false};
 	OutputMode		_output_mode{OutputMode::GPS};
 
-	rtcm_message_t	*_rtcm_message{nullptr};
+	RTCMParsing	*_rtcm_parsing{nullptr};
 
 	const Interface		_interface;
 	uint32_t _survey_in_acc_limit;

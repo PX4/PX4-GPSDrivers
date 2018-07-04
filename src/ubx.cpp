@@ -56,6 +56,7 @@
 #include <ctime>
 
 #include "ubx.h"
+#include "rtcm.h"
 
 #define UBX_CONFIG_TIMEOUT	200		// ms, timeout for waiting ACK
 #define UBX_PACKET_TIMEOUT	2		// ms, if now data during this delay assume that full update received
@@ -94,9 +95,8 @@ GPSDriverUBX::GPSDriverUBX(Interface gpsInterface, GPSCallbackPtr callback, void
 
 GPSDriverUBX::~GPSDriverUBX()
 {
-	if (_rtcm_message) {
-		delete[](_rtcm_message->buffer);
-		delete (_rtcm_message);
+	if (_rtcm_parsing) {
+		delete (_rtcm_parsing);
 	}
 }
 
@@ -465,10 +465,10 @@ GPSDriverUBX::parseChar(const uint8_t b)
 			UBX_TRACE_PARSER("A");
 			_decode_state = UBX_DECODE_SYNC2;
 
-		} else if (b == RTCM3_PREAMBLE && _rtcm_message) {
+		} else if (b == RTCM3_PREAMBLE && _rtcm_parsing) {
 			UBX_TRACE_PARSER("RTCM");
 			_decode_state = UBX_DECODE_RTCM3;
-			_rtcm_message->buffer[_rtcm_message->pos++] = b;
+			_rtcm_parsing->addByte(b);
 		}
 
 		break;
@@ -584,25 +584,9 @@ GPSDriverUBX::parseChar(const uint8_t b)
 		break;
 
 	case UBX_DECODE_RTCM3:
-		_rtcm_message->buffer[_rtcm_message->pos++] = b;
-
-		if (_rtcm_message->pos == 3) {
-			_rtcm_message->message_length = (((uint16_t)_rtcm_message->buffer[1] & 3) << 8) | (_rtcm_message->buffer[2]);
-			UBX_DEBUG("got RTCM message with length %i", (int)_rtcm_message->message_length);
-
-			if (_rtcm_message->message_length + 6 > _rtcm_message->buffer_len) {
-				uint16_t new_buffer_len = _rtcm_message->message_length + 6;
-				uint8_t *new_buffer = new uint8_t[new_buffer_len];
-				memcpy(new_buffer, _rtcm_message->buffer, 3);
-				delete[](_rtcm_message->buffer);
-				_rtcm_message->buffer = new_buffer;
-				_rtcm_message->buffer_len = new_buffer_len;
-			}
-		}
-
-		if (_rtcm_message->message_length + 6 == _rtcm_message->pos) {
-
-			gotRTCMMessage(_rtcm_message->buffer, _rtcm_message->pos);
+		if (_rtcm_parsing->addByte(b)) {
+			UBX_DEBUG("got RTCM message with length %i", (int)_rtcm_parsing->messageLength());
+			gotRTCMMessage(_rtcm_parsing->message(), _rtcm_parsing->messageLength());
 			decodeInit();
 		}
 
@@ -1166,7 +1150,6 @@ GPSDriverUBX::payloadRxDone()
 				  svin.dur, svin.meanAcc / 10, svin.obs, (int)svin.valid, (int)svin.active);
 
 			SurveyInStatus status;
-			memset(&status, 0, sizeof(status));
 			status.duration = svin.dur;
 			status.mean_accuracy = svin.meanAcc / 10;
 			status.flags = (svin.valid & 1) | ((svin.active & 1) << 1);
@@ -1300,14 +1283,11 @@ GPSDriverUBX::decodeInit()
 	_rx_payload_index = 0;
 
 	if (_output_mode == OutputMode::RTCM) {
-		if (!_rtcm_message) {
-			_rtcm_message = new rtcm_message_t;
-			_rtcm_message->buffer = new uint8_t[RTCM_INITIAL_BUFFER_LENGTH];
-			_rtcm_message->buffer_len = RTCM_INITIAL_BUFFER_LENGTH;
+		if (!_rtcm_parsing) {
+			_rtcm_parsing = new RTCMParsing();
 		}
 
-		_rtcm_message->pos = 0;
-		_rtcm_message->message_length = _rtcm_message->buffer_len;
+		_rtcm_parsing->reset();
 	}
 }
 
