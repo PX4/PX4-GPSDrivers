@@ -40,6 +40,12 @@
 #include "ashtech.h"
 #include "rtcm.h"
 
+#ifndef M_PI_F
+# define M_PI_F 3.14159265358979323846f
+#endif
+
+#define MIN(X,Y)	((X) < (Y) ? (X) : (Y))
+
 //#define ASH_DEBUG(...)		{GPS_WARN(__VA_ARGS__);}
 #define ASH_DEBUG(...)		{/*GPS_WARN(__VA_ARGS__);*/}
 
@@ -557,8 +563,9 @@ int GPSDriverAshtech::handleMessage(int len)
 			_gps_position->satellites_used = tot_sv_visible;
 
 			if (_satellite_info) {
-				_satellite_info->count = satellite_info_s::SAT_INFO_MAX_SATELLITES;
+				_satellite_info->count = MIN(tot_sv_visible, satellite_info_s::SAT_INFO_MAX_SATELLITES);
 				_satellite_info->timestamp = gps_absolute_time();
+				ret = 2;
 			}
 		}
 
@@ -616,7 +623,7 @@ int GPSDriverAshtech::handleMessage(int len)
 		}
 	}
 
-	if (ret > 0) {
+	if (ret == 1) {
 		_gps_position->timestamp_time_relative = (int32_t)(_last_timestamp_time - _gps_position->timestamp);
 	}
 
@@ -653,8 +660,10 @@ int GPSDriverAshtech::receive(unsigned timeout)
 				if ((l = parseChar(buf[j])) > 0) {
 					/* return to configure during configuration or to the gps driver during normal work
 					 * if a packet has arrived */
-					if (handleMessage(l) > 0) {
-						return 1;
+					int ret = handleMessage(l);
+
+					if (ret > 0) {
+						return ret;
 					}
 				}
 
