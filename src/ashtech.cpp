@@ -404,7 +404,19 @@ int GPSDriverAshtech::handleMessage(int len)
 			_gps_position->fix_type = 0;
 
 		} else {
-			_gps_position->fix_type = 3 + fix_quality;
+			if (fix_quality == 9 || fix_quality == 10) { // SBAS differential or BeiDou differential
+				_gps_position->fix_type = 4; // use RTCM differential
+
+			} else if (fix_quality == 12 || fix_quality == 22) { // RTK float or RTK float dithered
+				_gps_position->fix_type = 5;
+
+			} else if (fix_quality == 13 || fix_quality == 23) { // RTK fixed or RTK fixed dithered
+				_gps_position->fix_type = 6;
+
+			} else {
+				_gps_position->fix_type = 3 + fix_quality;
+			}
+
 		}
 
 		_gps_position->timestamp = gps_absolute_time();
