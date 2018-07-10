@@ -56,11 +56,13 @@ public:
 	int receive(unsigned timeout);
 	int configure(unsigned &baudrate, OutputMode output_mode);
 
+	void setSurveyInSpecs(uint32_t survey_in_acc_limit, uint32_t survey_in_min_dur) override;
 private:
 	enum class NMEACommand {
 		Acked, // Command that returns a (N)Ack
 		PRT,   // port config
-		RID    // board identification
+		RID,   // board identification
+		RECEIPT// board identification
 	};
 
 	enum class NMEACommandState {
@@ -100,6 +102,13 @@ private:
 	 */
 	void receiveWait(unsigned timeout_min);
 
+	/**
+	 * enable output of correction output
+	 */
+	void activateCorrectionOutput();
+
+	void sendSurveyInStatusUpdate(bool active, bool valid);
+
 	struct satellite_info_s *_satellite_info {nullptr};
 	struct vehicle_gps_position_s *_gps_position {nullptr};
 	uint64_t _last_timestamp_time{0};
@@ -116,6 +125,11 @@ private:
 
 	RTCMParsing	*_rtcm_parsing{nullptr};
 
+	uint32_t _survey_in_min_dur;
+	gps_abstime _survey_in_start{0};
+
 	OutputMode _output_mode{OutputMode::GPS};
+	bool _correction_output_activated{false};
+	bool _configure_done{false};
 };
 

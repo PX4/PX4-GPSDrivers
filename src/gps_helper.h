@@ -160,6 +160,17 @@ public:
 	 */
 	virtual int restartSurveyIn() { return 0; }
 
+	/**
+	 * set survey-in specs for RTK base station setup (for finding an accurate base station position
+	 * by averaging the position measurements over time).
+	 * @param survey_in_acc_limit minimum accuracy in 0.1mm
+	 * @param survey_in_min_dur minimum duration in seconds
+	 */
+	virtual void setSurveyInSpecs(uint32_t survey_in_acc_limit, uint32_t survey_in_min_dur)
+	{
+		(void)survey_in_acc_limit;
+		(void)survey_in_min_dur;
+	}
 
 protected:
 

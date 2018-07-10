@@ -423,6 +423,11 @@ int GPSDriverAshtech::handleMessage(int len)
 				_gps_position->fix_type = 3 + fix_quality;
 			}
 
+			// we got a valid position, activate correction output if needed
+			if (_configure_done && _output_mode == OutputMode::RTCM &&
+			    _board == AshtechBoard::trimble_mb_two && !_correction_output_activated) {
+				activateCorrectionOutput();
+			}
 		}
 
 		_gps_position->timestamp = gps_absolute_time();
@@ -621,10 +626,72 @@ int GPSDriverAshtech::handleMessage(int len)
 
 			ASH_DEBUG("Connected board: %i", (int)_board);
 		}
+
+	} else if (memcmp(_rx_buffer, "$PASHR,RECEIPT,", 15) == 0) {
+		// this is the response to $PASHS,POS,AVG,100
+		// example: $PASHR,RECEIPT,POS,AVG,STARTED,INTERVAL,100,114502.56,28.12.2011
+		if (_command_state == NMEACommandState::waiting && _waiting_for_command == NMEACommand::RECEIPT) {
+			_command_state = NMEACommandState::received;
+		}
+
+		// when finished we get one of the follwing messages:
+		// - successful: $PASHR,RECEIPT,POS,AVG,100,FINISHED,114642.81,28.12.2011,5542.5178481,N,03739.2954994,E,176.334,OK,CONTINUOUS,100.20*09
+		// - unsuccessful: $PASHR,RECEIPT,POS,AVG,100,FINISHED,124628.01,28.12.2011,ERR
+		if (strstr((const char *)_rx_buffer, "FINISHED")) {
+			const bool error = strstr((const char *)_rx_buffer, "ERR");
+			sendSurveyInStatusUpdate(false, !error);
+			_survey_in_start = 0;
+
+			if (!error) {
+				// enable RTCM output
+				char buffer[40];
+				const char *rtcm_options[] = {
+					"$PASHS,NME,POS,%c,ON,0.2\r\n",  // reduce position updates to 5 Hz
+
+					"$PASHS,RT3,1074,%c,ON,1\r\n", // GPS observations
+					"$PASHS,RT3,1084,%c,ON,1\r\n", // GLONASS observations
+					"$PASHS,RT3,1094,%c,ON,1\r\n", // Galileo observations
+
+					"$PASHS,RT3,1114,%c,ON,1\r\n", // QZSS observations
+					"$PASHS,RT3,1124,%c,ON,1\r\n", // BDS observations
+					"$PASHS,RT3,1006,%c,ON,1\r\n", // Static position
+					"$PASHS,RT3,1033,%c,ON,31\r\n", // Antenna and receiver name
+					"$PASHS,RT3,1013,%c,ON,1\r\n", // System parameters
+					"$PASHS,RT3,1029,%c,ON,1\r\n", // ASCII message
+					"$PASHS,RT3,1230,%c,ON\r\n", // GLONASS code phase bias
+
+					// TODO: are these required (these are the ones from u-blox)?
+					"$PASHS,RT3,1005,%c,ON,1\r\n",
+					"$PASHS,RT3,1077,%c,ON,1\r\n",
+					"$PASHS,RT3,1087,%c,ON,1\r\n",
+				};
+
+				for (unsigned int conf_i = 0; conf_i < sizeof(rtcm_options) / sizeof(rtcm_options[0]); conf_i++) {
+					int len = snprintf(buffer, sizeof(buffer), rtcm_options[conf_i], _port);
+
+					if (writeAckedCommand(buffer, len, ASH_RESPONSE_TIMEOUT) != 0) {
+						ASH_DEBUG("command %s failed", buffer);
+					}
+				}
+			}
+		}
+
 	}
 
 	if (ret == 1) {
 		_gps_position->timestamp_time_relative = (int32_t)(_last_timestamp_time - _gps_position->timestamp);
+	}
+
+
+	// handle survey-in status update
+	if (_survey_in_start != 0) {
+		const gps_abstime now = gps_absolute_time();
+		uint32_t survey_in_duration = (now - _survey_in_start) / 1000000;
+
+		if (survey_in_duration != _survey_in_min_dur) {
+			_survey_in_min_dur = survey_in_duration;
+			sendSurveyInStatusUpdate(true, false);
+		}
 	}
 
 	return ret;
@@ -816,6 +883,8 @@ int GPSDriverAshtech::waitForReply(NMEACommand command, const unsigned timeout)
 int GPSDriverAshtech::configure(unsigned &baudrate, OutputMode output_mode)
 {
 	_output_mode = output_mode;
+	_correction_output_activated = false;
+	_configure_done = false;
 
 	/* Try different baudrates (115200 is the default for Trimble) and request the baudrate that we want.
 	 *
@@ -977,7 +1046,75 @@ int GPSDriverAshtech::configure(unsigned &baudrate, OutputMode output_mode)
 		}
 	}
 
+
+	if (output_mode == OutputMode::RTCM && _board == AshtechBoard::trimble_mb_two) {
+		SurveyInStatus status;
+		status.duration = 0;
+		status.mean_accuracy = 0;
+		const bool valid = false;
+		const bool active = true;
+		status.flags = valid | (active << 1);
+		surveyInStatus(status);
 	}
 
+	_configure_done = true;
 	return 0;
+}
+
+void GPSDriverAshtech::activateCorrectionOutput()
+{
+	if (_correction_output_activated || _output_mode != OutputMode::RTCM) {
+		return;
+	}
+
+	_correction_output_activated = true;
+	char buffer[40];
+
+	ASH_DEBUG("enabling survey-in");
+
+	// setup the base reference: average the position over N seconds
+	const char avg_pos[] = "$PASHS,POS,AVG,%i\r\n";
+	// alternatively use the current position as reference: "$PASHS,POS,CUR\r\n"
+	int len = snprintf(buffer, sizeof(buffer), avg_pos, _survey_in_min_dur);
+
+	write(buffer, len);
+
+	if (waitForReply(NMEACommand::RECEIPT, ASH_RESPONSE_TIMEOUT) != 0) {
+		ASH_DEBUG("command %s failed", buffer);
+	}
+
+
+	const char *config_options[] = {
+		"$PASHS,ANP,OWN,TRM55971.00\r\n",    // set antenna name (arbitrary)
+		"$PASHS,STI,0001\r\n"         // enter a base ID
+	};
+
+
+	for (unsigned int conf_i = 0; conf_i < sizeof(config_options) / sizeof(config_options[0]); conf_i++) {
+		if (writeAckedCommand(config_options[conf_i], strlen(config_options[conf_i]), ASH_RESPONSE_TIMEOUT) != 0) {
+			ASH_DEBUG("command %s failed", config_options[conf_i]);
+		}
+	}
+
+	_survey_in_min_dur = 0; // use it as counter how long survey-in has been active
+	_survey_in_start = gps_absolute_time();
+	sendSurveyInStatusUpdate(true, false);
+}
+
+void
+GPSDriverAshtech::sendSurveyInStatusUpdate(bool active, bool valid)
+{
+	SurveyInStatus status;
+	status.duration = _survey_in_min_dur;
+	status.mean_accuracy = 0; // unknown
+	status.flags = valid | (active << 1);
+	surveyInStatus(status);
+}
+
+void
+GPSDriverAshtech::setSurveyInSpecs(uint32_t survey_in_acc_limit, uint32_t survey_in_min_dur)
+{
+	// only duration is supported
+	(void)survey_in_acc_limit;
+	_survey_in_min_dur = survey_in_min_dur;
 }
