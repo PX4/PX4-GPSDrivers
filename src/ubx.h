@@ -570,7 +570,7 @@ public:
 
 	int restartSurveyIn() override;
 
-	void setSurveyInSpecs(uint32_t survey_in_acc_limit, uint32_t survey_in_min_dur);
+	void setSurveyInSpecs(uint32_t survey_in_acc_limit, uint32_t survey_in_min_dur) override;
 private:
 
 	/**
