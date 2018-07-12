@@ -49,8 +49,11 @@ class RTCMParsing;
 class GPSDriverAshtech : public GPSHelper
 {
 public:
+	/**
+	 * @param heading_offset heading offset in radians [-pi, pi]. It is added to the measurement.
+	 */
 	GPSDriverAshtech(GPSCallbackPtr callback, void *callback_user, struct vehicle_gps_position_s *gps_position,
-			 struct satellite_info_s *satellite_info);
+			 struct satellite_info_s *satellite_info, float heading_offset = 0.f);
 	virtual ~GPSDriverAshtech();
 
 	int receive(unsigned timeout);
@@ -131,5 +134,7 @@ private:
 	OutputMode _output_mode{OutputMode::GPS};
 	bool _correction_output_activated{false};
 	bool _configure_done{false};
+
+	float _heading_offset;
 };
 

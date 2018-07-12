@@ -51,10 +51,11 @@
 
 GPSDriverAshtech::GPSDriverAshtech(GPSCallbackPtr callback, void *callback_user,
 				   struct vehicle_gps_position_s *gps_position,
-				   struct satellite_info_s *satellite_info) :
+				   struct satellite_info_s *satellite_info, float heading_offset) :
 	GPSHelper(callback, callback_user),
 	_satellite_info(satellite_info),
-	_gps_position(gps_position)
+	_gps_position(gps_position),
+	_heading_offset(heading_offset)
 {
 	decodeInit();
 }
@@ -287,10 +288,16 @@ int GPSDriverAshtech::handleMessage(int len)
 		if (bufptr && *(++bufptr) != ',') {
 			heading = strtof(bufptr, &endp); bufptr = endp;
 
-			ASH_DEBUG("heading: %.3f", (double)heading);
+			ASH_DEBUG("heading update: %.3f", (double)heading);
 
-			heading *= M_PI_F / 180.0f; // deg to rad, now in range [0, 2PI]
-			// TODO: return the value
+			heading *= M_PI_F / 180.0f; // deg to rad, now in range [0, 2pi]
+			heading += _heading_offset; // range: [-pi, 3pi]
+
+			if (heading > M_PI_F) {
+				heading -= 2.f * M_PI_F; // final range is [-pi, pi]
+			}
+
+			_gps_position->heading = heading;
 		}
 
 	} else if ((memcmp(_rx_buffer, "$PASHR,POS,", 11) == 0) && (uiCalcComma == 18)) {
