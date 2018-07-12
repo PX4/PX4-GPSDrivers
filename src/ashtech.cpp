@@ -402,8 +402,8 @@ int GPSDriverAshtech::handleMessage(int len)
 		_gps_position->lat = static_cast<int>((int(lat * 0.01) + (lat * 0.01 - int(lat * 0.01)) * 100.0 / 60.0) * 10000000);
 		_gps_position->lon = static_cast<int>((int(lon * 0.01) + (lon * 0.01 - int(lon * 0.01)) * 100.0 / 60.0) * 10000000);
 		_gps_position->alt = static_cast<int>(alt * 1000);
-		_gps_position->hdop = (float)hdop / 100.0f;
-		_gps_position->vdop = (float)vdop / 100.0f;
+		_gps_position->hdop = (float)hdop;
+		_gps_position->vdop = (float)vdop;
 		_rate_count_lat_lon++;
 
 		if (coordinatesFound < 3) {
