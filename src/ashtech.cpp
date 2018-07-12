@@ -667,9 +667,9 @@ int GPSDriverAshtech::handleMessage(int len)
 				};
 
 				for (unsigned int conf_i = 0; conf_i < sizeof(rtcm_options) / sizeof(rtcm_options[0]); conf_i++) {
-					int len = snprintf(buffer, sizeof(buffer), rtcm_options[conf_i], _port);
+					int str_len = snprintf(buffer, sizeof(buffer), rtcm_options[conf_i], _port);
 
-					if (writeAckedCommand(buffer, len, ASH_RESPONSE_TIMEOUT) != 0) {
+					if (writeAckedCommand(buffer, str_len, ASH_RESPONSE_TIMEOUT) != 0) {
 						ASH_DEBUG("command %s failed", buffer);
 					}
 				}
