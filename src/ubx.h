@@ -568,10 +568,15 @@ public:
 	int receive(unsigned timeout) override;
 	int configure(unsigned &baudrate, OutputMode output_mode) override;
 
-	int restartSurveyIn() override;
-
 	void setSurveyInSpecs(uint32_t survey_in_acc_limit, uint32_t survey_in_min_dur) override;
 private:
+
+	/**
+	 * Start or restart the survey-in procees. This is only used in RTCM ouput mode.
+	 * It will be called automatically after configuring.
+	 * @return 0 on success, <0 on error
+	 */
+	int restartSurveyIn();
 
 	/**
 	 * Parse the binary UBX packet

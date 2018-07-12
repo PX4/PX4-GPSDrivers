@@ -154,13 +154,6 @@ public:
 	void storeUpdateRates();
 
 	/**
-	 * Start or restart the survey-in procees. This is only used in RTCM ouput mode.
-	 * It will be called automatically after configuring.
-	 * @return 0 on success, <0 on error
-	 */
-	virtual int restartSurveyIn() { return 0; }
-
-	/**
 	 * set survey-in specs for RTK base station setup (for finding an accurate base station position
 	 * by averaging the position measurements over time).
 	 * @param survey_in_acc_limit minimum accuracy in 0.1mm
