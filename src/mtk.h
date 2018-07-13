@@ -91,8 +91,8 @@ public:
 	GPSDriverMTK(GPSCallbackPtr callback, void *callback_user, struct vehicle_gps_position_s *gps_position);
 	virtual ~GPSDriverMTK() = default;
 
-	int receive(unsigned timeout);
-	int configure(unsigned &baudrate, OutputMode output_mode);
+	int receive(unsigned timeout) override;
+	int configure(unsigned &baudrate, OutputMode output_mode) override;
 
 private:
 	/**

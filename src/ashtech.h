@@ -56,8 +56,8 @@ public:
 			 struct satellite_info_s *satellite_info, float heading_offset = 0.f);
 	virtual ~GPSDriverAshtech();
 
-	int receive(unsigned timeout);
-	int configure(unsigned &baudrate, OutputMode output_mode);
+	int receive(unsigned timeout) override;
+	int configure(unsigned &baudrate, OutputMode output_mode) override;
 
 	void setSurveyInSpecs(uint32_t survey_in_acc_limit, uint32_t survey_in_min_dur) override;
 private:
