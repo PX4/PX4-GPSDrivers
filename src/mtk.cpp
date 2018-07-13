@@ -62,6 +62,10 @@ GPSDriverMTK::configure(unsigned &baudrate, OutputMode output_mode)
 		return -1;
 	}
 
+	if (baudrate > 0 && baudrate != MTK_BAUDRATE) {
+		return -1;
+	}
+
 	/* set baudrate first */
 	if (GPSHelper::setBaudrate(MTK_BAUDRATE) != 0) {
 		return -1;
