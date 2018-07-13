@@ -903,11 +903,18 @@ int GPSDriverAshtech::configure(unsigned &baudrate, OutputMode output_mode)
 	const unsigned baudrates_to_try[] = {9600, 38400, 19200, 57600, 115200};
 	bool success = false;
 
-	for (unsigned int baud_i = 0; !success && baud_i < sizeof(baudrates_to_try) / sizeof(baudrates_to_try[0]); baud_i++) {
-		baudrate = baudrates_to_try[baud_i];
-		setBaudrate(baudrate);
+	unsigned test_baudrate;
 
-		ASH_DEBUG("baudrate set to %i", baudrate);
+	for (unsigned int baud_i = 0; !success && baud_i < sizeof(baudrates_to_try) / sizeof(baudrates_to_try[0]); baud_i++) {
+		test_baudrate = baudrates_to_try[baud_i];
+
+		if (baudrate > 0 && baudrate != test_baudrate) {
+			continue; // skip to next baudrate
+		}
+
+		setBaudrate(test_baudrate);
+
+		ASH_DEBUG("baudrate set to %i", test_baudrate);
 
 		const char port_config[] = "$PASHQ,PRT\r\n";  // ask for the current port configuration
 
@@ -915,7 +922,7 @@ int GPSDriverAshtech::configure(unsigned &baudrate, OutputMode output_mode)
 			write(port_config, sizeof(port_config) - 1);
 
 			if (waitForReply(NMEACommand::PRT, ASH_RESPONSE_TIMEOUT) == 0) {
-				ASH_DEBUG("got port for baudrate %i", baudrate);
+				ASH_DEBUG("got port for baudrate %i", test_baudrate);
 				success = true;
 				break;
 			}
@@ -929,6 +936,8 @@ int GPSDriverAshtech::configure(unsigned &baudrate, OutputMode output_mode)
 	// We successfully got a response and know to which port we are connected. Now set the desired baudrate
 	// if it's different from the current one.
 	const unsigned desired_baudrate = 115200; // changing this requires also changing the SPD command
+
+	baudrate = test_baudrate;
 
 	if (baudrate != desired_baudrate) {
 		baudrate = desired_baudrate;

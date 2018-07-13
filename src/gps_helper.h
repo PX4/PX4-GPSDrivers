@@ -134,7 +134,8 @@ public:
 
 	/**
 	 * configure the device
-	 * @param baud will be set to the baudrate (output parameter)
+	 * @param baud Input and output parameter: if set to 0, the baudrate will be automatically detected and set to
+	 *             the detected baudrate. If not 0, a fixed baudrate is used.
 	 * @return 0 on success, <0 otherwise
 	 */
 	virtual int configure(unsigned &baud, OutputMode output_mode) = 0;

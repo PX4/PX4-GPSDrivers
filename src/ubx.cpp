@@ -125,8 +125,15 @@ GPSDriverUBX::configure(unsigned &baudrate, OutputMode output_mode)
 
 	if (_interface == Interface::UART) {
 		for (baud_i = 0; baud_i < sizeof(baudrates) / sizeof(baudrates[0]); baud_i++) {
-			baudrate = baudrates[baud_i];
-			setBaudrate(baudrate);
+			unsigned test_baudrate = baudrates[baud_i];
+
+			if (baudrate > 0 && baudrate != test_baudrate) {
+				continue; // skip to next baudrate
+			}
+
+			setBaudrate(test_baudrate);
+
+			UBX_DEBUG("baudrate set to %i", test_baudrate);
 
 			/* flush input and wait for at least 20 ms silence */
 			decodeInit();
@@ -138,12 +145,12 @@ GPSDriverUBX::configure(unsigned &baudrate, OutputMode output_mode)
 			memset(cfg_prt, 0, 2 * sizeof(ubx_payload_tx_cfg_prt_t));
 			cfg_prt[0].portID		= UBX_TX_CFG_PRT_PORTID;
 			cfg_prt[0].mode		= UBX_TX_CFG_PRT_MODE;
-			cfg_prt[0].baudRate	= baudrate;
+			cfg_prt[0].baudRate	= test_baudrate;
 			cfg_prt[0].inProtoMask	= in_proto_mask;
 			cfg_prt[0].outProtoMask	= out_proto_mask;
 			cfg_prt[1].portID		= UBX_TX_CFG_PRT_PORTID_USB;
 			cfg_prt[1].mode		= UBX_TX_CFG_PRT_MODE;
-			cfg_prt[1].baudRate	= baudrate;
+			cfg_prt[1].baudRate	= test_baudrate;
 			cfg_prt[1].inProtoMask	= in_proto_mask;
 			cfg_prt[1].outProtoMask	= out_proto_mask;
 
@@ -176,12 +183,12 @@ GPSDriverUBX::configure(unsigned &baudrate, OutputMode output_mode)
 			/* no ACK is expected here, but read the buffer anyway in case we actually get an ACK */
 			waitForAck(UBX_MSG_CFG_PRT, UBX_CONFIG_TIMEOUT, false);
 
-			if (UBX_TX_CFG_PRT_BAUDRATE != baudrate) {
+			if (UBX_TX_CFG_PRT_BAUDRATE != test_baudrate) {
 				setBaudrate(UBX_TX_CFG_PRT_BAUDRATE);
-				baudrate = UBX_TX_CFG_PRT_BAUDRATE;
 			}
 
 			/* at this point we have correct baudrate on both ends */
+			baudrate = UBX_TX_CFG_PRT_BAUDRATE;
 			break;
 		}
 
