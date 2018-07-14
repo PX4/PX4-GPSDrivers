@@ -739,7 +739,7 @@ int GPSDriverAshtech::receive(unsigned timeout)
 		uint64_t time_started = gps_absolute_time();
 
 		int j = 0;
-		ssize_t bytes_count = 0;
+		int bytes_count = 0;
 
 		while (true) {
 
