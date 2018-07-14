@@ -1085,7 +1085,7 @@ int GPSDriverAshtech::configure(unsigned &baudrate, OutputMode output_mode)
 		status.mean_accuracy = 0;
 		const bool valid = false;
 		const bool active = true;
-		status.flags = valid | (active << 1);
+		status.flags = (int)valid | ((int)active << 1);
 		surveyInStatus(status);
 	}
 
@@ -1139,7 +1139,7 @@ GPSDriverAshtech::sendSurveyInStatusUpdate(bool active, bool valid)
 	SurveyInStatus status;
 	status.duration = _survey_in_min_dur;
 	status.mean_accuracy = 0; // unknown
-	status.flags = valid | (active << 1);
+	status.flags = (int)valid | ((int)active << 1);
 	surveyInStatus(status);
 }
 
