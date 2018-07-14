@@ -45,6 +45,7 @@
 #endif
 
 #define MIN(X,Y)	((X) < (Y) ? (X) : (Y))
+#define ASH_UNUSED(x) (void)x;
 
 //#define ASH_DEBUG(...)		{GPS_WARN(__VA_ARGS__);}
 #define ASH_DEBUG(...)		{/*GPS_WARN(__VA_ARGS__);*/}
@@ -109,8 +110,9 @@ int GPSDriverAshtech::handleMessage(int len)
 		Fields 5 and 6 together yield the total offset. For example, if field 5 is -5 and field 6 is +15, local time is 5 hours and 15 minutes earlier than GMT.
 		*/
 		double ashtech_time = 0.0;
-		int day = 0, month = 0, year = 0, local_time_off_hour __attribute__((unused)) = 0,
-		    local_time_off_min __attribute__((unused)) = 0;
+		int day = 0, month = 0, year = 0, local_time_off_hour = 0, local_time_off_min = 0;
+		ASH_UNUSED(local_time_off_min);
+		ASH_UNUSED(local_time_off_hour);
 
 		if (bufptr && *(++bufptr) != ',') { ashtech_time = strtod(bufptr, &endp); bufptr = endp; }
 
@@ -209,10 +211,14 @@ int GPSDriverAshtech::handleMessage(int len)
 		  The checksum data, always begins with *
 		  Note - If a user-defined geoid model, or an inclined
 		*/
-		double ashtech_time __attribute__((unused)) = 0.0, lat = 0.0, lon = 0.0, alt = 0.0;
-		int num_of_sv __attribute__((unused)) = 0, fix_quality = 0;
-		double hdop __attribute__((unused)) = 99.9;
+		double ashtech_time = 0.0, lat = 0.0, lon = 0.0, alt = 0.0;
+		int num_of_sv = 0, fix_quality = 0;
+		double hdop = 99.9;
 		char ns = '?', ew = '?';
+
+		ASH_UNUSED(ashtech_time);
+		ASH_UNUSED(num_of_sv);
+		ASH_UNUSED(hdop);
 
 		if (bufptr && *(++bufptr) != ',') { ashtech_time = strtod(bufptr, &endp); bufptr = endp; }
 
@@ -337,12 +343,17 @@ int GPSDriverAshtech::handleMessage(int len)
 		 * Ashtech would return empty space as coordinate (lat, lon or alt) if it doesn't have a fix yet
 		 */
 		int coordinatesFound = 0;
-		double ashtech_time __attribute__((unused)) = 0.0, lat = 0.0, lon = 0.0, alt = 0.0;
-		int num_of_sv __attribute__((unused)) = 0, fix_quality = 0;
-		double track_true = 0.0, ground_speed = 0.0, age_of_corr __attribute__((unused)) = 0.0;
-		double hdop = 99.9, vdop = 99.9,  pdop __attribute__((unused)) = 99.9,
-		       tdop __attribute__((unused)) = 99.9, vertic_vel = 0.0;
+		double ashtech_time = 0.0, lat = 0.0, lon = 0.0, alt = 0.0;
+		int num_of_sv = 0, fix_quality = 0;
+		double track_true = 0.0, ground_speed = 0.0, age_of_corr = 0.0;
+		double hdop = 99.9, vdop = 99.9,  pdop = 99.9, tdop = 99.9, vertic_vel = 0.0;
 		char ns = '?', ew = '?';
+
+		ASH_UNUSED(ashtech_time);
+		ASH_UNUSED(num_of_sv);
+		ASH_UNUSED(age_of_corr);
+		ASH_UNUSED(pdop);
+		ASH_UNUSED(tdop);
 
 		if (bufptr && *(++bufptr) != ',') { fix_quality = strtol(bufptr, &endp, 10); bufptr = endp; }
 
@@ -481,9 +492,14 @@ int GPSDriverAshtech::handleMessage(int len)
 		  8   Height 1 sigma error, in meters
 		  9   The checksum data, always begins with *
 		*/
-		double ashtech_time __attribute__((unused)) = 0.0, lat_err = 0.0, lon_err = 0.0, alt_err = 0.0;
-		double min_err __attribute__((unused)) = 0.0, maj_err __attribute__((unused)) = 0.0,
-		deg_from_north __attribute__((unused)) = 0.0, rms_err __attribute__((unused)) = 0.0;
+		double ashtech_time = 0.0, lat_err = 0.0, lon_err = 0.0, alt_err = 0.0;
+		double min_err = 0.0, maj_err = 0.0, deg_from_north = 0.0, rms_err = 0.0;
+
+		ASH_UNUSED(ashtech_time);
+		ASH_UNUSED(min_err);
+		ASH_UNUSED(maj_err);
+		ASH_UNUSED(deg_from_north);
+		ASH_UNUSED(rms_err);
 
 		if (bufptr && *(++bufptr) != ',') { ashtech_time = strtod(bufptr, &endp); bufptr = endp; }
 
