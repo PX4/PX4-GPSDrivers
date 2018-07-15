@@ -54,6 +54,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <ctime>
+#include <cmath>
 
 #include "ubx.h"
 #include "rtcm.h"
@@ -91,6 +92,8 @@ GPSDriverUBX::GPSDriverUBX(Interface gpsInterface, GPSCallbackPtr callback, void
 	, _dyn_model(dynamic_model)
 {
 	decodeInit();
+	// Not present in normal operation, unless for dual-antenna RTK units
+	_gps_position->heading = NAN;
 }
 
 GPSDriverUBX::~GPSDriverUBX()
@@ -155,7 +158,7 @@ GPSDriverUBX::configure(unsigned &baudrate, OutputMode output_mode)
 			}
 
 			/* allow the module to re-initialize */
-			usleep(200000);
+			usleep(100000);
 
 			/* flush input and wait for at least 20 ms silence */
 			decodeInit();

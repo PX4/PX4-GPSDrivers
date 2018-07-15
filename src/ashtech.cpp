@@ -36,6 +36,7 @@
 #include <math.h>
 #include <string.h>
 #include <ctime>
+#include <cmath>
 
 #include "ashtech.h"
 #include "rtcm.h"
@@ -59,6 +60,8 @@ GPSDriverAshtech::GPSDriverAshtech(GPSCallbackPtr callback, void *callback_user,
 	_heading_offset(heading_offset)
 {
 	decodeInit();
+
+	_gps_position->heading = NAN;
 }
 
 GPSDriverAshtech::~GPSDriverAshtech()
