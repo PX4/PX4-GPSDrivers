@@ -1107,7 +1107,7 @@ void GPSDriverAshtech::activateCorrectionOutput()
 	// setup the base reference: average the position over N seconds
 	const char avg_pos[] = "$PASHS,POS,AVG,%i\r\n";
 	// alternatively use the current position as reference: "$PASHS,POS,CUR\r\n"
-	int len = snprintf(buffer, sizeof(buffer), avg_pos, _survey_in_min_dur);
+	int len = snprintf(buffer, sizeof(buffer), avg_pos, (int)_survey_in_min_dur);
 
 	write(buffer, len);
 
