@@ -61,7 +61,7 @@
 #define UBX_CLASS_ACK		0x05
 #define UBX_CLASS_CFG		0x06
 #define UBX_CLASS_MON		0x0A
-#define UBX_CLASS_RTCM3	0xF5 /**< This is undocumented (?) */
+#define UBX_CLASS_RTCM3	0xF5 /**< Documented p370 of https://www.u-blox.com/sites/default/files/products/documents/u-blox8-M8_ReceiverDescrProtSpec_%28UBX-13003221%29_Public.pdf */
 
 /* Message IDs */
 #define UBX_ID_NAV_POSLLH	0x02
