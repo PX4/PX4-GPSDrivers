@@ -300,7 +300,7 @@ int GPSDriverAshtech::handleMessage(int len)
 			ASH_DEBUG("heading update: %.3f", (double)heading);
 
 			heading *= M_PI_F / 180.0f; // deg to rad, now in range [0, 2pi]
-			heading += _heading_offset; // range: [-pi, 3pi]
+			heading -= _heading_offset; // range: [-pi, 3pi]
 
 			if (heading > M_PI_F) {
 				heading -= 2.f * M_PI_F; // final range is [-pi, pi]
