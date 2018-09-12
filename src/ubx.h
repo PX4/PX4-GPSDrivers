@@ -40,16 +40,17 @@
  * @author Thomas Gubler <thomasgubler@student.ethz.ch>
  * @author Julian Oes <julian@oes.ch>
  * @author Anton Babushkin <anton.babushkin@me.com>
+ * @author Beat Küng <beat-kueng@gmx.net>
  *
  * @author Hannes Delago
  *   (rework, add ubx7+ compatibility)
  *
  */
 
-#ifndef UBX_H_
-#define UBX_H_
+#pragma once
 
 #include "gps_helper.h"
+#include "base_station.h"
 #include "../../definitions.h"
 
 #define UBX_SYNC1 0xB5
@@ -581,7 +582,7 @@ typedef enum {
 } ubx_ack_state_t;
 
 
-class GPSDriverUBX : public GPSHelper
+class GPSDriverUBX : public GPSBaseStationSupport
 {
 public:
 	GPSDriverUBX(Interface gpsInterface, GPSCallbackPtr callback, void *callback_user,
@@ -594,7 +595,6 @@ public:
 	int receive(unsigned timeout) override;
 	int configure(unsigned &baudrate, OutputMode output_mode) override;
 
-	void setSurveyInSpecs(uint32_t survey_in_acc_limit, uint32_t survey_in_min_dur) override;
 private:
 
 	/**
@@ -664,6 +664,8 @@ private:
 	 */
 	inline bool configureMessageRateAndAck(uint16_t msg, uint8_t rate, bool report_ack_error = false);
 
+	int activateRTCMOutput();
+
 	/**
 	 * Calculate FNV1 hash
 	 */
@@ -693,11 +695,9 @@ private:
 	RTCMParsing	*_rtcm_parsing{nullptr};
 
 	const Interface		_interface;
-	uint32_t _survey_in_acc_limit;
-	uint32_t _survey_in_min_dur;
 
 	// ublox Dynamic platform model default 7: airborne with <2g acceleration
 	uint8_t _dyn_model{7};
 };
 
-#endif /* UBX_H_ */
+

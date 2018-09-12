@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (c) 2012-2016 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2012-2018 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -54,7 +54,7 @@
 GPSDriverAshtech::GPSDriverAshtech(GPSCallbackPtr callback, void *callback_user,
 				   struct vehicle_gps_position_s *gps_position,
 				   struct satellite_info_s *satellite_info, float heading_offset) :
-	GPSHelper(callback, callback_user),
+	GPSBaseStationSupport(callback, callback_user),
 	_satellite_info(satellite_info),
 	_gps_position(gps_position),
 	_heading_offset(heading_offset)
@@ -663,42 +663,46 @@ int GPSDriverAshtech::handleMessage(int len)
 		// when finished we get one of the follwing messages:
 		// - successful: $PASHR,RECEIPT,POS,AVG,100,FINISHED,114642.81,28.12.2011,5542.5178481,N,03739.2954994,E,176.334,OK,CONTINUOUS,100.20*09
 		// - unsuccessful: $PASHR,RECEIPT,POS,AVG,100,FINISHED,124628.01,28.12.2011,ERR
-		if (strstr((const char *)_rx_buffer, "FINISHED")) {
+		char *finished_find = strstr((char *)_rx_buffer, "FINISHED,");
+
+		if (finished_find) {
 			const bool error = strstr((const char *)_rx_buffer, "ERR");
-			sendSurveyInStatusUpdate(false, !error);
 			_survey_in_start = 0;
 
-			if (!error) {
-				// enable RTCM output
-				char buffer[40];
-				const char *rtcm_options[] = {
-					"$PASHS,NME,POS,%c,ON,0.2\r\n",  // reduce position updates to 5 Hz
+			if (error) {
+				sendSurveyInStatusUpdate(false, false);
 
-					"$PASHS,RT3,1074,%c,ON,1\r\n", // GPS observations
-					"$PASHS,RT3,1084,%c,ON,1\r\n", // GLONASS observations
-					"$PASHS,RT3,1094,%c,ON,1\r\n", // Galileo observations
+			} else {
+				// extract the position
+				double lat = 0., lon = 0.;
+				float alt = 0.f;
+				char ns = '?', ew = '?';
+				bufptr = finished_find + 9; // skip over FINISHED,
+				// skip the next 2 arguments
+				bufptr = strstr(bufptr, ",");
 
-					"$PASHS,RT3,1114,%c,ON,1\r\n", // QZSS observations
-					"$PASHS,RT3,1124,%c,ON,1\r\n", // BDS observations
-					"$PASHS,RT3,1006,%c,ON,1\r\n", // Static position
-					"$PASHS,RT3,1033,%c,ON,31\r\n", // Antenna and receiver name
-					"$PASHS,RT3,1013,%c,ON,1\r\n", // System parameters
-					"$PASHS,RT3,1029,%c,ON,1\r\n", // ASCII message
-					"$PASHS,RT3,1230,%c,ON\r\n", // GLONASS code phase bias
+				if (bufptr) { bufptr = strstr(bufptr + 1, ","); }
 
-					// TODO: are these required (these are the ones from u-blox)?
-					"$PASHS,RT3,1005,%c,ON,1\r\n",
-					"$PASHS,RT3,1077,%c,ON,1\r\n",
-					"$PASHS,RT3,1087,%c,ON,1\r\n",
-				};
+				if (bufptr && *(++bufptr) != ',') { lat = strtod(bufptr, &endp); bufptr = endp; }
 
-				for (unsigned int conf_i = 0; conf_i < sizeof(rtcm_options) / sizeof(rtcm_options[0]); conf_i++) {
-					int str_len = snprintf(buffer, sizeof(buffer), rtcm_options[conf_i], _port);
+				if (bufptr && *(++bufptr) != ',') { ns = *(bufptr++); }
 
-					if (writeAckedCommand(buffer, str_len, ASH_RESPONSE_TIMEOUT) != 0) {
-						ASH_DEBUG("command %s failed", buffer);
-					}
-				}
+				if (bufptr && *(++bufptr) != ',') { lon = strtod(bufptr, &endp); bufptr = endp; }
+
+				if (bufptr && *(++bufptr) != ',') { ew = *(bufptr++); }
+
+				if (bufptr && *(++bufptr) != ',') { alt = strtod(bufptr, &endp); bufptr = endp; }
+
+				if (ns == 'S') { lat = -lat; }
+
+				if (ew == 'W') { lon = -lon; }
+
+				lat = int(lat * 0.01) + (lat * 0.01 - int(lat * 0.01)) * 100.0 / 60.0;
+				lon = int(lon * 0.01) + (lon * 0.01 - int(lon * 0.01)) * 100.0 / 60.0;
+
+				sendSurveyInStatusUpdate(false, true, lat, lon, alt);
+
+				activateRTCMOutput();
 			}
 		}
 
@@ -714,13 +718,46 @@ int GPSDriverAshtech::handleMessage(int len)
 		const gps_abstime now = gps_absolute_time();
 		uint32_t survey_in_duration = (now - _survey_in_start) / 1000000;
 
-		if (survey_in_duration != _survey_in_min_dur) {
-			_survey_in_min_dur = survey_in_duration;
+		if (survey_in_duration != _base_settings.settings.survey_in.min_dur) {
+			_base_settings.settings.survey_in.min_dur = survey_in_duration;
 			sendSurveyInStatusUpdate(true, false);
 		}
 	}
 
 	return ret;
+}
+
+void GPSDriverAshtech::activateRTCMOutput()
+{
+	char buffer[40];
+	const char *rtcm_options[] = {
+		"$PASHS,NME,POS,%c,ON,0.2\r\n",  // reduce position updates to 5 Hz
+
+		"$PASHS,RT3,1074,%c,ON,1\r\n", // GPS observations
+		"$PASHS,RT3,1084,%c,ON,1\r\n", // GLONASS observations
+		"$PASHS,RT3,1094,%c,ON,1\r\n", // Galileo observations
+
+		"$PASHS,RT3,1114,%c,ON,1\r\n", // QZSS observations
+		"$PASHS,RT3,1124,%c,ON,1\r\n", // BDS observations
+		"$PASHS,RT3,1006,%c,ON,1\r\n", // Static position
+		"$PASHS,RT3,1033,%c,ON,31\r\n", // Antenna and receiver name
+		"$PASHS,RT3,1013,%c,ON,1\r\n", // System parameters
+		"$PASHS,RT3,1029,%c,ON,1\r\n", // ASCII message
+		"$PASHS,RT3,1230,%c,ON\r\n", // GLONASS code phase bias
+
+		// TODO: are these required (these are the ones from u-blox)?
+		"$PASHS,RT3,1005,%c,ON,1\r\n",
+		"$PASHS,RT3,1077,%c,ON,1\r\n",
+		"$PASHS,RT3,1087,%c,ON,1\r\n",
+	};
+
+	for (unsigned int conf_i = 0; conf_i < sizeof(rtcm_options) / sizeof(rtcm_options[0]); conf_i++) {
+		int str_len = snprintf(buffer, sizeof(buffer), rtcm_options[conf_i], _port);
+
+		if (writeAckedCommand(buffer, str_len, ASH_RESPONSE_TIMEOUT) != 0) {
+			ASH_DEBUG("command %s failed", buffer);
+		}
+	}
 }
 
 void GPSDriverAshtech::receiveWait(unsigned timeout_min)
@@ -1084,6 +1121,8 @@ int GPSDriverAshtech::configure(unsigned &baudrate, OutputMode output_mode)
 
 	if (output_mode == OutputMode::RTCM && _board == AshtechBoard::trimble_mb_two) {
 		SurveyInStatus status;
+		status.latitude = status.longitude = NAN;
+		status.altitude = NAN;
 		status.duration = 0;
 		status.mean_accuracy = 0;
 		const bool valid = false;
@@ -1103,53 +1142,96 @@ void GPSDriverAshtech::activateCorrectionOutput()
 	}
 
 	_correction_output_activated = true;
-	char buffer[40];
+	char buffer[100];
 
-	ASH_DEBUG("enabling survey-in");
+	if (_base_settings.type == BaseSettingsType::survey_in) {
+		ASH_DEBUG("enabling survey-in");
 
-	// setup the base reference: average the position over N seconds
-	const char avg_pos[] = "$PASHS,POS,AVG,%i\r\n";
-	// alternatively use the current position as reference: "$PASHS,POS,CUR\r\n"
-	int len = snprintf(buffer, sizeof(buffer), avg_pos, (int)_survey_in_min_dur);
+		// setup the base reference: average the position over N seconds
+		const char avg_pos[] = "$PASHS,POS,AVG,%i\r\n";
+		// alternatively use the current position as reference: "$PASHS,POS,CUR\r\n"
+		int len = snprintf(buffer, sizeof(buffer), avg_pos, (int)_base_settings.settings.survey_in.min_dur);
 
-	write(buffer, len);
+		write(buffer, len);
 
-	if (waitForReply(NMEACommand::RECEIPT, ASH_RESPONSE_TIMEOUT) != 0) {
-		ASH_DEBUG("command %s failed", buffer);
-	}
-
-
-	const char *config_options[] = {
-		"$PASHS,ANP,OWN,TRM55971.00\r\n",    // set antenna name (arbitrary)
-		"$PASHS,STI,0001\r\n"         // enter a base ID
-	};
-
-
-	for (unsigned int conf_i = 0; conf_i < sizeof(config_options) / sizeof(config_options[0]); conf_i++) {
-		if (writeAckedCommand(config_options[conf_i], strlen(config_options[conf_i]), ASH_RESPONSE_TIMEOUT) != 0) {
-			ASH_DEBUG("command %s failed", config_options[conf_i]);
+		if (waitForReply(NMEACommand::RECEIPT, ASH_RESPONSE_TIMEOUT) != 0) {
+			ASH_DEBUG("command %s failed", buffer);
 		}
-	}
 
-	_survey_in_min_dur = 0; // use it as counter how long survey-in has been active
-	_survey_in_start = gps_absolute_time();
-	sendSurveyInStatusUpdate(true, false);
+
+		const char *config_options[] = {
+			"$PASHS,ANP,OWN,TRM55971.00\r\n",    // set antenna name (arbitrary)
+			"$PASHS,STI,0001\r\n"         // enter a base ID
+		};
+
+
+		for (unsigned int conf_i = 0; conf_i < sizeof(config_options) / sizeof(config_options[0]); conf_i++) {
+			if (writeAckedCommand(config_options[conf_i], strlen(config_options[conf_i]), ASH_RESPONSE_TIMEOUT) != 0) {
+				ASH_DEBUG("command %s failed", config_options[conf_i]);
+			}
+		}
+
+		_base_settings.settings.survey_in.min_dur = 0; // use it as counter how long survey-in has been active
+		_survey_in_start = gps_absolute_time();
+		sendSurveyInStatusUpdate(true, false);
+
+	} else {
+		ASH_DEBUG("setting base station position");
+
+		const FixedPositionSettings &settings = _base_settings.settings.fixed_position;
+		char ns, ew;
+		double latitude = settings.latitude;
+
+		if (latitude < 0.) {
+			latitude = -latitude;
+			ns = 'S';
+
+		} else {
+			ns = 'N';
+		}
+
+		// convert to ddmm.mmmmmm format
+		latitude = ((int)latitude) * 100. + (latitude - ((int)latitude)) * 60.;
+
+		double longitude = settings.longitude;
+
+		if (longitude < 0.) {
+			longitude = -longitude;
+			ew = 'W';
+
+		} else {
+			ew = 'E';
+		}
+
+		// convert to ddmm.mmmmmm format
+		longitude = ((int)longitude) * 100. + (longitude - ((int)longitude)) * 60.;
+
+		int len = snprintf(buffer, sizeof(buffer), "$PASHS,POS,%.8f,%c,%.8f,%c,%.5f,PC1",
+				   latitude, ns, longitude, ew, (double)settings.altitude);
+
+		if (len >= 0 && len < (int)sizeof(buffer)) {
+			if (writeAckedCommand(buffer, len, ASH_RESPONSE_TIMEOUT) != 0) {
+				ASH_DEBUG("command %s failed", config_options[conf_i]);
+			}
+
+		} else {
+			ASH_DEBUG("snprintf failed (buffer too short)");
+		}
+
+		activateRTCMOutput();
+		sendSurveyInStatusUpdate(false, true, settings.latitude, settings.longitude, settings.altitude);
+	}
 }
 
 void
-GPSDriverAshtech::sendSurveyInStatusUpdate(bool active, bool valid)
+GPSDriverAshtech::sendSurveyInStatusUpdate(bool active, bool valid, double latitude, double longitude, float altitude)
 {
 	SurveyInStatus status;
-	status.duration = _survey_in_min_dur;
+	status.latitude = latitude;
+	status.longitude = longitude;
+	status.altitude = altitude;
+	status.duration = _base_settings.settings.survey_in.min_dur;
 	status.mean_accuracy = 0; // unknown
 	status.flags = (int)valid | ((int)active << 1);
 	surveyInStatus(status);
-}
-
-void
-GPSDriverAshtech::setSurveyInSpecs(uint32_t survey_in_acc_limit, uint32_t survey_in_min_dur)
-{
-	// only duration is supported
-	(void)survey_in_acc_limit;
-	_survey_in_min_dur = survey_in_min_dur;
 }
