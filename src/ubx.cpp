@@ -83,12 +83,10 @@ GPSDriverUBX::GPSDriverUBX(Interface gpsInterface, GPSCallbackPtr callback, void
 			   struct vehicle_gps_position_s *gps_position,
 			   struct satellite_info_s *satellite_info,
 			   uint8_t dynamic_model)
-	: GPSHelper(callback, callback_user)
+	: GPSBaseStationSupport(callback, callback_user)
 	, _gps_position(gps_position)
 	, _satellite_info(satellite_info)
 	, _interface(gpsInterface)
-	, _survey_in_acc_limit(UBX_TX_CFG_TMODE3_SVINACCLIMIT)
-	, _survey_in_min_dur(UBX_TX_CFG_TMODE3_SVINMINDUR)
 	, _dyn_model(dynamic_model)
 {
 	decodeInit();
@@ -374,24 +372,56 @@ int GPSDriverUBX::restartSurveyIn()
 		return -1;
 	}
 
-	UBX_DEBUG("Starting Survey-in");
+	if (_base_settings.type == BaseSettingsType::survey_in) {
+		UBX_DEBUG("Starting Survey-in");
 
-	memset(&_buf.payload_tx_cfg_tmode3, 0, sizeof(_buf.payload_tx_cfg_tmode3));
-	_buf.payload_tx_cfg_tmode3.flags        = UBX_TX_CFG_TMODE3_FLAGS;
-	_buf.payload_tx_cfg_tmode3.svinMinDur   = _survey_in_min_dur;
-	_buf.payload_tx_cfg_tmode3.svinAccLimit = _survey_in_acc_limit;
+		memset(&_buf.payload_tx_cfg_tmode3, 0, sizeof(_buf.payload_tx_cfg_tmode3));
+		_buf.payload_tx_cfg_tmode3.flags        = UBX_TX_CFG_TMODE3_FLAGS;
+		_buf.payload_tx_cfg_tmode3.svinMinDur   = _base_settings.settings.survey_in.min_dur;
+		_buf.payload_tx_cfg_tmode3.svinAccLimit = _base_settings.settings.survey_in.acc_limit;
 
-	if (!sendMessage(UBX_MSG_CFG_TMODE3, (uint8_t *)&_buf, sizeof(_buf.payload_tx_cfg_tmode3))) {
-		return -1;
-	}
+		if (!sendMessage(UBX_MSG_CFG_TMODE3, (uint8_t *)&_buf, sizeof(_buf.payload_tx_cfg_tmode3))) {
+			return -1;
+		}
 
-	if (waitForAck(UBX_MSG_CFG_TMODE3, UBX_CONFIG_TIMEOUT, true) < 0) {
-		return -1;
-	}
+		if (waitForAck(UBX_MSG_CFG_TMODE3, UBX_CONFIG_TIMEOUT, true) < 0) {
+			return -1;
+		}
 
-	/* enable status output of survey-in */
-	if (!configureMessageRateAndAck(UBX_MSG_NAV_SVIN, 5, true)) {
-		return -1;
+		/* enable status output of survey-in */
+		if (!configureMessageRateAndAck(UBX_MSG_NAV_SVIN, 5, true)) {
+			return -1;
+		}
+
+	} else {
+		UBX_DEBUG("Setting fixed base position");
+
+		const FixedPositionSettings &settings = _base_settings.settings.fixed_position;
+
+		memset(&_buf.payload_tx_cfg_tmode3, 0, sizeof(_buf.payload_tx_cfg_tmode3));
+		_buf.payload_tx_cfg_tmode3.flags = 2 /* fixed mode */ | (1 << 8) /* lat/lon mode */;
+		int64_t lat64 = (int64_t)(settings.latitude * 1e9);
+		_buf.payload_tx_cfg_tmode3.ecefXOrLat = (int32_t)(lat64 / 100);
+		_buf.payload_tx_cfg_tmode3.ecefXOrLatHP = lat64 % 100; // range [-99, 99]
+		int64_t lon64 = (int64_t)(settings.longitude * 1e9);
+		_buf.payload_tx_cfg_tmode3.ecefYOrLon = (int32_t)(lon64 / 100);
+		_buf.payload_tx_cfg_tmode3.ecefYOrLonHP = lon64 % 100;
+		int64_t alt64 = (int64_t)((double)settings.altitude * 1e4);
+		_buf.payload_tx_cfg_tmode3.ecefZOrAlt = (int32_t)(alt64 / 100); // cm
+		_buf.payload_tx_cfg_tmode3.ecefZOrAltHP = alt64 % 100; // 0.1mm
+
+		_buf.payload_tx_cfg_tmode3.fixedPosAcc = (uint32_t)(settings.position_accuracy * 10.f);
+
+		if (!sendMessage(UBX_MSG_CFG_TMODE3, (uint8_t *)&_buf, sizeof(_buf.payload_tx_cfg_tmode3))) {
+			return -1;
+		}
+
+		if (waitForAck(UBX_MSG_CFG_TMODE3, UBX_CONFIG_TIMEOUT, true) < 0) {
+			return -1;
+		}
+
+		// directly enable RTCM3 output
+		return activateRTCMOutput();
 	}
 
 	return 0;
@@ -1182,41 +1212,17 @@ GPSDriverUBX::payloadRxDone()
 				  svin.dur, svin.meanAcc / 10, svin.obs, (int)svin.valid, (int)svin.active);
 
 			SurveyInStatus status;
+			double ecef_x = ((double)svin.meanX + (double)svin.meanXHP * 0.01) * 0.01;
+			double ecef_y = ((double)svin.meanY + (double)svin.meanYHP * 0.01) * 0.01;
+			double ecef_z = ((double)svin.meanZ + (double)svin.meanZHP * 0.01) * 0.01;
+			ECEF2lla(ecef_x, ecef_y, ecef_z, status.latitude, status.longitude, status.altitude);
 			status.duration = svin.dur;
 			status.mean_accuracy = svin.meanAcc / 10;
 			status.flags = (svin.valid & 1) | ((svin.active & 1) << 1);
 			surveyInStatus(status);
 
 			if (svin.valid == 1 && svin.active == 0) {
-				/* We now switch to 1 Hz update rate, which is enough for RTCM output.
-				 * For the survey-in, we still want 5 Hz, because this speeds up the process */
-				memset(&_buf.payload_tx_cfg_rate, 0, sizeof(_buf.payload_tx_cfg_rate));
-				_buf.payload_tx_cfg_rate.measRate	= 1000;
-				_buf.payload_tx_cfg_rate.navRate	= UBX_TX_CFG_RATE_NAVRATE;
-				_buf.payload_tx_cfg_rate.timeRef	= UBX_TX_CFG_RATE_TIMEREF;
-
-				if (!sendMessage(UBX_MSG_CFG_RATE, (uint8_t *)&_buf, sizeof(_buf.payload_tx_cfg_rate))) {
-					return -1;
-				}
-
-				//according to the spec, we should receive an (N)ACK here, but we don't
-//				decodeInit();
-//				if (waitForAck(UBX_MSG_CFG_RATE, UBX_CONFIG_TIMEOUT, true) < 0) {
-//					return -1;
-//				}
-
-				configureMessageRate(UBX_MSG_NAV_SVIN, 0);
-
-				/* enable RTCM3 messages */
-				if (!configureMessageRate(UBX_MSG_RTCM3_1005, 1)) {
-					return -1;
-				}
-
-				if (!configureMessageRate(UBX_MSG_RTCM3_1077, 1)) {
-					return -1;
-				}
-
-				if (!configureMessageRate(UBX_MSG_RTCM3_1087, 1)) {
+				if (activateRTCMOutput() != 0) {
 					return -1;
 				}
 			}
@@ -1303,6 +1309,44 @@ GPSDriverUBX::payloadRxDone()
 	}
 
 	return ret;
+}
+
+int
+GPSDriverUBX::activateRTCMOutput()
+{
+	/* We now switch to 1 Hz update rate, which is enough for RTCM output.
+	 * For the survey-in, we still want 5 Hz, because this speeds up the process */
+	memset(&_buf.payload_tx_cfg_rate, 0, sizeof(_buf.payload_tx_cfg_rate));
+	_buf.payload_tx_cfg_rate.measRate	= 1000;
+	_buf.payload_tx_cfg_rate.navRate	= UBX_TX_CFG_RATE_NAVRATE;
+	_buf.payload_tx_cfg_rate.timeRef	= UBX_TX_CFG_RATE_TIMEREF;
+
+	if (!sendMessage(UBX_MSG_CFG_RATE, (uint8_t *)&_buf, sizeof(_buf.payload_tx_cfg_rate))) {
+		return -1;
+	}
+
+	// according to the spec we should receive an (N)ACK here, but we don't
+//	decodeInit();
+//	if (waitForAck(UBX_MSG_CFG_RATE, UBX_CONFIG_TIMEOUT, true) < 0) {
+//		return -1;
+//	}
+
+	configureMessageRate(UBX_MSG_NAV_SVIN, 0);
+
+	/* enable RTCM3 messages */
+	if (!configureMessageRate(UBX_MSG_RTCM3_1005, 1)) {
+		return -1;
+	}
+
+	if (!configureMessageRate(UBX_MSG_RTCM3_1077, 1)) {
+		return -1;
+	}
+
+	if (!configureMessageRate(UBX_MSG_RTCM3_1087, 1)) {
+		return -1;
+	}
+
+	return 0;
 }
 
 void
@@ -1417,12 +1461,5 @@ GPSDriverUBX::fnv1_32_str(uint8_t *str, uint32_t hval)
 
 	/* return our new hash value */
 	return hval;
-}
-
-void
-GPSDriverUBX::setSurveyInSpecs(uint32_t survey_in_acc_limit, uint32_t survey_in_min_dur)
-{
-	_survey_in_acc_limit = survey_in_acc_limit;
-	_survey_in_min_dur = survey_in_min_dur;
 }
 

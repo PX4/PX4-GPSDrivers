@@ -33,12 +33,14 @@
  *
  ****************************************************************************/
 
-/* @file ASHTECH protocol definitions */
+/** @file ASHTECH protocol definitions */
 
 #pragma once
 
 #include "gps_helper.h"
+#include "base_station.h"
 #include "../../definitions.h"
+#include <cmath>
 
 class RTCMParsing;
 
@@ -46,7 +48,7 @@ class RTCMParsing;
 
 #define ASH_RESPONSE_TIMEOUT	200		// ms, timeout for waiting for a response
 
-class GPSDriverAshtech : public GPSHelper
+class GPSDriverAshtech : public GPSBaseStationSupport
 {
 public:
 	/**
@@ -59,7 +61,6 @@ public:
 	int receive(unsigned timeout) override;
 	int configure(unsigned &baudrate, OutputMode output_mode) override;
 
-	void setSurveyInSpecs(uint32_t survey_in_acc_limit, uint32_t survey_in_min_dur) override;
 private:
 	enum class NMEACommand {
 		Acked, // Command that returns a (N)Ack
@@ -110,7 +111,10 @@ private:
 	 */
 	void activateCorrectionOutput();
 
-	void sendSurveyInStatusUpdate(bool active, bool valid);
+	void sendSurveyInStatusUpdate(bool active, bool valid, double latitude = NAN, double longitude = NAN,
+				      float altitude = NAN);
+
+	void activateRTCMOutput();
 
 	struct satellite_info_s *_satellite_info {nullptr};
 	struct vehicle_gps_position_s *_gps_position {nullptr};
@@ -128,7 +132,6 @@ private:
 
 	RTCMParsing	*_rtcm_parsing{nullptr};
 
-	uint32_t _survey_in_min_dur;
 	gps_abstime _survey_in_start{0};
 
 	OutputMode _output_mode{OutputMode::GPS};
