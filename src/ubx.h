@@ -184,10 +184,6 @@
 #define UBX_TX_CFG_NAV5_MASK		0x0005		/**< Only update dynamic model and fix mode */
 #define UBX_TX_CFG_NAV5_FIXMODE		2		/**< 1 2D only, 2 3D only, 3 Auto 2D/3D */
 
-/* TX CFG-SBAS message contents */
-#define UBX_TX_CFG_SBAS_MODE_ENABLED	1				/**< SBAS enabled */
-#define UBX_TX_CFG_SBAS_MODE_DISABLED	0				/**< SBAS disabled */
-#define UBX_TX_CFG_SBAS_MODE		UBX_TX_CFG_SBAS_MODE_DISABLED	/**< SBAS enabled or disabled */
 
 /* TX CFG-TMODE3 message contents */
 #define UBX_TX_CFG_TMODE3_FLAGS     	1 	    	/**< start survey-in */
