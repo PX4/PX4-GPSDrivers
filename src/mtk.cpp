@@ -52,8 +52,6 @@ GPSDriverMTK::GPSDriverMTK(GPSCallbackPtr callback, void *callback_user, struct 
 	_gps_position(gps_position)
 {
 	decodeInit();
-	// Not present in normal operation, unless for dual-antenna RTK units
-	_gps_position->heading = NAN;
 }
 
 int

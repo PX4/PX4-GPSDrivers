@@ -90,8 +90,6 @@ GPSDriverUBX::GPSDriverUBX(Interface gpsInterface, GPSCallbackPtr callback, void
 	, _dyn_model(dynamic_model)
 {
 	decodeInit();
-	// Not present in normal operation, unless for dual-antenna RTK units
-	_gps_position->heading = NAN;
 }
 
 GPSDriverUBX::~GPSDriverUBX()

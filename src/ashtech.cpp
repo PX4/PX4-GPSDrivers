@@ -60,8 +60,6 @@ GPSDriverAshtech::GPSDriverAshtech(GPSCallbackPtr callback, void *callback_user,
 	_heading_offset(heading_offset)
 {
 	decodeInit();
-
-	_gps_position->heading = NAN;
 }
 
 GPSDriverAshtech::~GPSDriverAshtech()
