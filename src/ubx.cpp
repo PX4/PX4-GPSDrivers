@@ -246,21 +246,6 @@ GPSDriverUBX::configure(unsigned &baudrate, OutputMode output_mode)
 		return -1;
 	}
 
-#ifdef UBX_CONFIGURE_SBAS
-	/* send a SBAS message to set the SBAS options */
-	memset(&_buf.payload_tx_cfg_sbas, 0, sizeof(_buf.payload_tx_cfg_sbas));
-	_buf.payload_tx_cfg_sbas.mode		= UBX_TX_CFG_SBAS_MODE;
-
-	if (!sendMessage(UBX_MSG_CFG_SBAS, (uint8_t *)&_buf, sizeof(_buf.payload_tx_cfg_sbas))) {
-		return -1;
-	}
-
-	if (waitForAck(UBX_MSG_CFG_SBAS, UBX_CONFIG_TIMEOUT, true) < 0) {
-		return -1;
-	}
-
-#endif
-
 	/* configure message rates */
 	/* the last argument is divisor for measurement rate (set by CFG RATE), i.e. 1 means 5Hz */
 
