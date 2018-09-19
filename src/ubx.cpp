@@ -46,7 +46,7 @@
  *   (rework, add ubx7+ compatibility)
  *
  * @see https://www2.u-blox.com/images/downloads/Product_Docs/u-blox6-GPS-GLONASS-QZSS-V14_ReceiverDescriptionProtocolSpec_Public_(GPS.G6-SW-12013).pdf
- * @see https://www.u-blox.com/sites/default/files/products/documents/u-bloxM8_ReceiverDescrProtSpec_%28UBX-13003221%29_Public.pdf
+ * @see https://www.u-blox.com/sites/default/files/products/documents/u-blox8-M8_ReceiverDescrProtSpec_%28UBX-13003221%29_Public.pdf
  */
 
 #include <assert.h>
@@ -334,6 +334,9 @@ int GPSDriverUBX::restartSurveyIn()
 	configureMessageRate(UBX_MSG_RTCM3_1005, 0);
 	configureMessageRate(UBX_MSG_RTCM3_1077, 0);
 	configureMessageRate(UBX_MSG_RTCM3_1087, 0);
+	configureMessageRate(UBX_MSG_RTCM3_1230, 0);
+	configureMessageRate(UBX_MSG_RTCM3_1097, 0);
+	configureMessageRate(UBX_MSG_RTCM3_1127, 0);
 
 	//stop it first
 	//FIXME: stopping the survey-in process does not seem to work
@@ -341,6 +344,7 @@ int GPSDriverUBX::restartSurveyIn()
 	_buf.payload_tx_cfg_tmode3.flags        = 0; /* disable time mode */
 
 	if (!sendMessage(UBX_MSG_CFG_TMODE3, (uint8_t *)&_buf, sizeof(_buf.payload_tx_cfg_tmode3))) {
+		UBX_WARN("TMODE3 failed. Device w/o base station support?");
 		return -1;
 	}
 
@@ -1309,16 +1313,33 @@ GPSDriverUBX::activateRTCMOutput()
 
 	configureMessageRate(UBX_MSG_NAV_SVIN, 0);
 
-	/* enable RTCM3 messages */
-	if (!configureMessageRate(UBX_MSG_RTCM3_1005, 1)) {
+	// stationary RTK reference station ARP (can be sent at lower rate)
+	if (!configureMessageRate(UBX_MSG_RTCM3_1005, 5)) {
 		return -1;
 	}
 
+	// GPS
 	if (!configureMessageRate(UBX_MSG_RTCM3_1077, 1)) {
 		return -1;
 	}
 
+	// GLONASS
 	if (!configureMessageRate(UBX_MSG_RTCM3_1087, 1)) {
+		return -1;
+	}
+
+	// GLONASS code-phase biases
+	if (!configureMessageRate(UBX_MSG_RTCM3_1230, 1)) {
+		return -1;
+	}
+
+	// Galileo
+	if (!configureMessageRate(UBX_MSG_RTCM3_1097, 1)) {
+		return -1;
+	}
+
+	// BeiDou
+	if (!configureMessageRate(UBX_MSG_RTCM3_1127, 1)) {
 		return -1;
 	}
 

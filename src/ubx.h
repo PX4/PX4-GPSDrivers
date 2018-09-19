@@ -62,7 +62,7 @@
 #define UBX_CLASS_ACK		0x05
 #define UBX_CLASS_CFG		0x06
 #define UBX_CLASS_MON		0x0A
-#define UBX_CLASS_RTCM3	0xF5 /**< Documented p370 of https://www.u-blox.com/sites/default/files/products/documents/u-blox8-M8_ReceiverDescrProtSpec_%28UBX-13003221%29_Public.pdf */
+#define UBX_CLASS_RTCM3	0xF5
 
 /* Message IDs */
 #define UBX_ID_NAV_POSLLH	0x02
@@ -98,6 +98,8 @@
 #define UBX_ID_RTCM3_1077	0x4D	/**< GPS MSM7 */
 #define UBX_ID_RTCM3_1084	0x54	/**< GLONASS MSM4 */
 #define UBX_ID_RTCM3_1087	0x57	/**< GLONASS MSM7 */
+#define UBX_ID_RTCM3_1094	0x5E	/**< Galileo MSM4 */
+#define UBX_ID_RTCM3_1097	0x61	/**< Galileo MSM7 */
 #define UBX_ID_RTCM3_1124	0x7C	/**< BeiDou MSM4 */
 #define UBX_ID_RTCM3_1127	0x7F	/**< BeiDou MSM7 */
 #define UBX_ID_RTCM3_1230	0xE6	/**< GLONASS code-phase biases */
@@ -134,6 +136,8 @@
 #define UBX_MSG_RTCM3_1087	((UBX_CLASS_RTCM3) | UBX_ID_RTCM3_1087 << 8)
 #define UBX_MSG_RTCM3_1074	((UBX_CLASS_RTCM3) | UBX_ID_RTCM3_1074 << 8)
 #define UBX_MSG_RTCM3_1084	((UBX_CLASS_RTCM3) | UBX_ID_RTCM3_1084 << 8)
+#define UBX_MSG_RTCM3_1094	((UBX_CLASS_RTCM3) | UBX_ID_RTCM3_1094 << 8)
+#define UBX_MSG_RTCM3_1097	((UBX_CLASS_RTCM3) | UBX_ID_RTCM3_1097 << 8)
 #define UBX_MSG_RTCM3_1124	((UBX_CLASS_RTCM3) | UBX_ID_RTCM3_1124 << 8)
 #define UBX_MSG_RTCM3_1127	((UBX_CLASS_RTCM3) | UBX_ID_RTCM3_1127 << 8)
 #define UBX_MSG_RTCM3_1230	((UBX_CLASS_RTCM3) | UBX_ID_RTCM3_1230 << 8)
