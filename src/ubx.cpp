@@ -118,7 +118,7 @@ GPSDriverUBX::configure(unsigned &baudrate, OutputMode output_mode)
 	if (_interface == Interface::UART) {
 
 		/* try different baudrates */
-		const unsigned baudrates[] = {38400, 57600, 9600, 115200};
+		const unsigned baudrates[] = {38400, 57600, 9600, 115200, 230400};
 
 		unsigned baud_i;
 		unsigned desired_baudrate = auto_baudrate ? UBX_BAUDRATE_M8_AND_NEWER : baudrate;
