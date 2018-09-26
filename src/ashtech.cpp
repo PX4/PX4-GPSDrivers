@@ -1119,7 +1119,7 @@ int GPSDriverAshtech::configure(unsigned &baudrate, OutputMode output_mode)
 
 	if (output_mode == OutputMode::RTCM && _board == AshtechBoard::trimble_mb_two) {
 		SurveyInStatus status;
-		status.latitude = status.longitude = NAN;
+		status.latitude = status.longitude = (double)NAN;
 		status.altitude = NAN;
 		status.duration = 0;
 		status.mean_accuracy = 0;

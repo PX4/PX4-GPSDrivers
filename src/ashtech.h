@@ -111,7 +111,7 @@ private:
 	 */
 	void activateCorrectionOutput();
 
-	void sendSurveyInStatusUpdate(bool active, bool valid, double latitude = NAN, double longitude = NAN,
+	void sendSurveyInStatusUpdate(bool active, bool valid, double latitude = (double)NAN, double longitude = (double)NAN,
 				      float altitude = NAN);
 
 	void activateRTCMOutput();
