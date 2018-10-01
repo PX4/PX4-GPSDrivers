@@ -838,7 +838,8 @@ private:
 	/**
 	 * Add a configuration value that is port-specific (MSGOUT messages).
 	 * Note: Key ID must be the one for I2C, and the implementation assumes the
-	 *       Key ID's are in increasing order for the other ports: I2C, UART1, UART2, USB, SPI.
+	 *       Key ID's are in increasing order for the other ports: I2C, UART1, UART2, USB, SPI
+	 *       (this is a safe assumption for all MSGOUT messages according to u-blox).
 	 *
 	 * @param key_id I2C key ID
 	 * @param value configuration value
