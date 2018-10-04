@@ -38,7 +38,7 @@
  * including Prototol Specification.
  *
  * @author Thomas Gubler <thomasgubler@student.ethz.ch>
- * @author Julian Oes <joes@student.ethz.ch>
+ * @author Julian Oes <julian@oes.ch>
  * @author Anton Babushkin <anton.babushkin@me.com>
  * @author Beat Kueng <beat-kueng@gmx.net>
  *
