@@ -78,25 +78,25 @@ GPSDriverMTK::configure(unsigned &baudrate, OutputMode output_mode)
 		goto errout;
 	}
 
-	usleep(10000);
+	gps_usleep(10000);
 
 	if (strlen(MTK_SET_BINARY) != write(MTK_SET_BINARY, strlen(MTK_SET_BINARY))) {
 		goto errout;
 	}
 
-	usleep(10000);
+	gps_usleep(10000);
 
 	if (strlen(MTK_SBAS_ON) != write(MTK_SBAS_ON, strlen(MTK_SBAS_ON))) {
 		goto errout;
 	}
 
-	usleep(10000);
+	gps_usleep(10000);
 
 	if (strlen(MTK_WAAS_ON) != write(MTK_WAAS_ON, strlen(MTK_WAAS_ON))) {
 		goto errout;
 	}
 
-	usleep(10000);
+	gps_usleep(10000);
 
 	if (strlen(MTK_NAVTHRES_OFF) != write(MTK_NAVTHRES_OFF, strlen(MTK_NAVTHRES_OFF))) {
 		goto errout;
@@ -142,7 +142,7 @@ GPSDriverMTK::receive(unsigned timeout)
 			}
 
 		} else {
-			usleep(20000);
+			gps_usleep(20000);
 		}
 
 		/* in case we keep trying but only get crap from GPS */
