@@ -35,7 +35,7 @@
  * @file mtk.cpp
  *
  * @author Thomas Gubler <thomasgubler@student.ethz.ch>
- * @author Julian Oes <joes@student.ethz.ch>
+ * @author Julian Oes <julian@oes.ch>
  */
 
 #include "mtk.h"
