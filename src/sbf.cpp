@@ -378,6 +378,9 @@ int    // 0 = no message handled, 1 = message handled, 2 = sat info message hand
 GPSDriverSBF::payloadRxDone()
 {
 	int ret = 0;
+	struct tm timeinfo;
+	time_t epoch;
+	uint8_t *buf_ptr;
 
 	if (_crc != crc16((uint8_t *) &_buf, _rx_payload_length)) {
 		return 1;
@@ -385,7 +388,7 @@ GPSDriverSBF::payloadRxDone()
 
 	// handle message
 	switch (_buf.msg_id) {
-	case SBF_ID_PVTGeodetic: {
+	case SBF_ID_PVTGeodetic:
 		SBF_TRACE_RXMSG("Rx PVTGeodetic");
 		_msg_status |= 1;
 
@@ -419,51 +422,49 @@ GPSDriverSBF::payloadRxDone()
 		_gps_position->vel_n_m_s = (float)_buf.payload_pvt_geodetic.vn;
 		_gps_position->vel_e_m_s = (float)_buf.payload_pvt_geodetic.ve;
 		_gps_position->vel_d_m_s = -(float)_buf.payload_pvt_geodetic.vu;
-		_gps_position->vel_m_s = sqrtf(_gps_position->vel_n_m_s * _gps_position->vel_n_m_s + _gps_position->vel_e_m_s * _gps_position->vel_e_m_s);
+		_gps_position->vel_m_s = sqrtf(_gps_position->vel_n_m_s * _gps_position->vel_n_m_s +
+					       _gps_position->vel_e_m_s * _gps_position->vel_e_m_s);
 
 		_gps_position->cog_rad = (float)_buf.payload_pvt_geodetic.cog * M_DEG_TO_RAD_F;
 		_gps_position->c_variance_rad = (float)1 * M_DEG_TO_RAD_F * 1e-5f;
 
 		_gps_position->time_utc_usec = 0;
 #ifndef NO_MKTIME
-			/* convert to unix timestamp */
-			struct tm timeinfo;
-			memset(&timeinfo, 0, sizeof(timeinfo));
+		/* convert to unix timestamp */
+		memset(&timeinfo, 0, sizeof(timeinfo));
 
-			timeinfo.tm_year = 1980 - 1900;
-			timeinfo.tm_mon = 0;
-			timeinfo.tm_mday = 6 + _buf.WNc * 7;
-			timeinfo.tm_hour = 0;
-			timeinfo.tm_min = 0;
-			timeinfo.tm_sec = _buf.TOW / 1000;
+		timeinfo.tm_year = 1980 - 1900;
+		timeinfo.tm_mon = 0;
+		timeinfo.tm_mday = 6 + _buf.WNc * 7;
+		timeinfo.tm_hour = 0;
+		timeinfo.tm_min = 0;
+		timeinfo.tm_sec = _buf.TOW / 1000;
 
-			time_t epoch = mktime(&timeinfo);
+		epoch = mktime(&timeinfo);
 
-			if (epoch > GPS_EPOCH_SECS) {
-				// FMUv2+ boards have a hardware RTC, but GPS helps us to configure it
-				// and control its drift. Since we rely on the HRT for our monotonic
-				// clock, updating it from time to time is safe.
+		if (epoch > GPS_EPOCH_SECS) {
+			// FMUv2+ boards have a hardware RTC, but GPS helps us to configure it
+			// and control its drift. Since we rely on the HRT for our monotonic
+			// clock, updating it from time to time is safe.
 
-				timespec ts;
-				memset(&ts, 0, sizeof(ts));
-				ts.tv_sec = epoch;
-				ts.tv_nsec = (_buf.TOW % 1000) * 1000 * 1000;
-				setClock(ts);
+			timespec ts;
+			memset(&ts, 0, sizeof(ts));
+			ts.tv_sec = epoch;
+			ts.tv_nsec = (_buf.TOW % 1000) * 1000 * 1000;
+			setClock(ts);
 
-				_gps_position->time_utc_usec = static_cast<uint64_t>(epoch) * 1000000ULL;
-				_gps_position->time_utc_usec += (_buf.TOW % 1000) * 1000;
-			}
+			_gps_position->time_utc_usec = static_cast<uint64_t>(epoch) * 1000000ULL;
+			_gps_position->time_utc_usec += (_buf.TOW % 1000) * 1000;
+		}
 
 #endif
-
-			_gps_position->timestamp = gps_absolute_time();
-			_last_timestamp_time = _gps_position->timestamp;
-			_rate_count_vel++;
-			_rate_count_lat_lon++;
-			_got_pos = true;
-			ret = (_msg_status == 7) ? 1 : 0;
-			break;
-		}
+		_gps_position->timestamp = gps_absolute_time();
+		_last_timestamp_time = _gps_position->timestamp;
+		_rate_count_vel++;
+		_rate_count_lat_lon++;
+		_got_pos = true;
+		ret = (_msg_status == 7) ? 1 : 0;
+		break;
 
 	case SBF_ID_VelCovGeodetic:
 		SBF_TRACE_RXMSG("Rx VelCovGeodetic");
@@ -480,25 +481,24 @@ GPSDriverSBF::payloadRxDone()
 		_got_dop = true;
 		break;
 
-	case SBF_ID_ChannelStatus: {
-			SBF_TRACE_RXMSG("Rx SBF_ID_ChannelStatus");
-			_satellite_info->timestamp = gps_absolute_time();
-			_satellite_info->count = _buf.payload_channel_status.n;
-			uint8_t *buf_ptr = reinterpret_cast<uint8_t *>(&_buf.payload_channel_status.satinfo);
+	case SBF_ID_ChannelStatus:
+		SBF_TRACE_RXMSG("Rx SBF_ID_ChannelStatus");
+		_satellite_info->timestamp = gps_absolute_time();
+		_satellite_info->count = _buf.payload_channel_status.n;
+		buf_ptr = reinterpret_cast<uint8_t *>(&_buf.payload_channel_status.satinfo);
 
-			for (uint8_t i = 0; i < _satellite_info->count && i < _satellite_info->SAT_INFO_MAX_SATELLITES; i++) {
-				sbf_payload_channel_sat_info_t *sat_info = reinterpret_cast<sbf_payload_channel_sat_info_t *>(buf_ptr);
-				_satellite_info->svid[i] = sat_info->svid;
-				_satellite_info->used[i] = (sat_info->health_status == 1) ? 1 : 0;
-				_satellite_info->elevation[i] = sat_info->elevation;
-				_satellite_info->azimuth[i] = sat_info->azimuth & ((1 << 9) - 1);
-				_satellite_info->snr[i] = 0;
-				buf_ptr += _buf.payload_channel_status.sb1_length + sat_info->n2 * _buf.payload_channel_status.sb2_length;
-			}
-
-			ret = 2;
-			break;
+		for (uint8_t i = 0; i < _satellite_info->count && i < _satellite_info->SAT_INFO_MAX_SATELLITES; i++) {
+			sbf_payload_channel_sat_info_t *sat_info = reinterpret_cast<sbf_payload_channel_sat_info_t *>(buf_ptr);
+			_satellite_info->svid[i] = sat_info->svid;
+			_satellite_info->used[i] = (sat_info->health_status == 1) ? 1 : 0;
+			_satellite_info->elevation[i] = sat_info->elevation;
+			_satellite_info->azimuth[i] = sat_info->azimuth & ((1 << 9) - 1);
+			_satellite_info->snr[i] = 0;
+			buf_ptr += _buf.payload_channel_status.sb1_length + sat_info->n2 * _buf.payload_channel_status.sb2_length;
 		}
+
+		ret = 2;
+		break;
 
 	default:
 		break;

@@ -68,8 +68,8 @@
 /* Block IDs */
 #define SBF_ID_DOP            4001
 #define SBF_ID_PVTGeodetic    4007
-#define SBF_ID_VelCovGeodetic 5908
 #define SBF_ID_ChannelStatus  4013
+#define SBF_ID_VelCovGeodetic 5908
 
 /*** SBF protocol binary message and payload definitions ***/
 #pragma pack(push, 1)
