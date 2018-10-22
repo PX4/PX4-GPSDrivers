@@ -99,6 +99,7 @@ enum class GPSCallbackType {
 };
 
 enum class GPSRestartType {
+	None,
 	Hot,
 	Warm,
 	Cold

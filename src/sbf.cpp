@@ -557,6 +557,9 @@ GPSDriverSBF::reset(GPSRestartType restart_type)
 	case GPSRestartType::Cold:
 		res = sendMessageAndWaitForAck("ExeResetReceiver, hard, SatData", SBF_CONFIG_TIMEOUT, false);
 		break;
+
+	default:
+		return true;
 	}
 
 	if (res) {

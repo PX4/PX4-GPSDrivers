@@ -1820,6 +1820,9 @@ GPSDriverUBX::reset(GPSRestartType restart_type)
 	case GPSRestartType::Cold:
 		_buf.payload_tx_cfg_rst.navBbrMask = UBX_TX_CFG_RST_BBR_MODE_COLD_START;
 		break;
+
+	default:
+		return true;
 	}
 
 	if (sendMessage(UBX_MSG_CFG_RST, (uint8_t *)&_buf, sizeof(_buf.payload_tx_cfg_rst))) {
