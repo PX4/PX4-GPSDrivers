@@ -750,7 +750,7 @@ public:
 
 	int receive(unsigned timeout) override;
 	int configure(unsigned &baudrate, OutputMode output_mode) override;
-	bool reset(GPSRestartType restart_type) override;
+	int reset(GPSRestartType restart_type) override;
 
 private:
 

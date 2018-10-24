@@ -1802,7 +1802,7 @@ GPSDriverUBX::fnv1_32_str(uint8_t *str, uint32_t hval)
 	return hval;
 }
 
-bool
+int
 GPSDriverUBX::reset(GPSRestartType restart_type)
 {
 	memset(&_buf.payload_tx_cfg_rst, 0, sizeof(_buf.payload_tx_cfg_rst));
@@ -1822,15 +1822,12 @@ GPSDriverUBX::reset(GPSRestartType restart_type)
 		break;
 
 	default:
-		return true;
+		return 0;
 	}
 
 	if (sendMessage(UBX_MSG_CFG_RST, (uint8_t *)&_buf, sizeof(_buf.payload_tx_cfg_rst))) {
-		PX4_INFO("Resetting GPS");
-
-	} else {
-		PX4_INFO("Failed to teset GPS");
+		return 1;
 	}
 
-	return true;
+	return 0;
 }

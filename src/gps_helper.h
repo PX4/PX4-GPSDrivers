@@ -161,9 +161,11 @@ public:
 	/**
 	 * Reset GPS device
 	 * @param restart_type
-	 * @return false if not implemented
+	 * @return -1 if not implemented
+	 * 	        0 on failure
+	 *          1 on success
 	 */
-	virtual bool reset(GPSRestartType restart_type)	{ return false;	}
+	virtual int reset(GPSRestartType restart_type)	{ return -1; }
 
 	float getPositionUpdateRate() { return _rate_lat_lon; }
 	float getVelocityUpdateRate() { return _rate_vel; }

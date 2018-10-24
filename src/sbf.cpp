@@ -540,7 +540,7 @@ GPSDriverSBF::decodeInit()
 	}
 }
 
-bool
+int
 GPSDriverSBF::reset(GPSRestartType restart_type)
 {
 	bool res = false;
@@ -559,15 +559,8 @@ GPSDriverSBF::reset(GPSRestartType restart_type)
 		break;
 
 	default:
-		return true;
+		break;
 	}
 
-	if (res) {
-		PX4_INFO("Resetting GPS");
-
-	} else {
-		PX4_INFO("Failed to teset GPS");
-	}
-
-	return true;
+	return (res) ? 1 : 0;
 }
