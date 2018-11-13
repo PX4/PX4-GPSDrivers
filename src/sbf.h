@@ -91,6 +91,15 @@
 #define SBF_CONFIG_RTCM_STATIC_OFFSET "" \
 	"setAntennaOffset, Main, %f, %f, %f\n"
 
+#define SBF_CONFIG_RESET_HOT "" \
+	SBF_CONFIG_FORCE_INPUT"ExeResetReceiver, soft, none\n"
+
+#define SBF_CONFIG_RESET_WARM "" \
+	SBF_CONFIG_FORCE_INPUT"ExeResetReceiver, soft, PVTData\n"
+
+#define SBF_CONFIG_RESET_COLD "" \
+	SBF_CONFIG_FORCE_INPUT"ExeResetReceiver, hard, SatData\n"
+
 #define SBF_SYNC1 0x24
 #define SBF_SYNC2 0x40
 

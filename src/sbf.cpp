@@ -547,15 +547,15 @@ GPSDriverSBF::reset(GPSRestartType restart_type)
 
 	switch (restart_type) {
 	case GPSRestartType::Hot:
-		res = sendMessageAndWaitForAck("ExeResetReceiver, soft, none", SBF_CONFIG_TIMEOUT, false);
+		res = sendMessageAndWaitForAck(CONFIG_RESET_HOT, SBF_CONFIG_TIMEOUT, false);
 		break;
 
 	case GPSRestartType::Warm:
-		res = sendMessageAndWaitForAck("ExeResetReceiver, soft, PVTData", SBF_CONFIG_TIMEOUT, false);
+		res = sendMessageAndWaitForAck(CONFIG_RESET_WARM, SBF_CONFIG_TIMEOUT, false);
 		break;
 
 	case GPSRestartType::Cold:
-		res = sendMessageAndWaitForAck("ExeResetReceiver, hard, SatData", SBF_CONFIG_TIMEOUT, false);
+		res = sendMessageAndWaitForAck(CONFIG_RESET_COLD, SBF_CONFIG_TIMEOUT, false);
 		break;
 
 	default:
