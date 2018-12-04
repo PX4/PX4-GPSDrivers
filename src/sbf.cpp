@@ -40,32 +40,30 @@
  *
 */
 
-#include <mathlib/mathlib.h>
 #include "sbf.h"
+#include <string.h>
+#include <math.h>
 
-#define SBF_CONFIG_TIMEOUT    200        // ms, timeout for waiting ACK
-#define SBF_PACKET_TIMEOUT    2          // ms, if now data during this delay assume that full update received
+#define SBF_CONFIG_TIMEOUT    500      // ms, timeout for waiting ACK
+#define SBF_PACKET_TIMEOUT    2        // ms, if now data during this delay assume that full update received
 #define DISABLE_MSG_INTERVAL  1000000  // us, try to disable message with this interval
 
 /**** Trace macros, disable for production builds */
 #define SBF_TRACE_PARSER(...)   {/*GPS_INFO(__VA_ARGS__);*/}    /* decoding progress in parse_char() */
 #define SBF_TRACE_RXMSG(...)    {/*GPS_INFO(__VA_ARGS__);*/}    /* Rx msgs in payload_rx_done() */
-#define SBF_TRACE_SVINFO(...)   {/*GPS_INFO(__VA_ARGS__);*/}    /* NAV-SVINFO processing (debug use only, will cause rx buffer overflows) */
 
 /**** Warning macros, disable to save memory */
 #define SBF_WARN(...)        {GPS_WARN(__VA_ARGS__);}
 #define SBF_DEBUG(...)       {/*GPS_WARN(__VA_ARGS__);*/}
 
-GPSDriverSBF::GPSDriverSBF(Interface gpsInterface,
-			   GPSCallbackPtr callback, void *callback_user,
+GPSDriverSBF::GPSDriverSBF(GPSCallbackPtr callback, void *callback_user,
 			   struct vehicle_gps_position_s *gps_position,
 			   struct satellite_info_s *satellite_info,
 			   uint8_t dynamic_model)
-	: GPSHelper(callback, callback_user)
+	: GPSBaseStationSupport(callback, callback_user)
 	, _gps_position(gps_position)
 	, _satellite_info(satellite_info)
 	, _dynamic_model(dynamic_model)
-	, _interface(gpsInterface)
 {
 	decodeInit();
 }
@@ -77,27 +75,30 @@ GPSDriverSBF::~GPSDriverSBF()
 int
 GPSDriverSBF::configure(unsigned &baudrate, OutputMode output_mode)
 {
+	_configured = false;
+
+	// Check if we're already configured
+	setBaudrate(SBF_TX_CFG_PRT_BAUDRATE);
+
+	if (receive(SBF_CONFIG_TIMEOUT) > 0) {
+		return 0;
+	}
+
 	unsigned baud_i;
 
-	_configured = false;
 	_output_mode = output_mode;
 	// try different baudrates
-	const unsigned baudrates[] = {9600, 38400, 19200, 57600, 115200, 230400};
+	const unsigned baudrates[] = { 115200, 57600, 38400, 19200, 9600 };
 
 	for (baud_i = 0; baud_i < sizeof(baudrates) / sizeof(baudrates[0]); baud_i++) {
 		baudrate = baudrates[baud_i];
+		SBF_DEBUG("Try baud rate: %d", baudrate);
 		setBaudrate(baudrate);
-
-		// flush input and wait for at least 20 ms silence
-		decodeInit();
-		receive(20);
-		decodeInit();
-
 		// Change the baudrate
 		char msg[64];
-		sprintf(msg, SBF_CONFIG_BAUDRATE, baudrate);
+		snprintf(msg, sizeof(msg), SBF_CONFIG_BAUDRATE, baudrate);
 
-		if (!sendMessageAndWaitForAck(msg, SBF_CONFIG_TIMEOUT, false)) {
+		if (!sendMessage(msg)) {
 			continue;
 		}
 
@@ -106,27 +107,37 @@ GPSDriverSBF::configure(unsigned &baudrate, OutputMode output_mode)
 			baudrate = SBF_TX_CFG_PRT_BAUDRATE;
 		}
 
-		// at this point we have correct baudrate on both ends
-
-
-		if (_dynamic_model < 6) {
-			sprintf(msg, SBF_CONFIG_RECEIVER_DYNAMICS, "low");
-
-		} else if (_dynamic_model < 7) {
-			sprintf(msg, SBF_CONFIG_RECEIVER_DYNAMICS, "moderate");
-
-		} else if (_dynamic_model < 8) {
-			sprintf(msg, SBF_CONFIG_RECEIVER_DYNAMICS, "high");
-
-		} else {
-			sprintf(msg, SBF_CONFIG_RECEIVER_DYNAMICS, "max");
-		}
-
-		if (!sendMessageAndWaitForAck(msg, SBF_CONFIG_TIMEOUT, false)) {
+		if (!sendMessageAndWaitForAck(SBF_CONFIG_RESET, SBF_CONFIG_TIMEOUT)) {
 			continue;
 		}
 
-		const char *config_cmds = SBF_CONFIG;
+		// at this point we have correct baudrate on both ends
+
+		const char *config_cmds;
+
+		if (_output_mode == OutputMode::RTCM) {
+			config_cmds = SBF_CONFIG_RTCM;
+
+		} else {
+
+			if (_dynamic_model < 6) {
+				snprintf(msg, sizeof(msg), SBF_CONFIG_RECEIVER_DYNAMICS, "low");
+
+			} else if (_dynamic_model < 7) {
+				snprintf(msg, sizeof(msg), SBF_CONFIG_RECEIVER_DYNAMICS, "moderate");
+
+			} else if (_dynamic_model < 8) {
+				snprintf(msg, sizeof(msg), SBF_CONFIG_RECEIVER_DYNAMICS, "high");
+
+			} else {
+				snprintf(msg, sizeof(msg), SBF_CONFIG_RECEIVER_DYNAMICS, "max");
+			}
+
+			sendMessageAndWaitForAck(msg, SBF_CONFIG_TIMEOUT);
+
+			config_cmds = SBF_CONFIG;
+		}
+
 		uint8_t i = 0;
 		msg[0] = 0;
 
@@ -136,9 +147,7 @@ GPSDriverSBF::configure(unsigned &baudrate, OutputMode output_mode)
 			if (msg[i++] == '\n') {
 				msg[i] = 0;
 
-				if (!sendMessageAndWaitForAck(msg, SBF_CONFIG_TIMEOUT, false)) {
-					break;
-				}
+				sendMessageAndWaitForAck(msg, SBF_CONFIG_TIMEOUT);
 
 				i = 0;
 				msg[0] = 0;
@@ -147,23 +156,53 @@ GPSDriverSBF::configure(unsigned &baudrate, OutputMode output_mode)
 			config_cmds++;
 		}
 
+		if (_output_mode == OutputMode::RTCM) {
+			if (_base_settings.type == BaseSettingsType::fixed_position) {
+				snprintf(msg, sizeof(msg), SBF_CONFIG_RTCM_STATIC_COORDINATES,
+					 _base_settings.settings.fixed_position.latitude,
+					 _base_settings.settings.fixed_position.longitude,
+					 static_cast<double>(_base_settings.settings.fixed_position.altitude));
+				sendMessageAndWaitForAck(msg, SBF_CONFIG_TIMEOUT);
+				snprintf(msg, sizeof(msg), SBF_CONFIG_RTCM_STATIC_OFFSET, 0.0, 0.0, 0.0);
+				sendMessageAndWaitForAck(msg, SBF_CONFIG_TIMEOUT);
+				sendMessageAndWaitForAck(SBF_CONFIG_RTCM_STATIC1, SBF_CONFIG_TIMEOUT);
+				sendMessageAndWaitForAck(SBF_CONFIG_RTCM_STATIC2, SBF_CONFIG_TIMEOUT);
+			}
+		}
+
 		break;
 	}
 
 	if (baud_i >= sizeof(baudrates) / sizeof(baudrates[0])) {
-		return -1;    // connection and/or baudrate detection failed
+		return -1; // connection and/or baudrate detection failed
 	}
 
 	_configured = true;
-
 	return 0;
 }
 
 bool
-GPSDriverSBF::sendMessageAndWaitForAck(const char *msg, const unsigned timeout, const bool report)
+GPSDriverSBF::sendMessage(const char *msg)
 {
+	SBF_DEBUG("Send MSG: %s", msg);
+
 	// Send message
-	int length = strlen(msg);
+	int length = static_cast<int>(strlen(msg));
+
+	if (write(msg, length) != length) {
+		return false;
+	}
+
+	return true;
+}
+
+bool
+GPSDriverSBF::sendMessageAndWaitForAck(const char *msg, const int timeout)
+{
+	SBF_DEBUG("Send MSG: %s", msg);
+
+	// Send message
+	int length = static_cast<int>(strlen(msg));
 
 	if (write(msg, length) != length) {
 		return false;
@@ -173,24 +212,47 @@ GPSDriverSBF::sendMessageAndWaitForAck(const char *msg, const unsigned timeout, 
 	// For all valid set -, get - and exe -commands, the first line of the reply is an exact copy
 	// of the command as entered by the user, preceded with "$R:"
 	char buf[GPS_READ_BUFFER_SIZE];
-	int ret = read(reinterpret_cast<uint8_t *>(buf), sizeof(buf), SBF_PACKET_TIMEOUT);
+	size_t offset = 0;
+	memset(buf, 0, sizeof(buf));
+	gps_abstime time_started = gps_absolute_time();
 
-	if (ret < 0) {
-		// something went wrong when polling or reading
-		SBF_WARN("sbf poll_or_read err");
-		return false;
-	}
+	bool found_response = false;
 
-	if (ret < length + 4 || strncmp(buf, "$R: ", 4) || strcmp(buf + 4, msg)) {
-		return false;
-	}
+	do {
+		int ret = read(reinterpret_cast<uint8_t *>(buf) + offset, sizeof(buf) - offset, timeout);
 
-	return true;
+		if (ret < 0) {
+			// something went wrong when polling or reading
+			SBF_WARN("sbf poll_or_read err");
+			return false;
+		}
+
+		offset += ret;
+
+		if (!found_response && strstr(buf, "$R: ") != nullptr) {
+			SBF_DEBUG("READ %d: %s", offset, buf);
+			found_response = true;
+		}
+
+		if (offset >= sizeof(buf)) {
+			offset = 0;
+			memset(buf, 0, sizeof(buf));
+		}
+
+	} while (time_started + 1000 * timeout > gps_absolute_time());
+
+	return found_response;
 }
 
 int    // -1 = error, 0 = no message handled, 1 = message handled, 2 = sat info message handled
 GPSDriverSBF::receive(unsigned timeout)
 {
+	// Do not receive messages until we're configured
+	if (!_configured) {
+		usleep(timeout * 1000);
+		return 0;
+	}
+
 	uint8_t buf[GPS_READ_BUFFER_SIZE];
 
 	// timeout additional to poll
@@ -199,36 +261,30 @@ GPSDriverSBF::receive(unsigned timeout)
 	int handled = 0;
 
 	while (true) {
-		bool ready_to_return = _configured ? (_got_pos && _got_dop) : handled;
-
 		// Wait for only SBF_PACKET_TIMEOUT if something already received.
-		int ret = read(buf, sizeof(buf), ready_to_return ? SBF_PACKET_TIMEOUT : timeout);
+		int ret = read(buf, sizeof(buf), handled ? SBF_PACKET_TIMEOUT : timeout);
 
 		if (ret < 0) {
 			// something went wrong when polling or reading
 			SBF_WARN("ubx poll_or_read err");
 			return -1;
 
-		} else if (ret == 0) {
-			// return success if ready
-			if (ready_to_return) {
-				_got_pos = false;
-				_got_dop = false;
-				return handled;
-			}
-
 		} else {
-			//SBF_DEBUG("read %d bytes", ret);
+			// SBF_DEBUG("Read %d bytes", ret);
 
 			// pass received bytes to the packet decoder
 			for (int i = 0; i < ret; i++) {
 				handled |= parseChar(buf[i]);
-				//SBF_DEBUG("parsed %d: 0x%x", i, buf[i]);
+				// SBF_DEBUG("parsed %d: 0x%x", i, buf[i]);
 			}
 		}
 
-		// abort after timeout if no useful packets received
-		if (time_started + timeout * 1000 < gps_absolute_time()) {
+		if (handled > 0) {
+			return handled;
+		}
+
+		// abort after 2s if no useful packets received
+		if (time_started + 2000 * 1000 < gps_absolute_time()) {
 			SBF_DEBUG("timed out, returning");
 			return -1;
 		}
@@ -244,91 +300,62 @@ GPSDriverSBF::parseChar(const uint8_t b)
 
 	// Expecting Sync1
 	case SBF_DECODE_SYNC1:
-		if (b == SBF_SYNC1) {    // Sync1 found --> expecting Sync2
+		if (b == SBF_SYNC1) { // Sync1 found --> expecting Sync2
 			SBF_TRACE_PARSER("A");
+			ret = payloadRxAdd(b); // add a payload byte
 			_decode_state = SBF_DECODE_SYNC2;
+
+		} else if (b == RTCM3_PREAMBLE && _rtcm_parsing) {
+			SBF_TRACE_PARSER("RTCM");
+			_decode_state = SBF_DECODE_RTCM3;
+			_rtcm_parsing->addByte(b);
 		}
 
 		break;
 
 	// Expecting Sync2
 	case SBF_DECODE_SYNC2:
-		if (b == SBF_SYNC2) {    // Sync2 found --> expecting CRC
+		if (b == SBF_SYNC2) { // Sync2 found --> expecting CRC
 			SBF_TRACE_PARSER("B");
-			_decode_state = SBF_DECODE_CRC1;
+			ret = payloadRxAdd(b); // add a payload byte
+			_decode_state = SBF_DECODE_PAYLOAD;
 
-		} else {        // Sync1 not followed by Sync2: reset parser
+		} else { // Sync1 not followed by Sync2: reset parser
 			decodeInit();
 		}
 
-		break;
-
-	// Expecting CRC
-	case SBF_DECODE_CRC1:
-		SBF_TRACE_PARSER("C");
-		_crc = b;
-		_decode_state = SBF_DECODE_CRC2;
-		break;
-
-	case SBF_DECODE_CRC2:
-		SBF_TRACE_PARSER("D");
-		_crc |= b << 8;
-		_decode_state = SBF_DECODE_MSG1;
-		break;
-
-	// Expecting MSG
-	case SBF_DECODE_MSG1:
-		SBF_TRACE_PARSER("E");
-		ret = payloadRxAdd(b);        // add a payload byte
-		_decode_state = SBF_DECODE_MSG2;
-		break;
-
-	case SBF_DECODE_MSG2:
-		SBF_TRACE_PARSER("F");
-		ret = payloadRxAdd(b);        // add a payload byte
-		_decode_state = SBF_DECODE_LENGTH1;
-		break;
-
-	// Expecting first length byte
-	case SBF_DECODE_LENGTH1:
-		SBF_TRACE_PARSER("G");
-		ret = payloadRxAdd(b);        // add a payload byte
-		_rx_payload_length = b;
-		_decode_state = SBF_DECODE_LENGTH2;
-		break;
-
-	// Expecting second length byte
-	case SBF_DECODE_LENGTH2:
-		SBF_TRACE_PARSER("H");
-		ret = payloadRxAdd(b);        // add a payload byte
-		_rx_payload_length |= b << 8; // calculate payload size
-		_rx_payload_length += 4;      // For MSG & Length
-		_rx_payload_index = 0;
-		_decode_state = SBF_DECODE_PAYLOAD;
 		break;
 
 	// Expecting payload
 	case SBF_DECODE_PAYLOAD:
 		SBF_TRACE_PARSER(".");
 
-		ret = payloadRxAdd(b);        // add a payload byte
+		ret = payloadRxAdd(b); // add a payload byte
 
 		if (ret < 0) {
 			// payload not handled, discard message
+			ret = 0;
 			decodeInit();
 
 		} else if (ret > 0) {
-			ret = payloadRxDone();    // finish payload processing
+			ret = payloadRxDone(); // finish payload processing
 			decodeInit();
 
 		} else {
 			// expecting more payload, stay in state SBF_DECODE_PAYLOAD
+			ret = 0;
+
 		}
 
-		ret = 0;
 		break;
 
-	default:
+	case SBF_DECODE_RTCM3:
+		if (_rtcm_parsing->addByte(b)) {
+			SBF_DEBUG("got RTCM message with length %i", (int)_rtcm_parsing->messageLength());
+			gotRTCMMessage(_rtcm_parsing->message(), _rtcm_parsing->messageLength());
+			decodeInit();
+		}
+
 		break;
 	}
 
@@ -342,12 +369,12 @@ int    // -1 = error, 0 = ok, 1 = payload completed
 GPSDriverSBF::payloadRxAdd(const uint8_t b)
 {
 	int ret = 0;
-	uint8_t *p_buf = (uint8_t *)&_buf;
+	uint8_t *p_buf = reinterpret_cast<uint8_t *>(&_buf);
 
-	p_buf[_rx_payload_index] = b;
+	p_buf[_rx_payload_index++] = b;
 
-	if (++_rx_payload_index >= _rx_payload_length) {
-		ret = 1;    // payload received completely
+	if ((_rx_payload_index > 7 && _rx_payload_index >= _buf.length) || _rx_payload_index >= sizeof(_buf)) {
+		ret = 1; // payload received completely
 	}
 
 	return ret;
@@ -357,7 +384,7 @@ GPSDriverSBF::payloadRxAdd(const uint8_t b)
  * Calculate buffer CRC16
  */
 uint16_t
-crc16(uint8_t *data_p, uint16_t length)
+crc16(const uint8_t *data_p, uint32_t length)
 {
 	uint8_t x;
 	uint16_t crc = 0;
@@ -365,7 +392,7 @@ crc16(uint8_t *data_p, uint16_t length)
 	while (length--) {
 		x = crc >> 8 ^ *data_p++;
 		x ^= x >> 4;
-		crc = (crc << 8) ^ ((uint16_t)(x << 12)) ^ ((uint16_t)(x << 5)) ^ ((uint16_t)x);
+		crc = static_cast<uint16_t>((crc << 8) ^ (x << 12) ^ (x << 5) ^ x);
 	}
 
 	return crc;
@@ -382,7 +409,7 @@ GPSDriverSBF::payloadRxDone()
 	time_t epoch;
 	uint8_t *buf_ptr;
 
-	if (_crc != crc16((uint8_t *) &_buf, _rx_payload_length)) {
+	if (_buf.crc16 != crc16(reinterpret_cast<uint8_t *>(&_buf) + 4, _buf.length - 4)) {
 		return 1;
 	}
 
@@ -409,24 +436,31 @@ GPSDriverSBF::payloadRxDone()
 		}
 
 		_gps_position->vel_ned_valid = _gps_position->fix_type > 1 && _buf.payload_pvt_geodetic.error == 0;
-		_gps_position->satellites_used = _buf.payload_pvt_geodetic.nr_sv;
 
-		_gps_position->lat = (float)_buf.payload_pvt_geodetic.latitude * M_RAD_TO_DEG_F;
-		_gps_position->lon = (float)_buf.payload_pvt_geodetic.longitude * M_RAD_TO_DEG_F;
-		_gps_position->alt_ellipsoid = _buf.payload_pvt_geodetic.height;
-		_gps_position->alt = _gps_position->alt_ellipsoid - _buf.payload_pvt_geodetic.undulation;
+		if (_buf.payload_pvt_geodetic.nr_sv < 255) {  // 255 = do not use value
+			_gps_position->satellites_used = _buf.payload_pvt_geodetic.nr_sv;
 
-		_gps_position->eph = (float)_buf.payload_pvt_geodetic.h_accuracy / 100.0f;
-		_gps_position->epv = (float)_buf.payload_pvt_geodetic.v_accuracy / 100.0f;
+		} else {
+			_gps_position->satellites_used = 0;
+		}
 
-		_gps_position->vel_n_m_s = (float)_buf.payload_pvt_geodetic.vn;
-		_gps_position->vel_e_m_s = (float)_buf.payload_pvt_geodetic.ve;
-		_gps_position->vel_d_m_s = -(float)_buf.payload_pvt_geodetic.vu;
-		_gps_position->vel_m_s = sqrtf(_gps_position->vel_n_m_s * _gps_position->vel_n_m_s +
-					       _gps_position->vel_e_m_s * _gps_position->vel_e_m_s);
+		_gps_position->lat = static_cast<int>(round(_buf.payload_pvt_geodetic.latitude * M_RAD_TO_DEG * 1e7));
+		_gps_position->lon = static_cast<int>(round(_buf.payload_pvt_geodetic.longitude * M_RAD_TO_DEG * 1e7));
+		_gps_position->alt_ellipsoid = static_cast<int>(round(_buf.payload_pvt_geodetic.height * 1000));
+		_gps_position->alt = static_cast<int>(round((_buf.payload_pvt_geodetic.height - static_cast<double>
+						      (_buf.payload_pvt_geodetic.undulation)) * 1000));
 
-		_gps_position->cog_rad = (float)_buf.payload_pvt_geodetic.cog * M_DEG_TO_RAD_F;
-		_gps_position->c_variance_rad = (float)1 * M_DEG_TO_RAD_F * 1e-5f;
+		_gps_position->eph = static_cast<float>(_buf.payload_pvt_geodetic.h_accuracy) / 100.0f;
+		_gps_position->epv = static_cast<float>(_buf.payload_pvt_geodetic.v_accuracy) / 100.0f;
+
+		_gps_position->vel_n_m_s = static_cast<float>(_buf.payload_pvt_geodetic.vn);
+		_gps_position->vel_e_m_s = static_cast<float>(_buf.payload_pvt_geodetic.ve);
+		_gps_position->vel_d_m_s = static_cast<float>(_buf.payload_pvt_geodetic.vu);
+		_gps_position->vel_m_s = sqrtf(_gps_position->vel_n_m_s * _gps_position->vel_n_m_s + _gps_position->vel_e_m_s *
+					       _gps_position->vel_e_m_s);
+
+		_gps_position->cog_rad = static_cast<float>(_buf.payload_pvt_geodetic.cog) * M_DEG_TO_RAD_F;
+		_gps_position->c_variance_rad = 1.0f * M_DEG_TO_RAD_F;
 
 		_gps_position->time_utc_usec = 0;
 #ifndef NO_MKTIME
@@ -462,15 +496,22 @@ GPSDriverSBF::payloadRxDone()
 		_last_timestamp_time = _gps_position->timestamp;
 		_rate_count_vel++;
 		_rate_count_lat_lon++;
-		_got_pos = true;
 		ret = (_msg_status == 7) ? 1 : 0;
 		break;
 
 	case SBF_ID_VelCovGeodetic:
 		SBF_TRACE_RXMSG("Rx VelCovGeodetic");
 		_msg_status |= 2;
-		_gps_position->s_variance_m_s = math::max(math::max(_buf.payload_vel_col_geodetic.cov_ve_ve,
-						_buf.payload_vel_col_geodetic.cov_vn_vn), _buf.payload_vel_col_geodetic.cov_vu_vu);
+		_gps_position->s_variance_m_s = _buf.payload_vel_col_geodetic.cov_ve_ve;
+
+		if (_gps_position->s_variance_m_s < _buf.payload_vel_col_geodetic.cov_vn_vn) {
+			_gps_position->s_variance_m_s = _buf.payload_vel_col_geodetic.cov_vn_vn;
+		}
+
+		if (_gps_position->s_variance_m_s < _buf.payload_vel_col_geodetic.cov_vu_vu) {
+			_gps_position->s_variance_m_s = _buf.payload_vel_col_geodetic.cov_vu_vu;
+		}
+
 		break;
 
 	case SBF_ID_DOP:
@@ -478,12 +519,19 @@ GPSDriverSBF::payloadRxDone()
 		_msg_status |= 4;
 		_gps_position->hdop = _buf.payload_dop.hDOP * 0.01f;
 		_gps_position->vdop = _buf.payload_dop.vDOP * 0.01f;
-		_got_dop = true;
+		// Report # of used satellites here until we find out why ChannelStatus msg is not arriving on base station
+		_satellite_info->timestamp = gps_absolute_time();
+		_satellite_info->count = _gps_position->satellites_used;
+		ret = 2;
 		break;
 
 	case SBF_ID_ChannelStatus:
 		SBF_TRACE_RXMSG("Rx SBF_ID_ChannelStatus");
-		_satellite_info->timestamp = gps_absolute_time();
+
+		if (_satellite_info == nullptr) {
+			break;
+		}
+
 		_satellite_info->count = _buf.payload_channel_status.n;
 		buf_ptr = reinterpret_cast<uint8_t *>(&_buf.payload_channel_status.satinfo);
 
@@ -491,8 +539,8 @@ GPSDriverSBF::payloadRxDone()
 			sbf_payload_channel_sat_info_t *sat_info = reinterpret_cast<sbf_payload_channel_sat_info_t *>(buf_ptr);
 			_satellite_info->svid[i] = sat_info->svid;
 			_satellite_info->used[i] = (sat_info->health_status == 1) ? 1 : 0;
-			_satellite_info->elevation[i] = sat_info->elevation;
-			_satellite_info->azimuth[i] = sat_info->azimuth & ((1 << 9) - 1);
+			_satellite_info->elevation[i] = static_cast<uint8_t>(sat_info->elevation);
+			_satellite_info->azimuth[i] = static_cast<uint8_t>(sat_info->azimuth & ((1 << 9) - 1));
 			_satellite_info->snr[i] = 0;
 			buf_ptr += _buf.payload_channel_status.sb1_length + sat_info->n2 * _buf.payload_channel_status.sb2_length;
 		}
@@ -505,7 +553,11 @@ GPSDriverSBF::payloadRxDone()
 	}
 
 	if (ret > 0) {
-		_gps_position->timestamp_time_relative = (int32_t)(_last_timestamp_time - _gps_position->timestamp);
+		_gps_position->timestamp_time_relative = static_cast<int32_t>(_last_timestamp_time - _gps_position->timestamp);
+	}
+
+	if (ret == 1) {
+		_msg_status &= ~1;
 	}
 
 	return ret;
@@ -515,7 +567,13 @@ void
 GPSDriverSBF::decodeInit()
 {
 	_decode_state = SBF_DECODE_SYNC1;
-	_crc = 0;
-	_rx_payload_length = 0;
 	_rx_payload_index = 0;
+
+	if (_output_mode == OutputMode::RTCM) {
+		if (!_rtcm_parsing) {
+			_rtcm_parsing = new RTCMParsing();
+		}
+
+		_rtcm_parsing->reset();
+	}
 }
