@@ -88,7 +88,7 @@ GPSDriverSBF::configure(unsigned &baudrate, OutputMode output_mode)
 
 	_output_mode = output_mode;
 	// try different baudrates
-	const unsigned baudrates[] = { 115200, 57600, 38400, 19200, 9600 };
+	const unsigned baudrates[] = { 115200 };
 
 	for (baud_i = 0; baud_i < sizeof(baudrates) / sizeof(baudrates[0]); baud_i++) {
 		baudrate = baudrates[baud_i];
@@ -189,11 +189,7 @@ GPSDriverSBF::sendMessage(const char *msg)
 	// Send message
 	int length = static_cast<int>(strlen(msg));
 
-	if (write(msg, length) != length) {
-		return false;
-	}
-
-	return true;
+	return (write(msg, length) == length);
 }
 
 bool
@@ -213,7 +209,6 @@ GPSDriverSBF::sendMessageAndWaitForAck(const char *msg, const int timeout)
 	// of the command as entered by the user, preceded with "$R:"
 	char buf[GPS_READ_BUFFER_SIZE];
 	size_t offset = 0;
-	memset(buf, 0, sizeof(buf));
 	gps_abstime time_started = gps_absolute_time();
 
 	bool found_response = false;
@@ -228,6 +223,7 @@ GPSDriverSBF::sendMessageAndWaitForAck(const char *msg, const int timeout)
 		}
 
 		offset += ret;
+		buf[offset] = '\0';
 
 		if (!found_response && strstr(buf, "$R: ") != nullptr) {
 			SBF_DEBUG("READ %d: %s", offset, buf);
@@ -409,7 +405,7 @@ GPSDriverSBF::payloadRxDone()
 	time_t epoch;
 	uint8_t *buf_ptr;
 
-	if (_buf.crc16 != crc16(reinterpret_cast<uint8_t *>(&_buf) + 4, _buf.length - 4)) {
+	if (_buf.length <= 4 || _buf.crc16 != crc16(reinterpret_cast<uint8_t *>(&_buf) + 4, _buf.length - 4)) {
 		return 1;
 	}
 
