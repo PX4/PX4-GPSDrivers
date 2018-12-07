@@ -197,7 +197,7 @@ GPSDriverSBF::sendMessageAndWaitForAck(const char *msg, const int timeout)
 	bool found_response = false;
 
 	do {
-		int ret = read(reinterpret_cast<uint8_t *>(buf) + offset, sizeof(buf) - offset, timeout);
+		int ret = read(reinterpret_cast<uint8_t *>(buf) + offset, sizeof(buf) - offset - 1, timeout);
 
 		if (ret < 0) {
 			// something went wrong when polling or reading
@@ -215,7 +215,6 @@ GPSDriverSBF::sendMessageAndWaitForAck(const char *msg, const int timeout)
 
 		if (offset >= sizeof(buf)) {
 			offset = 0;
-			memset(buf, 0, sizeof(buf));
 		}
 
 	} while (time_started + 1000 * timeout > gps_absolute_time());
