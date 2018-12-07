@@ -206,7 +206,7 @@ GPSDriverSBF::sendMessageAndWaitForAck(const char *msg, const int timeout)
 		}
 
 		offset += ret;
-		buf[offset] = '\0';
+		buf[offset++] = '\0';
 
 		if (!found_response && strstr(buf, "$R: ") != nullptr) {
 			SBF_DEBUG("READ %d: %s", offset, buf);
