@@ -279,8 +279,8 @@ GPSDriverSBF::receive(unsigned timeout)
 			return handled;
 		}
 
-		// abort after 2s if no useful packets received
-		if (time_started + 2000 * 1000 < gps_absolute_time()) {
+		// abort after timeout if no useful packets received
+		if (time_started + timeout * 1000 < gps_absolute_time()) {
 			SBF_DEBUG("timed out, returning");
 			return -1;
 		}
