@@ -80,101 +80,84 @@ GPSDriverSBF::configure(unsigned &baudrate, OutputMode output_mode)
 	// Check if we're already configured
 	setBaudrate(SBF_TX_CFG_PRT_BAUDRATE);
 
-	if (receive(SBF_CONFIG_TIMEOUT) > 0) {
-		return 0;
+	_output_mode = output_mode;
+	baudrate = 115200;
+
+	setBaudrate(baudrate);
+	// Change the baudrate
+	char msg[64];
+	snprintf(msg, sizeof(msg), SBF_CONFIG_BAUDRATE, baudrate);
+
+	if (!sendMessage(msg)) {
+		return -1; // connection and/or baudrate detection failed
 	}
 
-	unsigned baud_i;
+	if (SBF_TX_CFG_PRT_BAUDRATE != baudrate) {
+		setBaudrate(SBF_TX_CFG_PRT_BAUDRATE);
+		baudrate = SBF_TX_CFG_PRT_BAUDRATE;
+	}
 
-	_output_mode = output_mode;
-	// try different baudrates
-	const unsigned baudrates[] = { 115200 };
+	if (!sendMessageAndWaitForAck(SBF_CONFIG_RESET, SBF_CONFIG_TIMEOUT)) {
+		return -1; // connection and/or baudrate detection failed
+	}
 
-	for (baud_i = 0; baud_i < sizeof(baudrates) / sizeof(baudrates[0]); baud_i++) {
-		baudrate = baudrates[baud_i];
-		SBF_DEBUG("Try baud rate: %d", baudrate);
-		setBaudrate(baudrate);
-		// Change the baudrate
-		char msg[64];
-		snprintf(msg, sizeof(msg), SBF_CONFIG_BAUDRATE, baudrate);
+	// at this point we have correct baudrate on both ends
 
-		if (!sendMessage(msg)) {
-			continue;
-		}
+	const char *config_cmds;
 
-		if (SBF_TX_CFG_PRT_BAUDRATE != baudrate) {
-			setBaudrate(SBF_TX_CFG_PRT_BAUDRATE);
-			baudrate = SBF_TX_CFG_PRT_BAUDRATE;
-		}
+	if (_output_mode == OutputMode::RTCM) {
+		config_cmds = SBF_CONFIG_RTCM;
 
-		if (!sendMessageAndWaitForAck(SBF_CONFIG_RESET, SBF_CONFIG_TIMEOUT)) {
-			continue;
-		}
+	} else {
 
-		// at this point we have correct baudrate on both ends
+		if (_dynamic_model < 6) {
+			snprintf(msg, sizeof(msg), SBF_CONFIG_RECEIVER_DYNAMICS, "low");
 
-		const char *config_cmds;
+		} else if (_dynamic_model < 7) {
+			snprintf(msg, sizeof(msg), SBF_CONFIG_RECEIVER_DYNAMICS, "moderate");
 
-		if (_output_mode == OutputMode::RTCM) {
-			config_cmds = SBF_CONFIG_RTCM;
+		} else if (_dynamic_model < 8) {
+			snprintf(msg, sizeof(msg), SBF_CONFIG_RECEIVER_DYNAMICS, "high");
 
 		} else {
+			snprintf(msg, sizeof(msg), SBF_CONFIG_RECEIVER_DYNAMICS, "max");
+		}
 
-			if (_dynamic_model < 6) {
-				snprintf(msg, sizeof(msg), SBF_CONFIG_RECEIVER_DYNAMICS, "low");
+		sendMessageAndWaitForAck(msg, SBF_CONFIG_TIMEOUT);
 
-			} else if (_dynamic_model < 7) {
-				snprintf(msg, sizeof(msg), SBF_CONFIG_RECEIVER_DYNAMICS, "moderate");
+		config_cmds = SBF_CONFIG;
+	}
 
-			} else if (_dynamic_model < 8) {
-				snprintf(msg, sizeof(msg), SBF_CONFIG_RECEIVER_DYNAMICS, "high");
+	uint8_t i = 0;
+	msg[0] = 0;
 
-			} else {
-				snprintf(msg, sizeof(msg), SBF_CONFIG_RECEIVER_DYNAMICS, "max");
-			}
+	while (*config_cmds != 0) {
+		msg[i] = *config_cmds;
+
+		if (msg[i++] == '\n') {
+			msg[i] = 0;
 
 			sendMessageAndWaitForAck(msg, SBF_CONFIG_TIMEOUT);
 
-			config_cmds = SBF_CONFIG;
+			i = 0;
+			msg[0] = 0;
 		}
 
-		uint8_t i = 0;
-		msg[0] = 0;
-
-		while (*config_cmds != 0) {
-			msg[i] = *config_cmds;
-
-			if (msg[i++] == '\n') {
-				msg[i] = 0;
-
-				sendMessageAndWaitForAck(msg, SBF_CONFIG_TIMEOUT);
-
-				i = 0;
-				msg[0] = 0;
-			}
-
-			config_cmds++;
-		}
-
-		if (_output_mode == OutputMode::RTCM) {
-			if (_base_settings.type == BaseSettingsType::fixed_position) {
-				snprintf(msg, sizeof(msg), SBF_CONFIG_RTCM_STATIC_COORDINATES,
-					 _base_settings.settings.fixed_position.latitude,
-					 _base_settings.settings.fixed_position.longitude,
-					 static_cast<double>(_base_settings.settings.fixed_position.altitude));
-				sendMessageAndWaitForAck(msg, SBF_CONFIG_TIMEOUT);
-				snprintf(msg, sizeof(msg), SBF_CONFIG_RTCM_STATIC_OFFSET, 0.0, 0.0, 0.0);
-				sendMessageAndWaitForAck(msg, SBF_CONFIG_TIMEOUT);
-				sendMessageAndWaitForAck(SBF_CONFIG_RTCM_STATIC1, SBF_CONFIG_TIMEOUT);
-				sendMessageAndWaitForAck(SBF_CONFIG_RTCM_STATIC2, SBF_CONFIG_TIMEOUT);
-			}
-		}
-
-		break;
+		config_cmds++;
 	}
 
-	if (baud_i >= sizeof(baudrates) / sizeof(baudrates[0])) {
-		return -1; // connection and/or baudrate detection failed
+	if (_output_mode == OutputMode::RTCM) {
+		if (_base_settings.type == BaseSettingsType::fixed_position) {
+			snprintf(msg, sizeof(msg), SBF_CONFIG_RTCM_STATIC_COORDINATES,
+				 _base_settings.settings.fixed_position.latitude,
+				 _base_settings.settings.fixed_position.longitude,
+				 static_cast<double>(_base_settings.settings.fixed_position.altitude));
+			sendMessageAndWaitForAck(msg, SBF_CONFIG_TIMEOUT);
+			snprintf(msg, sizeof(msg), SBF_CONFIG_RTCM_STATIC_OFFSET, 0.0, 0.0, 0.0);
+			sendMessageAndWaitForAck(msg, SBF_CONFIG_TIMEOUT);
+			sendMessageAndWaitForAck(SBF_CONFIG_RTCM_STATIC1, SBF_CONFIG_TIMEOUT);
+			sendMessageAndWaitForAck(SBF_CONFIG_RTCM_STATIC2, SBF_CONFIG_TIMEOUT);
+		}
 	}
 
 	_configured = true;
