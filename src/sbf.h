@@ -49,7 +49,7 @@
 
 #define SBF_CONFIG_FORCE_INPUT "SSSSSSSSSS\n"
 
-#define SBF_CONFIG_BAUDRATE SBF_CONFIG_FORCE_INPUT"setCOMSettings, COM1, baud%d\n"
+#define SBF_CONFIG_BAUDRATE "setCOMSettings, COM1, baud%d\n"
 
 #define SBF_CONFIG_RESET "setSBFOutput, all, COM1, none, off\n"
 
