@@ -213,7 +213,7 @@ GPSDriverSBF::sendMessageAndWaitForAck(const char *msg, const int timeout)
 		buf[offset++] = '\0';
 
 		if (!found_response && strstr(buf, "$R: ") != nullptr) {
-			SBF_DEBUG("READ %d: %s", offset, buf);
+			SBF_DEBUG("READ %d: %s", (int)offset, buf);
 			found_response = true;
 		}
 
@@ -231,7 +231,7 @@ GPSDriverSBF::receive(unsigned timeout)
 {
 	// Do not receive messages until we're configured
 	if (!_configured) {
-		usleep(timeout * 1000);
+		gps_usleep(timeout * 1000);
 		return 0;
 	}
 
