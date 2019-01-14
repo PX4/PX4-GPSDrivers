@@ -88,6 +88,10 @@ GPSDriverSBF::configure(unsigned &baudrate, OutputMode output_mode)
 	char msg[64];
 	snprintf(msg, sizeof(msg), SBF_CONFIG_BAUDRATE, baudrate);
 
+	if (output_mode != OutputMode::RTCM) {
+		sendMessage(SBF_CONFIG_FORCE_INPUT);
+	}
+
 	if (!sendMessage(msg)) {
 		return -1; // connection and/or baudrate detection failed
 	}
