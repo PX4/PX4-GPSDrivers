@@ -385,7 +385,6 @@ GPSDriverSBF::payloadRxDone()
 	int ret = 0;
 	struct tm timeinfo;
 	time_t epoch;
-	uint8_t *buf_ptr;
 
 	if (_buf.length <= 4 || _buf.crc16 != crc16(reinterpret_cast<uint8_t *>(&_buf) + 4, _buf.length - 4)) {
 		return 1;
@@ -417,6 +416,14 @@ GPSDriverSBF::payloadRxDone()
 
 		if (_buf.payload_pvt_geodetic.nr_sv < 255) {  // 255 = do not use value
 			_gps_position->satellites_used = _buf.payload_pvt_geodetic.nr_sv;
+
+			if (_satellite_info) {
+				// Only fill in the satellite count for now (we could use the ChannelStatus message for the
+				// other data, but it's really large: >800B)
+				_satellite_info->timestamp = gps_absolute_time();
+				_satellite_info->count = _gps_position->satellites_used;
+				ret = 2;
+			}
 
 		} else {
 			_gps_position->satellites_used = 0;
@@ -474,7 +481,7 @@ GPSDriverSBF::payloadRxDone()
 		_last_timestamp_time = _gps_position->timestamp;
 		_rate_count_vel++;
 		_rate_count_lat_lon++;
-		ret = (_msg_status == 7) ? 1 : 0;
+		ret |= (_msg_status == 7) ? 1 : 0;
 		break;
 
 	case SBF_ID_VelCovGeodetic:
@@ -497,33 +504,6 @@ GPSDriverSBF::payloadRxDone()
 		_msg_status |= 4;
 		_gps_position->hdop = _buf.payload_dop.hDOP * 0.01f;
 		_gps_position->vdop = _buf.payload_dop.vDOP * 0.01f;
-		// Report # of used satellites here until we find out why ChannelStatus msg is not arriving on base station
-		_satellite_info->timestamp = gps_absolute_time();
-		_satellite_info->count = _gps_position->satellites_used;
-		ret = 2;
-		break;
-
-	case SBF_ID_ChannelStatus:
-		SBF_TRACE_RXMSG("Rx SBF_ID_ChannelStatus");
-
-		if (_satellite_info == nullptr) {
-			break;
-		}
-
-		_satellite_info->count = _buf.payload_channel_status.n;
-		buf_ptr = reinterpret_cast<uint8_t *>(&_buf.payload_channel_status.satinfo);
-
-		for (uint8_t i = 0; i < _satellite_info->count && i < _satellite_info->SAT_INFO_MAX_SATELLITES; i++) {
-			sbf_payload_channel_sat_info_t *sat_info = reinterpret_cast<sbf_payload_channel_sat_info_t *>(buf_ptr);
-			_satellite_info->svid[i] = sat_info->svid;
-			_satellite_info->used[i] = (sat_info->health_status == 1) ? 1 : 0;
-			_satellite_info->elevation[i] = static_cast<uint8_t>(sat_info->elevation);
-			_satellite_info->azimuth[i] = static_cast<uint8_t>(sat_info->azimuth & ((1 << 9) - 1));
-			_satellite_info->snr[i] = 0;
-			buf_ptr += _buf.payload_channel_status.sb1_length + sat_info->n2 * _buf.payload_channel_status.sb2_length;
-		}
-
-		ret = 2;
 		break;
 
 	default:

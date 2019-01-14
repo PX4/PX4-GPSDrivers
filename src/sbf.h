@@ -65,7 +65,6 @@
 	"setElevationMask, All, 10\n" \
 	"setSBFOutput, Stream1, Dsk1, PostProcess, msec100\n" \
 	"setSBFOutput, Stream2, Dsk1, Event+Comment, OnChange\n" \
-	"setSBFOutput, Stream3, COM1, ChannelStatus, sec1\n" \
 	"setSBFOutput, Stream2, COM1, DOP+VelCovGeodetic, sec1\n" \
 	"setSBFOutput, Stream1, COM1, PVTGeodetic, msec100\n"
 
@@ -77,7 +76,6 @@
 	"setElevationMask, All, 10\n" \
 	"setReceiverDynamics, Moderate, Automotive\n" \
 	"setSBFOutput, Stream1, Dsk1, PostProcess, msec100\n" \
-	"setSBFOutput, Stream3, USB1, ChannelStatus, sec1\n" \
 	"setSBFOutput, Stream2, USB1, DOP+VelCovGeodetic, sec1\n" \
 	"setSBFOutput, Stream1, USB1, PVTGeodetic, msec200\n"
 
@@ -250,30 +248,6 @@ typedef struct {
 	uint16_t pvt_info;
 } sbf_payload_channel_state_info_t;
 
-typedef struct {
-	uint8_t svid;			/**< Satellite ID */
-	uint8_t freq_nr;
-	uint8_t reserved[2];
-	uint16_t azimuth;       /**< Azimuth [0,359]. 0 is North, and increases towards East. */
-	uint16_t health_status; /**< 0 - unknown, 1 - healthy, 3 - unhealthy */
-	int8_t elevation;       /**< Elevation [-90,90] relative to local horizontal plane */
-	uint8_t n2;				/**< Number of ChannelStateInfo blocks following this ChannelSatInfo block.
-								 There is one ChannelStateInfo sub-block per antenna. */
-	uint8_t rx_channel;		/**< Channel number */
-	uint8_t reserved2;
-} sbf_payload_channel_sat_info_t;
-
-typedef struct {
-	uint8_t n;              /**< Number of channels for which status are provided in this SBF block, i.e.
-							     number of ChannelSatInfo sub-blocks. If N is 0, there are no active
-							     channels available for this epoch. */
-	uint8_t sb1_length;     /**< Length of a ChannelSatInfo sub-block, excluding the nested
-							     ChannelStateInfo sub-block */
-	uint8_t sb2_length;     /**< Length of a ChannelStateInfo sub-block */
-	uint8_t reserved[3];
-	sbf_payload_channel_sat_info_t satinfo; /**< A succession of n sbf_payload_channel_sat_info_t sub-blocks */
-} sbf_payload_channel_status_t;
-
 /* General message and payload buffer union */
 
 typedef struct {
@@ -302,7 +276,6 @@ uint8_t msg_revision:
 		sbf_payload_pvt_geodetic_t  payload_pvt_geodetic;
 		sbf_payload_vel_cov_geodetic_t payload_vel_col_geodetic;
 		sbf_payload_dop_t payload_dop;
-		sbf_payload_channel_status_t payload_channel_status;
 	};
 
 	uint8_t padding[16];
