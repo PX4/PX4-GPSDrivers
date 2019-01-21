@@ -539,3 +539,32 @@ GPSDriverSBF::decodeInit()
 		_rtcm_parsing->reset();
 	}
 }
+
+bool
+GPSDriverSBF::reset(GPSRestartType restart_type)
+{
+	bool res = false;
+
+	switch (restart_type) {
+	case GPSRestartType::Hot:
+		res = sendMessageAndWaitForAck("ExeResetReceiver, soft, none", SBF_CONFIG_TIMEOUT, false);
+		break;
+
+	case GPSRestartType::Warm:
+		res = sendMessageAndWaitForAck("ExeResetReceiver, soft, PVTData", SBF_CONFIG_TIMEOUT, false);
+		break;
+
+	case GPSRestartType::Cold:
+		res = sendMessageAndWaitForAck("ExeResetReceiver, hard, SatData", SBF_CONFIG_TIMEOUT, false);
+		break;
+	}
+
+	if (res) {
+		PX4_INFO("Resetting GPS");
+
+	} else {
+		PX4_INFO("Failed to teset GPS");
+	}
+
+	return true;
+}

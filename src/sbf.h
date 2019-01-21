@@ -303,39 +303,33 @@ public:
 	virtual ~GPSDriverSBF() override;
 
 	int receive(unsigned timeout) override;
-
 	int configure(unsigned &baudrate, OutputMode output_mode) override;
+	bool reset(GPSRestartType restart_type) override;
 
 private:
 
 	/**
-	 * Parse the binary SBF packet
+	 * @brief Parse the binary SBF packet
 	 */
 	int parseChar(const uint8_t b);
 
 	/**
-	 * Add payload rx byte
+	 * @brief Add payload rx byte
 	 */
 	int payloadRxAdd(const uint8_t b);
 
 	/**
-	 * Finish payload rx
+	 * @brief Finish payload rx
 	 */
 	int payloadRxDone(void);
 
 	/**
-	 * Reset the parse state machine for a fresh start
+	 * @brief Reset the parse state machine for a fresh start
 	 */
 	void decodeInit(void);
 
 	/**
-	 * Send a message
-	 * @return true on success, false on write error (errno set)
-	 */
-	bool sendMessage(const char *msg);
-
-	/**
-	 * Send a message and waits for acknowledge
+	 * @brief Send a message and waits for acknowledge
 	 * @return true on success, false on write error (errno set) or ack wait timeout
 	 */
 	bool sendMessageAndWaitForAck(const char *msg, const int timeout);
