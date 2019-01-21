@@ -91,6 +91,15 @@
 #define SBF_CONFIG_RTCM_STATIC_OFFSET "" \
 	"setAntennaOffset, Main, %f, %f, %f\n"
 
+#define SBF_CONFIG_RESET_HOT "" \
+	SBF_CONFIG_FORCE_INPUT"ExeResetReceiver, soft, none\n"
+
+#define SBF_CONFIG_RESET_WARM "" \
+	SBF_CONFIG_FORCE_INPUT"ExeResetReceiver, soft, PVTData\n"
+
+#define SBF_CONFIG_RESET_COLD "" \
+	SBF_CONFIG_FORCE_INPUT"ExeResetReceiver, hard, SatData\n"
+
 #define SBF_SYNC1 0x24
 #define SBF_SYNC2 0x40
 
@@ -303,39 +312,39 @@ public:
 	virtual ~GPSDriverSBF() override;
 
 	int receive(unsigned timeout) override;
-
 	int configure(unsigned &baudrate, OutputMode output_mode) override;
+	int reset(GPSRestartType restart_type) override;
 
 private:
 
 	/**
-	 * Parse the binary SBF packet
+	 * @brief Parse the binary SBF packet
 	 */
 	int parseChar(const uint8_t b);
 
 	/**
-	 * Add payload rx byte
+	 * @brief Add payload rx byte
 	 */
 	int payloadRxAdd(const uint8_t b);
 
 	/**
-	 * Finish payload rx
+	 * @brief Finish payload rx
 	 */
 	int payloadRxDone(void);
 
 	/**
-	 * Reset the parse state machine for a fresh start
+	 * @brief Reset the parse state machine for a fresh start
 	 */
 	void decodeInit(void);
 
 	/**
-	 * Send a message
+	 * @brief Send a message
 	 * @return true on success, false on write error (errno set)
 	 */
 	bool sendMessage(const char *msg);
 
 	/**
-	 * Send a message and waits for acknowledge
+	 * @brief Send a message and waits for acknowledge
 	 * @return true on success, false on write error (errno set) or ack wait timeout
 	 */
 	bool sendMessageAndWaitForAck(const char *msg, const int timeout);

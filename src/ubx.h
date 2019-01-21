@@ -86,6 +86,7 @@
 #define UBX_ID_CFG_RATE	0x08 // deprecated in protocol version >= 27 -> use CFG_VALSET
 #define UBX_ID_CFG_CFG		0x09 // deprecated in protocol version >= 27 -> use CFG_VALSET
 #define UBX_ID_CFG_NAV5	0x24 // deprecated in protocol version >= 27 -> use CFG_VALSET
+#define UBX_ID_CFG_RST	0x04
 #define UBX_ID_CFG_SBAS	0x16
 #define UBX_ID_CFG_TMODE3	0x71 // deprecated in protocol version >= 27 -> use CFG_VALSET
 #define UBX_ID_CFG_VALSET	0x8A
@@ -133,6 +134,7 @@
 #define UBX_MSG_CFG_RATE	((UBX_CLASS_CFG) | UBX_ID_CFG_RATE << 8)
 #define UBX_MSG_CFG_CFG		((UBX_CLASS_CFG) | UBX_ID_CFG_CFG << 8)
 #define UBX_MSG_CFG_NAV5	((UBX_CLASS_CFG) | UBX_ID_CFG_NAV5 << 8)
+#define UBX_MSG_CFG_RST 	((UBX_CLASS_CFG) | UBX_ID_CFG_RST << 8)
 #define UBX_MSG_CFG_SBAS	((UBX_CLASS_CFG) | UBX_ID_CFG_SBAS << 8)
 #define UBX_MSG_CFG_TMODE3	((UBX_CLASS_CFG) | UBX_ID_CFG_TMODE3 << 8)
 #define UBX_MSG_CFG_VALGET	((UBX_CLASS_CFG) | UBX_ID_CFG_VALGET << 8)
@@ -201,6 +203,15 @@
  */
 #define UBX_TX_CFG_NAV5_MASK		0x0005		/**< Only update dynamic model and fix mode */
 #define UBX_TX_CFG_NAV5_FIXMODE		2		/**< 1 2D only, 2 3D only, 3 Auto 2D/3D */
+
+/* TX CFG-RST message contents
+ * Note: not used with protocol version 27+ anymore
+ */
+#define UBX_TX_CFG_RST_BBR_MODE_HOT_START 	0
+#define UBX_TX_CFG_RST_BBR_MODE_WARM_START 	1
+#define UBX_TX_CFG_RST_BBR_MODE_COLD_START 	0xFFFF
+#define UBX_TX_CFG_RST_MODE_HARDWARE 		0
+#define UBX_TX_CFG_RST_MODE_SOFTWARE 		1
 
 /* Key ID's for CFG-VAL{GET,SET,DEL} */
 #define UBX_CFG_KEY_CFG_UART1_BAUDRATE           0x40520001
@@ -617,6 +628,13 @@ typedef struct {
 	uint32_t	reserved4;
 } ubx_payload_tx_cfg_nav5_t;
 
+/* tx cfg-rst */
+typedef struct {
+	uint16_t	navBbrMask;
+	uint8_t		resetMode;
+	uint8_t		reserved1;
+} ubx_payload_tx_cfg_rst_t;
+
 /* tx cfg-sbas */
 typedef struct {
 	uint8_t		mode;
@@ -677,6 +695,7 @@ typedef union {
 	ubx_payload_tx_cfg_prt_t		payload_tx_cfg_prt;
 	ubx_payload_tx_cfg_rate_t		payload_tx_cfg_rate;
 	ubx_payload_tx_cfg_nav5_t		payload_tx_cfg_nav5;
+	ubx_payload_tx_cfg_rst_t		payload_tx_cfg_rst;
 	ubx_payload_tx_cfg_sbas_t		payload_tx_cfg_sbas;
 	ubx_payload_tx_cfg_msg_t		payload_tx_cfg_msg;
 	ubx_payload_tx_cfg_tmode3_t		payload_tx_cfg_tmode3;
@@ -731,6 +750,7 @@ public:
 
 	int receive(unsigned timeout) override;
 	int configure(unsigned &baudrate, OutputMode output_mode) override;
+	int reset(GPSRestartType restart_type) override;
 
 private:
 

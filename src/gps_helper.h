@@ -98,6 +98,13 @@ enum class GPSCallbackType {
 	setClock,
 };
 
+enum class GPSRestartType {
+	None,
+	Hot,
+	Warm,
+	Cold
+};
+
 /** Callback function for platform-specific stuff.
  * data1 and data2 depend on type and user is the custom user-supplied argument.
  * @return <0 on error, >=0 on success (depending on type)
@@ -150,6 +157,15 @@ public:
 	 *         bit 1 set: got satellite info update
 	 */
 	virtual int receive(unsigned timeout) = 0;
+
+	/**
+	 * Reset GPS device
+	 * @param restart_type
+	 * @return -1 if not implemented
+	 * 	        0 on failure
+	 *          1 on success
+	 */
+	virtual int reset(GPSRestartType restart_type)	{ return -1; }
 
 	float getPositionUpdateRate() { return _rate_lat_lon; }
 	float getVelocityUpdateRate() { return _rate_vel; }
