@@ -338,6 +338,12 @@ private:
 	void decodeInit(void);
 
 	/**
+	 * @brief Send a message
+	 * @return true on success, false on write error (errno set)
+	 */
+	bool sendMessage(const char *msg);
+
+	/**
 	 * @brief Send a message and waits for acknowledge
 	 * @return true on success, false on write error (errno set) or ack wait timeout
 	 */
