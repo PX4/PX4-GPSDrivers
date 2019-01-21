@@ -547,15 +547,15 @@ GPSDriverSBF::reset(GPSRestartType restart_type)
 
 	switch (restart_type) {
 	case GPSRestartType::Hot:
-		res = sendMessageAndWaitForAck(SBF_CONFIG_RESET_HOT, SBF_CONFIG_TIMEOUT, false);
+		res = sendMessageAndWaitForAck(SBF_CONFIG_RESET_HOT, SBF_CONFIG_TIMEOUT);
 		break;
 
 	case GPSRestartType::Warm:
-		res = sendMessageAndWaitForAck(SBF_CONFIG_RESET_WARM, SBF_CONFIG_TIMEOUT, false);
+		res = sendMessageAndWaitForAck(SBF_CONFIG_RESET_WARM, SBF_CONFIG_TIMEOUT);
 		break;
 
 	case GPSRestartType::Cold:
-		res = sendMessageAndWaitForAck(SBF_CONFIG_RESET_COLD, SBF_CONFIG_TIMEOUT, false);
+		res = sendMessageAndWaitForAck(SBF_CONFIG_RESET_COLD, SBF_CONFIG_TIMEOUT);
 		break;
 
 	default:
