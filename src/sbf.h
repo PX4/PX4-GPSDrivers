@@ -40,27 +40,56 @@
  *
  */
 
-#ifndef SBF_H_
-#define SBF_H_
+#pragma once
 
 #include "gps_helper.h"
+#include "base_station.h"
+#include "rtcm.h"
 #include "../../definitions.h"
 
-#define SBF_CONFIG "" \
-	"setPVTMode, Rover, StandAlone+SBAS, auto\n" \
-	"setSatelliteTracking, All\n" \
-	"setSatelliteUsage, All\n" \
-	"setElevationMask, All, 10\n" \
-	"setSBFOutput, all, COM1, none, off\n" \
-	"setSBFOutput, Stream1, COM1, PVTGeodetic, msec50\n" \
-	"setSBFOutput, Stream2, COM1, DOP+VelCovGeodetic, OnChange\n" \
-	"setSBFOutput, Stream3, COM1, ChannelStatus, OnChange\n"
+#define SBF_CONFIG_FORCE_INPUT "SSSSSSSSSS\n"
 
-#define SBF_CONFIG_BAUDRATE "setCOMSettings, COM2, baud%d\n"
+#define SBF_CONFIG_BAUDRATE "setCOMSettings, COM1, baud%d\n"
+
+#define SBF_CONFIG_RESET "setSBFOutput, all, COM1, none, off\n"
 
 #define SBF_CONFIG_RECEIVER_DYNAMICS "setReceiverDynamics, %s, UAV\n"
 
 #define SBF_TX_CFG_PRT_BAUDRATE 115200
+
+#define SBF_CONFIG "" \
+	"setDataInOut, COM1, Auto, SBF\n" \
+	"setPVTMode, Rover, All, auto\n" \
+	"setSatelliteTracking, All\n" \
+	"setSatelliteUsage, All\n" \
+	"setElevationMask, All, 10\n" \
+	"setSBFOutput, Stream1, Dsk1, PostProcess, msec100\n" \
+	"setSBFOutput, Stream2, Dsk1, Event+Comment, OnChange\n" \
+	"setSBFOutput, Stream2, COM1, DOP+VelCovGeodetic, sec1\n" \
+	"setSBFOutput, Stream1, COM1, PVTGeodetic, msec100\n"
+
+#define SBF_CONFIG_RTCM "" \
+	"setDataInOut, USB1, Auto, RTCMv3+SBF\n" \
+	"setPVTMode, Rover, All, auto\n" \
+	"setSatelliteTracking, All\n" \
+	"setSatelliteUsage, All\n" \
+	"setElevationMask, All, 10\n" \
+	"setReceiverDynamics, Moderate, Automotive\n" \
+	"setSBFOutput, Stream1, Dsk1, PostProcess, msec100\n" \
+	"setSBFOutput, Stream2, USB1, DOP+VelCovGeodetic, sec1\n" \
+	"setSBFOutput, Stream1, USB1, PVTGeodetic, msec200\n"
+
+#define SBF_CONFIG_RTCM_STATIC1 "" \
+	"setReceiverDynamics, Low, Static\n"
+
+#define SBF_CONFIG_RTCM_STATIC2 "" \
+	"setPVTMode, Static, , Geodetic1\n"
+
+#define SBF_CONFIG_RTCM_STATIC_COORDINATES "" \
+	"setStaticPosGeodetic, Geodetic1, %f, %f, %f\n"
+
+#define SBF_CONFIG_RTCM_STATIC_OFFSET "" \
+	"setAntennaOffset, Main, %f, %f, %f\n"
 
 #define SBF_SYNC1 0x24
 #define SBF_SYNC2 0x40
@@ -219,42 +248,27 @@ typedef struct {
 	uint16_t pvt_info;
 } sbf_payload_channel_state_info_t;
 
-typedef struct {
-	uint8_t svid;			/**< Satellite ID */
-	uint8_t freq_nr;
-	uint8_t reserved[2];
-	uint16_t azimuth;       /**< Azimuth [0,359]. 0 is North, and increases towards East. */
-	uint16_t health_status; /**< 0 - unknown, 1 - healthy, 3 - unhealthy */
-	int8_t elevation;       /**< Elevation [-90,90] relative to local horizontal plane */
-	uint8_t n2;				/**< Number of ChannelStateInfo blocks following this ChannelSatInfo block.
-								 There is one ChannelStateInfo sub-block per antenna. */
-	uint8_t rx_channel;		/**< Channel number */
-	uint8_t reserved2;
-} sbf_payload_channel_sat_info_t;
-
-typedef struct {
-	uint8_t n;              /**< Number of channels for which status are provided in this SBF block, i.e.
-							     number of ChannelSatInfo sub-blocks. If N is 0, there are no active
-							     channels available for this epoch. */
-	uint8_t sb1_length;     /**< Length of a ChannelSatInfo sub-block, excluding the nested
-							     ChannelStateInfo sub-block */
-	uint8_t sb2_length;     /**< Length of a ChannelStateInfo sub-block */
-	uint8_t reserved[3];
-	sbf_payload_channel_sat_info_t satinfo; /**< A succession of n sbf_payload_channel_sat_info_t sub-blocks */
-} sbf_payload_channel_status_t;
-
 /* General message and payload buffer union */
 
 typedef struct {
-	uint16_t msg_id: 13;        /** The ID ﬁeld is a 2-byte block ID, which uniquely identiﬁes the block type and its contents */
-	uint8_t msg_revision: 3;    /** block revision number, starting from 0 at the initial block deﬁnition, and incrementing
+	uint16_t sync;              /** The Sync field is a 2-byte array always set to 0x24, 0x40. The first byte of every SBF block has
+									hexadecimal value 24 (decimal 36, ASCII ’$’). The second byte of every SBF block has hexadecimal
+									value 40 (decimal 64, ASCII ’@’). */
+	uint16_t crc16;				/** The CRC field is the 16-bit CRC of all the bytes in an SBF block from and including the ID field
+									to the last byte of the block. The generator polynomial for this CRC is the so-called CRC-CCITT
+									polynomial: x 16 + x 12 + x 5 + x 0 . The CRC is computed in the forward direction using a seed of 0, no
+									reverse and no final XOR. */
+uint16_t msg_id:
+	13;        /** The ID ﬁeld is a 2-byte block ID, which uniquely identiﬁes the block type and its contents */
+uint8_t msg_revision:
+	3;    /** block revision number, starting from 0 at the initial block deﬁnition, and incrementing
                                     each time backwards - compatible changes are performed to the block  */
 	uint16_t length;            /** The Length ﬁeld is a 2-byte unsigned integer containing the size of the SBF block.
                                     It is the total number of bytes in the SBF block including the header.
                                     It is always a multiple of 4. */
 	uint32_t TOW;               /**< Time-Of-Week: Time-tag, expressed in whole milliseconds from
                                      the beginning of the current Galileo/GPSweek. */
-	uint8_t  WNc;               /**< The GPS week number associated with the TOW. WNc is a continuous
+	uint16_t WNc;               /**< The GPS week number associated with the TOW. WNc is a continuous
                                      weekcount (hence the "c"). It is not affected by GPS week roll overs,
                                      which occur every 1024 weeks. By deﬁnition of the Galileo system time,
                                      WNc is also the Galileo week number + 1024. */
@@ -262,8 +276,9 @@ typedef struct {
 		sbf_payload_pvt_geodetic_t  payload_pvt_geodetic;
 		sbf_payload_vel_cov_geodetic_t payload_vel_col_geodetic;
 		sbf_payload_dop_t payload_dop;
-		sbf_payload_channel_status_t payload_channel_status;
 	};
+
+	uint8_t padding[16];
 } sbf_buf_t;
 
 #pragma pack(pop)
@@ -273,25 +288,19 @@ typedef struct {
 typedef enum {
 	SBF_DECODE_SYNC1 = 0,
 	SBF_DECODE_SYNC2,
-	SBF_DECODE_CRC1,
-	SBF_DECODE_CRC2,
-	SBF_DECODE_MSG1,
-	SBF_DECODE_MSG2,
-	SBF_DECODE_LENGTH1,
-	SBF_DECODE_LENGTH2,
 	SBF_DECODE_PAYLOAD,
+	SBF_DECODE_RTCM3
 } sbf_decode_state_t;
 
-class GPSDriverSBF : public GPSHelper
+class GPSDriverSBF : public GPSBaseStationSupport
 {
 public:
-	GPSDriverSBF(Interface gpsInterface,
-		     GPSCallbackPtr callback, void *callback_user,
+	GPSDriverSBF(GPSCallbackPtr callback, void *callback_user,
 		     struct vehicle_gps_position_s *gps_position,
 		     struct satellite_info_s *satellite_info,
 		     uint8_t dynamic_model);
 
-	virtual ~GPSDriverSBF();
+	virtual ~GPSDriverSBF() override;
 
 	int receive(unsigned timeout) override;
 
@@ -320,31 +329,29 @@ private:
 	void decodeInit(void);
 
 	/**
+	 * Send a message
+	 * @return true on success, false on write error (errno set)
+	 */
+	bool sendMessage(const char *msg);
+
+	/**
 	 * Send a message and waits for acknowledge
 	 * @return true on success, false on write error (errno set) or ack wait timeout
 	 */
-	bool sendMessageAndWaitForAck(const char *msg, const unsigned timeout, const bool report);
+	bool sendMessageAndWaitForAck(const char *msg, const int timeout);
 
 	struct vehicle_gps_position_s *_gps_position { nullptr };
 	struct satellite_info_s *_satellite_info { nullptr };
 	uint8_t _dynamic_model{ 7 };
-	uint64_t _last_timestamp_time{ 0 };
-	bool _got_pos{ false };
-	bool _got_dop{ false };
-	bool _configured{ false };
-	uint8_t _msg_status{ 0 };
-	sbf_decode_state_t _decode_state{};
-	uint16_t _crc{};
-	uint16_t _rx_payload_length{};
-	uint16_t _rx_payload_index{};
-	sbf_buf_t _buf{};
-	gps_abstime _disable_cmd_last{ 0 };
-	uint16_t _ack_waiting_msg{ 0 };
-	bool _use_nav_pvt{ false };
-	OutputMode _output_mode{ OutputMode::GPS };
-	const Interface _interface;
+	uint64_t _last_timestamp_time { 0 };
+	bool _configured { false };
+	uint8_t _msg_status { 0 };
+	sbf_decode_state_t _decode_state { SBF_DECODE_SYNC1 };
+	uint16_t _rx_payload_index { 0 };
+	sbf_buf_t _buf;
+	OutputMode _output_mode { OutputMode::GPS };
+	RTCMParsing	*_rtcm_parsing { nullptr };
 };
 
-uint16_t crc16(uint8_t *data_p, uint16_t length);
+uint16_t crc16(const uint8_t *buf, uint32_t len);
 
-#endif /* SBF_H_ */

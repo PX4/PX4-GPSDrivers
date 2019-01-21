@@ -34,7 +34,7 @@
 /**
  * @file gps_helper.h
  * @author Thomas Gubler <thomasgubler@student.ethz.ch>
- * @author Julian Oes <joes@student.ethz.ch>
+ * @author Julian Oes <julian@oes.ch>
  */
 
 #pragma once
