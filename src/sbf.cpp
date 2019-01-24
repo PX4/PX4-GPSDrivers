@@ -195,12 +195,13 @@ GPSDriverSBF::sendMessageAndWaitForAck(const char *msg, const int timeout)
 	// For all valid set -, get - and exe -commands, the first line of the reply is an exact copy
 	// of the command as entered by the user, preceded with "$R:"
 	char buf[GPS_READ_BUFFER_SIZE];
-	size_t offset = 0;
+	size_t offset = 1;
 	gps_abstime time_started = gps_absolute_time();
 
 	bool found_response = false;
 
 	do {
+		--offset; //overwrite the null-char
 		int ret = read(reinterpret_cast<uint8_t *>(buf) + offset, sizeof(buf) - offset - 1, timeout);
 
 		if (ret < 0) {
@@ -218,7 +219,7 @@ GPSDriverSBF::sendMessageAndWaitForAck(const char *msg, const int timeout)
 		}
 
 		if (offset >= sizeof(buf)) {
-			offset = 0;
+			offset = 1;
 		}
 
 	} while (time_started + 1000 * timeout > gps_absolute_time());
