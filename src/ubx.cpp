@@ -1056,8 +1056,8 @@ GPSDriverUBX::payloadRxInit()
 		break;
 
 	case UBX_MSG_MON_RF:
-		if (_rx_payload_length != sizeof(ubx_payload_rx_mon_rf_t)) {
-			// TODO: there could be more than one block... for now we should be fine with this though
+		if (_rx_payload_length < sizeof(ubx_payload_rx_mon_rf_t) ||
+		    (_rx_payload_length - 4) % sizeof(ubx_payload_rx_mon_rf_t::ubx_payload_rx_mon_rf_block_t) != 0) {
 
 			_rx_state = UBX_RXMSG_ERROR_LENGTH;
 
