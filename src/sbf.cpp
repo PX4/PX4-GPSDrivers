@@ -561,5 +561,5 @@ GPSDriverSBF::reset(GPSRestartType restart_type)
 		break;
 	}
 
-	return (res) ? 1 : 0;
+	return (res) ? 0 : -2;
 }

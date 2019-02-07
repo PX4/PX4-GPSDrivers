@@ -1880,12 +1880,12 @@ GPSDriverUBX::reset(GPSRestartType restart_type)
 		break;
 
 	default:
-		return 0;
+		return -2;
 	}
 
 	if (sendMessage(UBX_MSG_CFG_RST, (uint8_t *)&_buf, sizeof(_buf.payload_tx_cfg_rst))) {
-		return 1;
+		return 0;
 	}
 
-	return 0;
+	return -2;
 }

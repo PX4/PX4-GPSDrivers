@@ -205,7 +205,6 @@
 #define UBX_TX_CFG_NAV5_FIXMODE		2		/**< 1 2D only, 2 3D only, 3 Auto 2D/3D */
 
 /* TX CFG-RST message contents
- * Note: not used with protocol version 27+ anymore
  */
 #define UBX_TX_CFG_RST_BBR_MODE_HOT_START 	0
 #define UBX_TX_CFG_RST_BBR_MODE_WARM_START 	1
