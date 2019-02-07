@@ -101,19 +101,28 @@ enum class GPSCallbackType {
 enum class GPSRestartType {
 	None,
 
-	Hot,  // In hot start mode, the receiver was powered down only for a short time (4 hours or less),
-              // so that its ephemeris is still valid. Since the receiver doesn't need to download ephemeris
-              // again, this is the fastest startup method.
+	/**
+	 * In hot start mode, the receiver was powered down only for a short time (4 hours or less),
+	 * so that its ephemeris is still valid. Since the receiver doesn't need to download ephemeris
+	 * again, this is the fastest startup method.
+	 */
+	Hot,
 
-	Warm, // In warm start mode, the receiver has approximate information for time, position, and coarse
-              // satellite position data (Almanac). In this mode, after power-up, the receiver normally needs
-              // to downloadephemeris before it can calculate position and velocity data.
+	/**
+	 * In warm start mode, the receiver has approximate information for time, position, and coarse
+	 * satellite position data (Almanac). In this mode, after power-up, the receiver normally needs
+	 * to downloadephemeris before it can calculate position and velocity data.
+	 */
+	Warm,
 
-	Cold  // In cold start mode, the receiver has no information from the last position at startup. 
-              // Therefore, the receiver must search the full time and frequency space, and all possible
-              // satellite numbers. If a satellite signal is found, it is tracked to decode the ephemeris,
-              // whereas the other channels continue to search satellites. Once there is a sufficient number
-              // of satellites with valid ephemeris, the receiver can calculate position and velocity data.
+	/**
+	 * In cold start mode, the receiver has no information from the last position at startup.
+	 * Therefore, the receiver must search the full time and frequency space, and all possible
+	 * satellite numbers. If a satellite signal is found, it is tracked to decode the ephemeris,
+	 * whereas the other channels continue to search satellites. Once there is a sufficient number
+	 * of satellites with valid ephemeris, the receiver can calculate position and velocity data.
+	 */
+	Cold
 };
 
 /** Callback function for platform-specific stuff.
@@ -172,7 +181,7 @@ public:
 	/**
 	 * Reset GPS device
 	 * @param restart_type
-	 * @return <0 failure 
+	 * @return <0 failure
 	 *         -1 not implemented
 	 * 	    0 success
 	 */
