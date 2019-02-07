@@ -77,29 +77,27 @@ GPSDriverSBF::configure(unsigned &baudrate, OutputMode output_mode)
 {
 	_configured = false;
 
-	// Check if we're already configured
 	setBaudrate(SBF_TX_CFG_PRT_BAUDRATE);
+	baudrate = SBF_TX_CFG_PRT_BAUDRATE;
 
 	_output_mode = output_mode;
-	baudrate = 115200;
-
-	setBaudrate(baudrate);
-	// Change the baudrate
-	char msg[64];
-	snprintf(msg, sizeof(msg), SBF_CONFIG_BAUDRATE, baudrate);
 
 	if (output_mode != OutputMode::RTCM) {
 		sendMessage(SBF_CONFIG_FORCE_INPUT);
 	}
 
+	// Change the baudrate
+	char msg[64];
+	snprintf(msg, sizeof(msg), SBF_CONFIG_BAUDRATE, baudrate);
+
 	if (!sendMessage(msg)) {
 		return -1; // connection and/or baudrate detection failed
 	}
 
-	if (SBF_TX_CFG_PRT_BAUDRATE != baudrate) {
-		setBaudrate(SBF_TX_CFG_PRT_BAUDRATE);
-		baudrate = SBF_TX_CFG_PRT_BAUDRATE;
-	}
+	/* flush input and wait for at least 50 ms silence */
+	decodeInit();
+	receive(50);
+	decodeInit();
 
 	if (!sendMessageAndWaitForAck(SBF_CONFIG_RESET, SBF_CONFIG_TIMEOUT)) {
 		return -1; // connection and/or baudrate detection failed
@@ -195,12 +193,13 @@ GPSDriverSBF::sendMessageAndWaitForAck(const char *msg, const int timeout)
 	// For all valid set -, get - and exe -commands, the first line of the reply is an exact copy
 	// of the command as entered by the user, preceded with "$R:"
 	char buf[GPS_READ_BUFFER_SIZE];
-	size_t offset = 0;
+	size_t offset = 1;
 	gps_abstime time_started = gps_absolute_time();
 
 	bool found_response = false;
 
 	do {
+		--offset; //overwrite the null-char
 		int ret = read(reinterpret_cast<uint8_t *>(buf) + offset, sizeof(buf) - offset - 1, timeout);
 
 		if (ret < 0) {
@@ -218,7 +217,7 @@ GPSDriverSBF::sendMessageAndWaitForAck(const char *msg, const int timeout)
 		}
 
 		if (offset >= sizeof(buf)) {
-			offset = 0;
+			offset = 1;
 		}
 
 	} while (time_started + 1000 * timeout > gps_absolute_time());

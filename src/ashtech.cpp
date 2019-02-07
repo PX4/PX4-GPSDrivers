@@ -1209,7 +1209,7 @@ void GPSDriverAshtech::activateCorrectionOutput()
 
 		if (len >= 0 && len < (int)sizeof(buffer)) {
 			if (writeAckedCommand(buffer, len, ASH_RESPONSE_TIMEOUT) != 0) {
-				ASH_DEBUG("command %s failed", config_options[conf_i]);
+				ASH_DEBUG("command %s failed", buffer);
 			}
 
 		} else {

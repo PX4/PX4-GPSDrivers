@@ -469,7 +469,7 @@ int GPSDriverUBX::configureDevice()
 	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_PVT_I2C, 1, cfg_valset_msg_size);
 	_use_nav_pvt = true;
 	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_DOP_I2C, 1, cfg_valset_msg_size);
-	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_SVINFO_I2C, (_satellite_info != nullptr) ? 10 : 0, cfg_valset_msg_size);
+	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_SAT_I2C, (_satellite_info != nullptr) ? 10 : 0, cfg_valset_msg_size);
 	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_MON_RF_I2C, 1, cfg_valset_msg_size);
 
 	if (!sendMessage(UBX_MSG_CFG_VALSET, (uint8_t *)&_buf, cfg_valset_msg_size)) {
@@ -846,6 +846,10 @@ GPSDriverUBX::parseChar(const uint8_t b)
 		addByteToChecksum(b);
 
 		switch (_rx_msg) {
+		case UBX_MSG_NAV_SAT:
+			ret = payloadRxAddNavSat(b);	// add a NAV-SAT payload byte
+			break;
+
 		case UBX_MSG_NAV_SVINFO:
 			ret = payloadRxAddNavSvinfo(b);	// add a NAV-SVINFO payload byte
 			break;
@@ -999,6 +1003,7 @@ GPSDriverUBX::payloadRxInit()
 
 		break;
 
+	case UBX_MSG_NAV_SAT:
 	case UBX_MSG_NAV_SVINFO:
 		if (_satellite_info == nullptr) {
 			_rx_state = UBX_RXMSG_DISABLE;        // disable if sat info not requested
@@ -1051,8 +1056,8 @@ GPSDriverUBX::payloadRxInit()
 		break;
 
 	case UBX_MSG_MON_RF:
-		if (_rx_payload_length != sizeof(ubx_payload_rx_mon_rf_t)) {
-			// TODO: there could be more than one block... for now we should be fine with this though
+		if (_rx_payload_length < sizeof(ubx_payload_rx_mon_rf_t) ||
+		    (_rx_payload_length - 4) % sizeof(ubx_payload_rx_mon_rf_t::ubx_payload_rx_mon_rf_block_t) != 0) {
 
 			_rx_state = UBX_RXMSG_ERROR_LENGTH;
 
@@ -1145,6 +1150,58 @@ GPSDriverUBX::payloadRxAdd(const uint8_t b)
 	return ret;
 }
 
+int	// -1 = error, 0 = ok, 1 = payload completed
+GPSDriverUBX::payloadRxAddNavSat(const uint8_t b)
+{
+	int ret = 0;
+	uint8_t *p_buf = (uint8_t *)&_buf;
+
+	if (_rx_payload_index < sizeof(ubx_payload_rx_nav_sat_part1_t)) {
+		// Fill Part 1 buffer
+		p_buf[_rx_payload_index] = b;
+
+	} else {
+		if (_rx_payload_index == sizeof(ubx_payload_rx_nav_sat_part1_t)) {
+			// Part 1 complete: decode Part 1 buffer
+			_satellite_info->count = MIN(_buf.payload_rx_nav_sat_part1.numSvs, satellite_info_s::SAT_INFO_MAX_SATELLITES);
+			UBX_TRACE_SVINFO("SAT len %u  numCh %u", (unsigned)_rx_payload_length,
+					 (unsigned)_buf.payload_rx_nav_sat_part1.numSvs);
+		}
+
+		if (_rx_payload_index < sizeof(ubx_payload_rx_nav_sat_part1_t) + _satellite_info->count * sizeof(
+			    ubx_payload_rx_nav_sat_part2_t)) {
+			// Still room in _satellite_info: fill Part 2 buffer
+			unsigned buf_index = (_rx_payload_index - sizeof(ubx_payload_rx_nav_sat_part1_t)) % sizeof(
+						     ubx_payload_rx_nav_sat_part2_t);
+			p_buf[buf_index] = b;
+
+			if (buf_index == sizeof(ubx_payload_rx_nav_sat_part2_t) - 1) {
+				// Part 2 complete: decode Part 2 buffer
+				unsigned sat_index = (_rx_payload_index - sizeof(ubx_payload_rx_nav_sat_part1_t)) / sizeof(
+							     ubx_payload_rx_nav_sat_part2_t);
+				_satellite_info->used[sat_index]	= (uint8_t)(_buf.payload_rx_nav_sat_part2.flags & 0x01);
+				_satellite_info->snr[sat_index]		= (uint8_t)(_buf.payload_rx_nav_sat_part2.cno);
+				_satellite_info->elevation[sat_index]	= (uint8_t)(_buf.payload_rx_nav_sat_part2.elev);
+				_satellite_info->azimuth[sat_index]	= (uint8_t)((float)_buf.payload_rx_nav_sat_part2.azim * 255.0f / 360.0f);
+				_satellite_info->svid[sat_index]	= (uint8_t)(_buf.payload_rx_nav_sat_part2.svId);
+				UBX_TRACE_SVINFO("SAT #%02u  used %u  snr %3u  elevation %3u  azimuth %3u  svid %3u",
+						 (unsigned)sat_index + 1,
+						 (unsigned)_satellite_info->used[sat_index],
+						 (unsigned)_satellite_info->snr[sat_index],
+						 (unsigned)_satellite_info->elevation[sat_index],
+						 (unsigned)_satellite_info->azimuth[sat_index],
+						 (unsigned)_satellite_info->svid[sat_index]
+						);
+			}
+		}
+	}
+
+	if (++_rx_payload_index >= _rx_payload_length) {
+		ret = 1;	// payload received completely
+	}
+
+	return ret;
+}
 /**
  * Add NAV-SVINFO payload rx byte
  */
@@ -1486,6 +1543,7 @@ GPSDriverUBX::payloadRxDone()
 		ret = 1;
 		break;
 
+	case UBX_MSG_NAV_SAT:
 	case UBX_MSG_NAV_SVINFO:
 		UBX_TRACE_RXMSG("Rx NAV-SVINFO");
 

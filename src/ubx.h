@@ -284,7 +284,7 @@
 
 #define UBX_CFG_KEY_MSGOUT_UBX_MON_RF_I2C        0x20910359
 #define UBX_CFG_KEY_MSGOUT_UBX_NAV_SVIN_I2C      0x20910088
-#define UBX_CFG_KEY_MSGOUT_UBX_NAV_SVINFO_I2C    0x2091000b
+#define UBX_CFG_KEY_MSGOUT_UBX_NAV_SAT_I2C       0x20910015
 #define UBX_CFG_KEY_MSGOUT_UBX_NAV_DOP_I2C       0x20910038
 #define UBX_CFG_KEY_MSGOUT_UBX_NAV_PVT_I2C       0x20910006
 #define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1005_I2C  0x209102bd
@@ -433,6 +433,25 @@ typedef struct {
 	int16_t		azim; 		/**< Azimuth [deg] */
 	int32_t		prRes; 		/**< Pseudo range residual [cm] */
 } ubx_payload_rx_nav_svinfo_part2_t;
+
+/* Rx NAV-SAT Part 1 */
+typedef struct {
+	uint32_t	iTOW;		/**< GPS Time of Week [ms] */
+	uint8_t		version; 	/**< Message version (1) */
+	uint8_t		numSvs;		/**< Number of Satellites */
+	uint16_t	reserved;
+} ubx_payload_rx_nav_sat_part1_t;
+
+/* Rx NAV-SAT Part 2 (repeated) */
+typedef struct {
+	uint8_t		gnssId;		/**< GNSS identifier */
+	uint8_t		svId; 		/**< Satellite ID */
+	uint8_t		cno;		/**< Carrier to Noise Ratio (Signal Strength) [dbHz] */
+	int8_t		elev; 		/**< Elevation [deg] range: +/-90 */
+	int16_t		azim; 		/**< Azimuth [deg] range: 0-360 */
+	int16_t		prRes; 		/**< Pseudo range residual [0.1 m] */
+	uint32_t	flags;
+} ubx_payload_rx_nav_sat_part2_t;
 
 /* Rx NAV-SVIN (survey-in info) */
 typedef struct {
@@ -683,6 +702,8 @@ typedef union {
 	ubx_payload_rx_nav_timeutc_t		payload_rx_nav_timeutc;
 	ubx_payload_rx_nav_svinfo_part1_t	payload_rx_nav_svinfo_part1;
 	ubx_payload_rx_nav_svinfo_part2_t	payload_rx_nav_svinfo_part2;
+	ubx_payload_rx_nav_sat_part1_t		payload_rx_nav_sat_part1;
+	ubx_payload_rx_nav_sat_part2_t		payload_rx_nav_sat_part2;
 	ubx_payload_rx_nav_svin_t		payload_rx_nav_svin;
 	ubx_payload_rx_nav_velned_t		payload_rx_nav_velned;
 	ubx_payload_rx_mon_hw_ubx6_t		payload_rx_mon_hw_ubx6;
@@ -781,6 +802,7 @@ private:
 	 */
 	int payloadRxAdd(const uint8_t b);
 	int payloadRxAddNavSvinfo(const uint8_t b);
+	int payloadRxAddNavSat(const uint8_t b);
 	int payloadRxAddMonVer(const uint8_t b);
 
 	/**
