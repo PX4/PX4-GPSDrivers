@@ -1860,3 +1860,32 @@ GPSDriverUBX::fnv1_32_str(uint8_t *str, uint32_t hval)
 	return hval;
 }
 
+int
+GPSDriverUBX::reset(GPSRestartType restart_type)
+{
+	memset(&_buf.payload_tx_cfg_rst, 0, sizeof(_buf.payload_tx_cfg_rst));
+	_buf.payload_tx_cfg_rst.resetMode = UBX_TX_CFG_RST_MODE_SOFTWARE;
+
+	switch (restart_type) {
+	case GPSRestartType::Hot:
+		_buf.payload_tx_cfg_rst.navBbrMask = UBX_TX_CFG_RST_BBR_MODE_HOT_START;
+		break;
+
+	case GPSRestartType::Warm:
+		_buf.payload_tx_cfg_rst.navBbrMask = UBX_TX_CFG_RST_BBR_MODE_WARM_START;
+		break;
+
+	case GPSRestartType::Cold:
+		_buf.payload_tx_cfg_rst.navBbrMask = UBX_TX_CFG_RST_BBR_MODE_COLD_START;
+		break;
+
+	default:
+		return -2;
+	}
+
+	if (sendMessage(UBX_MSG_CFG_RST, (uint8_t *)&_buf, sizeof(_buf.payload_tx_cfg_rst))) {
+		return 0;
+	}
+
+	return -2;
+}

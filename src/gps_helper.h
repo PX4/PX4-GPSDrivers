@@ -98,6 +98,33 @@ enum class GPSCallbackType {
 	setClock,
 };
 
+enum class GPSRestartType {
+	None,
+
+	/**
+	 * In hot start mode, the receiver was powered down only for a short time (4 hours or less),
+	 * so that its ephemeris is still valid. Since the receiver doesn't need to download ephemeris
+	 * again, this is the fastest startup method.
+	 */
+	Hot,
+
+	/**
+	 * In warm start mode, the receiver has approximate information for time, position, and coarse
+	 * satellite position data (Almanac). In this mode, after power-up, the receiver normally needs
+	 * to download ephemeris before it can calculate position and velocity data.
+	 */
+	Warm,
+
+	/**
+	 * In cold start mode, the receiver has no information from the last position at startup.
+	 * Therefore, the receiver must search the full time and frequency space, and all possible
+	 * satellite numbers. If a satellite signal is found, it is tracked to decode the ephemeris,
+	 * whereas the other channels continue to search satellites. Once there is a sufficient number
+	 * of satellites with valid ephemeris, the receiver can calculate position and velocity data.
+	 */
+	Cold
+};
+
 /** Callback function for platform-specific stuff.
  * data1 and data2 depend on type and user is the custom user-supplied argument.
  * @return <0 on error, >=0 on success (depending on type)
@@ -150,6 +177,15 @@ public:
 	 *         bit 1 set: got satellite info update
 	 */
 	virtual int receive(unsigned timeout) = 0;
+
+	/**
+	 * Reset GPS device
+	 * @param restart_type
+	 * @return <0 failure
+	 *         -1 not implemented
+	 * 	    0 success
+	 */
+	virtual int reset(GPSRestartType restart_type)	{ return -1; }
 
 	float getPositionUpdateRate() { return _rate_lat_lon; }
 	float getVelocityUpdateRate() { return _rate_vel; }
