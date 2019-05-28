@@ -63,10 +63,11 @@
 	"setSatelliteTracking, All\n" \
 	"setSatelliteUsage, All\n" \
 	"setElevationMask, All, 10\n" \
-	"setSBFOutput, Stream1, Dsk1, PostProcess, msec100\n" \
-	"setSBFOutput, Stream2, Dsk1, Event+Comment, OnChange\n" \
+	"setSBFOutput, Stream1, DSK1, Support, msec100\n" \
 	"setSBFOutput, Stream2, COM1, DOP+VelCovGeodetic, sec1\n" \
-	"setSBFOutput, Stream1, COM1, PVTGeodetic, msec100\n"
+	"setSBFOutput, Stream3, COM1, PVTGeodetic, msec100\n" \
+	"setFileNaming, DSK1, Incremental\n" \
+	"setFileNaming, DSK1, , 'px4'\n"
 
 #define SBF_CONFIG_RTCM "" \
 	"setDataInOut, USB1, Auto, RTCMv3+SBF\n" \
@@ -75,9 +76,11 @@
 	"setSatelliteUsage, All\n" \
 	"setElevationMask, All, 10\n" \
 	"setReceiverDynamics, Moderate, Automotive\n" \
-	"setSBFOutput, Stream1, Dsk1, PostProcess, msec100\n" \
+	"setSBFOutput, Stream1, DSK1, Support, msec100\n" \
 	"setSBFOutput, Stream2, USB1, DOP+VelCovGeodetic, sec1\n" \
-	"setSBFOutput, Stream1, USB1, PVTGeodetic, msec200\n"
+	"setSBFOutput, Stream3, USB1, PVTGeodetic, msec200\n" \
+	"setFileNaming, DSK1, Incremental\n" \
+	"setFileNaming, DSK1, , 'px4rtcm'\n"
 
 #define SBF_CONFIG_RTCM_STATIC1 "" \
 	"setReceiverDynamics, Low, Static\n"
