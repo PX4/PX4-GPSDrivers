@@ -438,8 +438,10 @@ GPSDriverSBF::payloadRxDone()
 		_gps_position->alt = static_cast<int>(round((_buf.payload_pvt_geodetic.height - static_cast<double>
 						      (_buf.payload_pvt_geodetic.undulation)) * 1000));
 
-		_gps_position->eph = static_cast<float>(_buf.payload_pvt_geodetic.h_accuracy) / 100.0f;
-		_gps_position->epv = static_cast<float>(_buf.payload_pvt_geodetic.v_accuracy) / 100.0f;
+		/* H and V accuracy are reported in 2DRMS, but based off the uBlox reporting we expect RMS.
+		 * Devide by 100 from cm to m and in addition divide by 2 to get RMS. */
+		_gps_position->eph = static_cast<float>(_buf.payload_pvt_geodetic.h_accuracy) / 200.0f;
+		_gps_position->epv = static_cast<float>(_buf.payload_pvt_geodetic.v_accuracy) / 200.0f;
 
 		_gps_position->vel_n_m_s = static_cast<float>(_buf.payload_pvt_geodetic.vn);
 		_gps_position->vel_e_m_s = static_cast<float>(_buf.payload_pvt_geodetic.ve);
