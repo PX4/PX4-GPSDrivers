@@ -64,8 +64,9 @@
 	"setSatelliteUsage, All\n" \
 	"setElevationMask, All, 10\n" \
 	"setSBFOutput, Stream1, DSK1, Support, msec100\n" \
-	"setSBFOutput, Stream2, COM1, DOP+VelCovGeodetic, sec1\n" \
-	"setSBFOutput, Stream3, COM1, PVTGeodetic, msec100\n" \
+	"setSBFOutput, Stream2, Dsk1, Event+Comment, OnChange\n" \
+	"setSBFOutput, Stream3, COM1, DOP+VelCovGeodetic, sec1\n" \
+	"setSBFOutput, Stream4, COM1, PVTGeodetic, msec100\n" \
 	"setFileNaming, DSK1, Incremental\n" \
 	"setFileNaming, DSK1, , 'px4'\n"
 
