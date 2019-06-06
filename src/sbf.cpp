@@ -445,7 +445,7 @@ GPSDriverSBF::payloadRxDone()
 
 		_gps_position->vel_n_m_s = static_cast<float>(_buf.payload_pvt_geodetic.vn);
 		_gps_position->vel_e_m_s = static_cast<float>(_buf.payload_pvt_geodetic.ve);
-		_gps_position->vel_d_m_s = static_cast<float>(_buf.payload_pvt_geodetic.vu);
+		_gps_position->vel_d_m_s = -1.0f * static_cast<float>(_buf.payload_pvt_geodetic.vu);
 		_gps_position->vel_m_s = sqrtf(_gps_position->vel_n_m_s * _gps_position->vel_n_m_s + _gps_position->vel_e_m_s *
 					       _gps_position->vel_e_m_s);
 
