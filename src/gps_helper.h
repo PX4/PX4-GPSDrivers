@@ -46,6 +46,8 @@
 #define GPS_READ_BUFFER_SIZE 150 ///< buffer size for the read() call. Messages can be longer than that.
 #endif
 
+#define UTC_TO_GNSS_TIME_INTERVAL  315936000      // From UTC to GNSS time interval
+
 enum class GPSCallbackType {
 	/**
 	 * Read data from device. This is a blocking operation with a timeout.
@@ -257,6 +259,9 @@ protected:
 	 * @param altitude [m]
 	 */
 	static void ECEF2lla(double ecef_x, double ecef_y, double ecef_z, double &latitude, double &longitude, float &altitude);
+
+	uint64_t gnssTimeToUtc(int week, int usec);
+	uint64_t timeToUtc(int week, int usec);
 
 	GPSCallbackPtr _callback{nullptr};
 	void *_callback_user{};

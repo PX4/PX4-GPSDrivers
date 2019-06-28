@@ -83,10 +83,12 @@
 GPSDriverUBX::GPSDriverUBX(Interface gpsInterface, GPSCallbackPtr callback, void *callback_user,
 			   struct vehicle_gps_position_s *gps_position,
 			   struct satellite_info_s *satellite_info,
+			   struct event_info_s *event_info,
 			   uint8_t dynamic_model)
 	: GPSBaseStationSupport(callback, callback_user)
 	, _gps_position(gps_position)
 	, _satellite_info(satellite_info)
+	, _event_info(event_info)
 	, _interface(gpsInterface)
 	, _dyn_model(dynamic_model)
 {
@@ -417,6 +419,10 @@ int GPSDriverUBX::configureDevicePreV27()
 		if (!configureMessageRateAndAck(UBX_MSG_NAV_VELNED, 1, true)) {
 			return -1;
 		}
+	}
+
+	if (!configureMessageRateAndAck(UBX_MSG_TIM_TIM2, 5, true)) {
+		return -1;
 	}
 
 	if (!configureMessageRateAndAck(UBX_MSG_NAV_DOP, 1, true)) {
@@ -1662,6 +1668,63 @@ GPSDriverUBX::payloadRxDone()
 		}
 
 		ret = 1;
+		break;
+
+	case UBX_MSG_TIM_TIM2:
+		UBX_TRACE_RXMSG("Rx TIM-TIM2");
+		{
+			/* extract flags to variables */
+			uint8_t newFallingEdge = ((_buf.payload_rx_tim_tim2.flags << 2) & 0x01);
+			uint8_t timeBase = ((_buf.payload_rx_tim_tim2.flags << 3) & 0x03);
+			uint8_t utc_valid = ((_buf.payload_rx_tim_tim2.flags << 5) & 0x01);
+			uint8_t time_valid = ((_buf.payload_rx_tim_tim2.flags << 6) & 0x01);
+			uint8_t newRisingEdge = ((_buf.payload_rx_tim_tim2.flags << 7) & 0x01);
+
+			if (newRisingEdge) {
+				/* Check new rising edge signal */
+				if (utc_valid) {
+					// convert to unix timestamp
+					uint64_t tv_usec = static_cast<uint32_t>(_buf.payload_rx_tim_tim2.towMsR * 1e3 +
+												_buf.payload_rx_tim_tim2.towSubMsF / 1e3);
+
+					_event_info->time_utc_usec = timeToUtc(_buf.payload_rx_tim_tim2.wnR,tv_usec);
+
+				} else if (time_valid) {
+					// convert to unix timestamp
+					uint64_t tv_usec = static_cast<uint32_t>(_buf.payload_rx_tim_tim2.towMsR * 1e3 +
+												_buf.payload_rx_tim_tim2.towSubMsF / 1e3);
+
+					_event_info->time_utc_usec = gnssTimeToUtc(_buf.payload_rx_tim_tim2.wnR,tv_usec);
+				} else {
+					_event_info->time_utc_usec = 0;
+				}
+
+			} else if (newFallingEdge) {
+				/* Check new falling edge signal */
+				if (utc_valid) {
+					// convert to unix timestamp
+					uint64_t tv_usec = static_cast<uint32_t>(_buf.payload_rx_tim_tim2.towMsR * 1e3 +
+												_buf.payload_rx_tim_tim2.towSubMsF / 1e3);
+
+					_event_info->time_utc_usec = timeToUtc(_buf.payload_rx_tim_tim2.wnR,tv_usec);
+				} else if (time_valid) {
+					// convert to unix timestamp
+					uint64_t tv_usec = static_cast<uint32_t>(_buf.payload_rx_tim_tim2.towMsR * 1e3 +
+												_buf.payload_rx_tim_tim2.towSubMsF / 1e3);
+
+					_event_info->time_utc_usec = gnssTimeToUtc(_buf.payload_rx_tim_tim2.wnR,tv_usec);
+				} else {
+					_event_info->time_utc_usec = 0;
+				}
+
+			} else {
+				_event_info->time_utc_usec = 0;
+			}
+
+			_event_info->timestamp = gps_absolute_time();
+		}
+
+		ret = 4;
 		break;
 
 	default:

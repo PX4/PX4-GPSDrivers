@@ -62,10 +62,12 @@
 #define UBX_CLASS_ACK		0x05
 #define UBX_CLASS_CFG		0x06
 #define UBX_CLASS_MON		0x0A
-#define UBX_CLASS_RTCM3	0xF5
+#define UBX_CLASS_EVENT     0x0D
+#define UBX_CLASS_RTCM3	0xF5 /**< This is undocumented (?) */
 
 /* Message IDs */
 #define UBX_ID_NAV_POSLLH	0x02
+#define UBX_ID_NAV_EVENT    0X03
 #define UBX_ID_NAV_DOP		0x04
 #define UBX_ID_NAV_SOL		0x06
 #define UBX_ID_NAV_PVT		0x07
@@ -154,6 +156,7 @@
 #define UBX_MSG_RTCM3_1127	((UBX_CLASS_RTCM3) | UBX_ID_RTCM3_1127 << 8)
 #define UBX_MSG_RTCM3_1230	((UBX_CLASS_RTCM3) | UBX_ID_RTCM3_1230 << 8)
 #define UBX_MSG_RTCM3_4072	((UBX_CLASS_RTCM3) | UBX_ID_RTCM3_4072 << 8)
+#define UBX_MSG_TIM_TIM2    ((UBX_CLASS_EVENT) | UBX_ID_NAV_EVENT << 8)
 
 /* RX NAV-PVT message content details */
 /*   Bitfield "valid" masks */
@@ -360,6 +363,19 @@ typedef struct {
 	uint8_t		numSV;		/**< Number of SVs used in Nav Solution */
 	uint32_t	reserved2;
 } ubx_payload_rx_nav_sol_t;
+
+typedef struct {
+	uint8_t ch;      	   /**< Channel (i.e. EXTINT) upon which thepulse was measured */
+	uint8_t flags;         /**< Bitmask */
+	uint16_t count;        /**< rising edge counter */
+	uint16_t wnR;          /**< week number of last rising edge */
+	uint16_t wnF;          /**< week number of last falling edge */
+	uint32_t towMsR;       /**< tow of rising edge (ms)*/
+	uint32_t towSubMsR;    /**< millisecond fraction of tow of rising edgein nanoseconds (ns) */
+	uint32_t towMsF;       /**< tow of falling edge (ms) */
+	uint32_t towSubMsF;    /**< millisecond fraction of tow of falling edgein nanoseconds (ns)*/
+	uint32_t accEst;       /**< Accuracy estimate */
+} ubx_payload_rx_tim_tim2_t;
 
 /* Rx NAV-PVT (ubx8) */
 typedef struct {
@@ -712,6 +728,7 @@ typedef union {
 	ubx_payload_rx_mon_ver_part2_t		payload_rx_mon_ver_part2;
 	ubx_payload_rx_ack_ack_t		payload_rx_ack_ack;
 	ubx_payload_rx_ack_nak_t		payload_rx_ack_nak;
+	ubx_payload_rx_tim_tim2_t       payload_rx_tim_tim2;
 	ubx_payload_tx_cfg_prt_t		payload_tx_cfg_prt;
 	ubx_payload_tx_cfg_rate_t		payload_tx_cfg_rate;
 	ubx_payload_tx_cfg_nav5_t		payload_tx_cfg_nav5;
@@ -764,6 +781,7 @@ public:
 	GPSDriverUBX(Interface gpsInterface, GPSCallbackPtr callback, void *callback_user,
 		     struct vehicle_gps_position_s *gps_position,
 		     struct satellite_info_s *satellite_info,
+			 struct event_info_s *event_info,
 		     uint8_t dynamic_model = 7);
 
 	virtual ~GPSDriverUBX();
@@ -907,6 +925,7 @@ private:
 
 	struct vehicle_gps_position_s *_gps_position {nullptr};
 	struct satellite_info_s *_satellite_info {nullptr};
+	struct event_info_s *_event_info {nullptr};
 	uint64_t		_last_timestamp_time{0};
 	bool			_configured{false};
 	ubx_ack_state_t		_ack_state{UBX_ACK_IDLE};

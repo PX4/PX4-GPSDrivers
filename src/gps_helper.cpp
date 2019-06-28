@@ -100,3 +100,23 @@ void GPSHelper::ECEF2lla(double ecef_x, double ecef_y, double ecef_z, double &la
 
 	// correction for altitude near poles left out.
 }
+
+uint64_t
+GPSHelper::gnssTimeToUtc(int week, int usec)
+{
+	// convert from gnss timestamp to unix timestamp
+	uint64_t time_gnss_usec = week * 7 * 24 * 3600 * 1e6 + usec;
+
+	uint64_t time_utc_usec = time_gnss_usec + UTC_TO_GNSS_TIME_INTERVAL * 1e6;
+
+	return time_utc_usec;
+}
+
+uint64_t
+GPSHelper::TimeToUtc(int week, int usec)
+{
+	// convert to unix timestamp
+	uint64_t time_utc_usec = week * 7 * 24 * 3600 * 1e6 + usec;
+
+	return time_utc_usec;
+}
