@@ -415,7 +415,22 @@ GPSDriverSBF::payloadRxDone()
 			_gps_position->fix_type = 3;
 		}
 
+		// Check fix and error code
 		_gps_position->vel_ned_valid = _gps_position->fix_type > 1 && _buf.payload_pvt_geodetic.error == 0;
+
+		// Check boundaries and invalidate GPS velocities
+		// We're not just checking for the do-not-use value (-2*10^10) but for any value beyond the specified max values
+		if (fabsf(_buf.payload_pvt_geodetic.vn) > 600.0f || fabsf(_buf.payload_pvt_geodetic.ve) > 600.0f ||
+		    fabsf(_buf.payload_pvt_geodetic.vu) > 600.0f) {
+			_gps_position->vel_ned_valid = false;
+		}
+
+		// Check boundaries and invalidate position
+		// We're not just checking for the do-not-use value (-2*10^10) but for any value beyond the specified max values
+		if (fabs(_buf.payload_pvt_geodetic.latitude) > M_PI_2 || fabs(_buf.payload_pvt_geodetic.longitude) > M_PI_2 ||
+		    fabs(_buf.payload_pvt_geodetic.height) > 100000.0 || fabs(_buf.payload_pvt_geodetic.undulation) > 100000.0) {
+			_gps_position->fix_type = 0;
+		}
 
 		if (_buf.payload_pvt_geodetic.nr_sv < 255) {  // 255 = do not use value
 			_gps_position->satellites_used = _buf.payload_pvt_geodetic.nr_sv;
@@ -451,6 +466,11 @@ GPSDriverSBF::payloadRxDone()
 
 		_gps_position->cog_rad = static_cast<float>(_buf.payload_pvt_geodetic.cog) * M_DEG_TO_RAD_F;
 		_gps_position->c_variance_rad = 1.0f * M_DEG_TO_RAD_F;
+
+		// _buf.payload_pvt_geodetic.cog is set to -2*10^10 for velocities below 0.1m/s
+		if (_buf.payload_pvt_geodetic.cog > 360.0f) {
+			_buf.payload_pvt_geodetic.cog = NAN;
+		}
 
 		_gps_position->time_utc_usec = 0;
 #ifndef NO_MKTIME
