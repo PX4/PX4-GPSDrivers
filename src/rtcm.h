@@ -63,7 +63,7 @@ public:
 
 private:
 	uint8_t			*_buffer{nullptr};
-	uint16_t		_buffer_len;
-	uint16_t		_pos;						///< next position in buffer
-	uint16_t		_message_length;					///< message length without header & CRC (both 3 bytes)
+	uint16_t		_buffer_len{};
+	uint16_t		_pos{};						///< next position in buffer
+	uint16_t		_message_length{};					///< message length without header & CRC (both 3 bytes)
 };

@@ -167,12 +167,12 @@ private:
 	ERB_State _erb_decode_state;
 
 	/** Buffer used by parser to build ERB sentences */
-	erb_message_t _erb_buff;
-	uint16_t _erb_buff_cnt;
+	erb_message_t _erb_buff{};
+	uint16_t _erb_buff_cnt{};
 
 	/** Buffer used by parser to build ERB checksum */
-	erb_checksum_t _erb_checksum;
-	uint8_t _erb_checksum_cnt;
+	erb_checksum_t _erb_checksum{};
+	uint8_t _erb_checksum_cnt{};
 
 	/** Pointer provided by caller, ie gps.cpp */
 	struct vehicle_gps_position_s *_gps_position {nullptr};
