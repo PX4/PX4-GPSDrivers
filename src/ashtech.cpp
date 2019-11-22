@@ -36,7 +36,6 @@
 #include <math.h>
 #include <string.h>
 #include <ctime>
-#include <cmath>
 
 #include "ashtech.h"
 #include "rtcm.h"

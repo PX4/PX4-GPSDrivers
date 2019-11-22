@@ -44,7 +44,7 @@
 #include <math.h>
 #include <string.h>
 #include <ctime>
-#include <cmath>
+#include <math.h>
 
 
 GPSDriverMTK::GPSDriverMTK(GPSCallbackPtr callback, void *callback_user, struct vehicle_gps_position_s *gps_position) :

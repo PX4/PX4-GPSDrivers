@@ -40,7 +40,7 @@
 #include "gps_helper.h"
 #include "base_station.h"
 #include "../../definitions.h"
-#include <cmath>
+#include <math.h>
 
 class RTCMParsing;
 

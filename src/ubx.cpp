@@ -55,7 +55,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <ctime>
-#include <cmath>
 
 #include "ubx.h"
 #include "rtcm.h"
