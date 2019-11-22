@@ -44,7 +44,6 @@
 #include <math.h>
 #include <string.h>
 #include <ctime>
-#include <cmath>
 #include <cstring>
 #include <errno.h>
 
