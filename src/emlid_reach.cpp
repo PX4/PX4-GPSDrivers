@@ -71,7 +71,7 @@
 
 
 GPSDriverEmlidReach::GPSDriverEmlidReach(GPSCallbackPtr callback, void *callback_user,
-		struct vehicle_gps_position_s *gps_position, struct satellite_info_s *satellite_info) :
+		sensor_gps_s *gps_position, struct satellite_info_s *satellite_info) :
 	GPSHelper(callback, callback_user),
 	_gps_position(gps_position), _satellite_info(satellite_info)
 {}
