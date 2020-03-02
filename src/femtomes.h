@@ -37,28 +37,106 @@
 #include "gps_helper.h"
 #include "base_station.h"
 #include "../../definitions.h"
-#include <cmath>
-
 
 class RTCMParsing;
 
-#if defined(__GNUC__)
-#define PACKED __attribute__((packed))
-#else
-#define PACKED 
-#endif
-
 /* ms, timeout for waiting for a response*/
-#define FEMO_RESPONSE_TIMEOUT	200		
+#define FEMO_RESPONSE_TIMEOUT		200
 
+#define FEMO_MSG_MAX_LENGTH		256
 /* Femtomes ID for UAV output message */
-#define FEMTO_MSG_ID_UAVGPS 		8001   
+#define FEMTO_MSG_ID_UAVGPS 		8001
 
 /* Femto uavgps message frame premble 3 bytes*/
-#define FEMTO_PREAMBLE1				0xaa
-#define	FEMTO_PREAMBLE2				0x44
-#define FEMTO_PREAMBLE3				0x12
+#define FEMTO_PREAMBLE1			0xaa
+#define FEMTO_PREAMBLE2			0x44
+#define FEMTO_PREAMBLE3			0x12
 
+/*** femtomes protocol binary message and payload definitions ***/
+#pragma pack(push, 4)
+
+/**
+* femto_uav_gps_t struct need to be packed
+*/
+typedef struct {
+	uint64_t 	time_utc_usec;		/** Timestamp (microseconds, UTC), this is the timestamp which comes from the gps module. It might be unavailable right after cold start, indicated by a value of 0*/
+	int32_t 	lat;			/** Latitude in 1E-7 degrees*/
+	int32_t 	lon;			/** Longitude in 1E-7 degrees*/
+	int32_t 	alt;			/** Altitude in 1E-3 meters above MSL, (millimetres)*/
+	int32_t 	alt_ellipsoid;		/** Altitude in 1E-3 meters bove Ellipsoid, (millimetres)*/
+	float 		s_variance_m_s;		/** GPS speed accuracy estimate, (metres/sec)*/
+	float 		c_variance_rad;		/** GPS course accuracy estimate, (radians)*/
+	float 		eph;			/** GPS horizontal position accuracy (metres)*/
+	float 		epv;			/** GPS vertical position accuracy (metres)*/
+	float 		hdop;			/** Horizontal dilution of precision*/
+	float 		vdop;			/** Vertical dilution of precision*/
+	int32_t 	noise_per_ms;		/** GPS noise per millisecond*/
+	int32_t 	jamming_indicator;	/** indicates jamming is occurring*/
+	float 		vel_m_s;		/** GPS ground speed, (metres/sec)*/
+	float 		vel_n_m_s;		/** GPS North velocity, (metres/sec)*/
+	float 		vel_e_m_s;		/** GPS East velocity, (metres/sec)*/
+	float 		vel_d_m_s;		/** GPS Down velocity, (metres/sec)*/
+	float 		cog_rad;		/** Course over ground (NOT heading, but direction of movement), -PI..PI, (radians)*/
+	int32_t 	timestamp_time_relative;/** timestamp + timestamp_time_relative = Time of the UTC timestamp since system start, (microseconds)*/
+	float 		heading;		/** heading angle of XYZ body frame rel to NED. Set to NaN if not available and updated (used for dual antenna GPS), (rad, [-PI, PI])*/
+	uint8_t 	fix_type;		/** 0-1: no fix, 2: 2D fix, 3: 3D fix, 4: RTCM code differential, 5: Real-Time Kinematic, float, 6: Real-Time Kinematic, fixed, 8: Extrapolated. Some applications will not use the value of this field unless it is at least two, so always correctly fill in the fix.*/
+	bool 		vel_ned_valid;		/** True if NED velocity is valid*/
+	uint8_t 	satellites_used;	/** Number of satellites used*/
+} femto_uav_gps_t;
+
+/**
+* femto_msg_header_t is femto data header
+*/
+typedef struct {
+	uint8_t 	preamble[3];	/**< Frame header preamble 0xaa 0x44 0x12 */
+	uint8_t 	headerlength;	/**< Frame header length ,from the beginning 0xaa */
+	uint16_t 	messageid;     /**< Frame message id ,example the FEMTO_MSG_ID_UAVGPS 8001*/
+	uint8_t 	messagetype;	/**< Frame message id type */
+	uint8_t 	portaddr;	/**< Frame message port address */
+	uint16_t 	messagelength; /**< Frame message data length,from the beginning headerlength+1,end headerlength + messagelength*/
+	uint16_t 	sequence;
+	uint8_t 	idletime;	/**< Frame message idle module time */
+	uint8_t 	timestatus;
+	uint16_t 	week;
+	uint32_t 	tow;
+	uint32_t 	recvstatus;
+	uint16_t 	resv;
+	uint16_t 	recvswver;
+}femto_msg_header_t;
+
+/**
+* Analysis Femto uavgps frame header
+*/
+typedef union {
+	femto_msg_header_t 	femto_header;
+	uint8_t 	 	data[28];
+}msg_header_t;
+
+/**
+* receive Femto complete uavgps frame
+*/
+typedef struct {
+	uint8_t 		data[256];		/**< receive Frame message content */
+	uint32_t 		crc;			/**< receive Frame message crc 4 bytes */
+	msg_header_t 		header;			/**< receive Frame message header */
+	uint16_t 		read;			/**< receive Frame message read bytes count */
+} femto_msg_t;
+
+#pragma pack(pop)
+/*** END OF femtomes protocol binary message and payload definitions ***/
+
+enum class FemtoDecodeState {
+	pream_ble1,			/**< Frame header preamble first byte 0xaa */
+	pream_ble2,			/**< Frame header preamble second byte 0x44 */
+	pream_ble3,			/**< Frame header preamble third byte 0x12 */
+	head_length,			/**< Frame header length */
+	head_data,			/**< Frame header data */
+	data,				/**< Frame data */
+	crc1,				/**< Frame crc1 */
+	crc2,				/**< Frame crc2 */
+	crc3,				/**< Frame crc3 */
+	crc4				/**< Frame crc4 */
+};
 
 class GPSDriverFemto : public GPSBaseStationSupport
 {
@@ -74,122 +152,13 @@ public:
 	int configure(unsigned &baudrate, OutputMode output_mode) override;
 
 private:
-	enum class FemtoCommand {
-		Acked,			/**< Command that returns a (N)Ack */
-		PRT,			/**< port config*/ 
-		RID,			/**< board identification*/ 
-		RECEIPT			/**< board identification*/ 
-	};
-
-	enum class FemtoDecodeState {
-		pream_ble1,			/**< Frame header preamble first byte 0xaa */
-		pream_ble2,			/**< Frame header preamble second byte 0x44 */
-		pream_ble3,			/**< Frame header preamble third byte 0x12 */
-		head_length,		/**< Frame header length */
-		head_data,			/**< Frame header data */
-		data,				/**< Frame data */
-		crc1,				/**< Frame crc1 */
-		crc2,				/**< Frame crc2 */
-		crc3,				/**< Frame crc3 */
-		crc4				/**< Frame crc4 */
-	};
 
 	/**
-	 * Femto board number
+	 * caculate the frame crc value
 	 */
-	enum class FemtoBoardType {
-		BT_672, 
-		BT_682,	
-		BT_680,
-		BT_681,
-		BT_6A0,
-		other
-	};
-	
-	/**
-	 * femto_uav_gps_t struct need to be packed
-	 */
-	struct PACKED femto_uav_gps_t {
-		uint64_t timestamp;
-		uint64_t time_utc_usec;
-		int32_t lat;
-		int32_t lon;
-		int32_t alt;
-		int32_t alt_ellipsoid;
-		float s_variance_m_s;
-		float c_variance_rad;
-		float eph;
-		float epv;
-		float hdop;
-		float vdop;
-		int32_t noise_per_ms;
-		int32_t jamming_indicator;
-		float vel_m_s;
-		float vel_n_m_s;
-		float vel_e_m_s;
-		float vel_d_m_s;
-		float cog_rad;
-		int32_t timestamp_time_relative;
-		float heading;
-		uint8_t fix_type;
-		bool vel_ned_valid;
-		uint8_t satellites_used;
-	};
+    	uint32_t crc32Value(uint32_t icrc);
+    	uint32_t calculateBlockCRC32(uint32_t length, uint8_t *buffer, uint32_t crc);
 
-	/**
-	 * femto_msg_header_t is femto data header
-	 */
-	struct PACKED femto_msg_header_t
-	{
-		uint8_t preamble[3];	/**< Frame header preamble 0xaa 0x44 0x12 */
-		uint8_t headerlength;	/**< Frame header length ,from the beginning 0xaa */
-		uint16_t messageid;     /**< Frame message id ,example the FEMTO_MSG_ID_UAVGPS 8001*/
-		uint8_t messagetype;	/**< Frame message id type */
-		uint8_t portaddr;		/**< Frame message port address */
-		uint16_t messagelength; /**< Frame message data length,from the beginning headerlength+1,end headerlength + messagelength*/
-		uint16_t sequence;		
-		uint8_t idletime;		/**< Frame message idle module time */
-		uint8_t timestatus;		
-		uint16_t week;			
-		uint32_t tow;			
-		uint32_t recvstatus;	
-		uint16_t resv;			
-		uint16_t recvswver;		
-	};
-
-	/**
-	 * Analysis Femto uavgps frame content 
-	 */
-	union PACKED msg_buf_t {
-		vehicle_gps_position_s femto_uav_gps;
-		uint8_t bytes[256];
-	};
-
-	/**
-	 * Analysis Femto uavgps frame header
-	 */
-	union PACKED msg_header_t {
-		struct femto_msg_header_t femto_header;
-		uint8_t data[28];
-	};
-
-	/**
-	 * receive Femto complete uavgps frame  
-	 */
-	struct PACKED femto_msg_t
-	{
-		msg_buf_t data;			/**< receive Frame message content */
-		uint32_t crc;			/**< receive Frame message crc 4 bytes */
-		msg_header_t header;	/**< receive Frame message header */
-		uint16_t read;			/**< receive Frame message read bytes count */
-	};
-
-	/**
-	 * caculate the frame crc value  
-	 */
-    uint32_t CRC32Value(uint32_t icrc);
-    uint32_t CalculateBlockCRC32(uint32_t length, uint8_t *buffer, uint32_t crc);
-	
 	/**
 	 * when Constructor is work, initialize parameters
 	 */
@@ -228,18 +197,15 @@ private:
 
 	struct satellite_info_s *_satellite_info {nullptr};
 	struct vehicle_gps_position_s *_gps_position {nullptr};
-	struct femto_uav_gps_t _femto_uav_gps;
-	struct femto_msg_t _femto_msg;
+	femto_uav_gps_t _femto_uav_gps;
+	femto_msg_t _femto_msg;
 	FemtoDecodeState _decode_state{FemtoDecodeState::pream_ble1};
 
 	bool _got_pashr_pos_message{false}; /**< If we got a PASHR,POS message, we will ignore GGA messages */
-	
+
 	uint64_t _last_timestamp_time{0};
 
-	FemtoCommand _waiting_for_command;
 	char _port{' '}; /**< port we are connected to (e.g. 'A') */
-	FemtoBoardType _board{FemtoBoardType::other}; /**< board we are connected to */
-
 	RTCMParsing *_rtcm_parsing{nullptr};
 
 	gps_abstime _survey_in_start{ 0 };

@@ -67,11 +67,11 @@
 
 GPSDriverFemto::GPSDriverFemto(GPSCallbackPtr callback, void *callback_user,
 				   struct vehicle_gps_position_s *gps_position,
-				   struct satellite_info_s *satellite_info, float heading_offset) :
-	GPSBaseStationSupport(callback, callback_user),
-	_satellite_info(satellite_info),
-	_gps_position(gps_position),
-	_heading_offset(heading_offset)
+				   struct satellite_info_s *satellite_info, float heading_offset)
+	: GPSBaseStationSupport(callback, callback_user)
+	, _satellite_info(satellite_info)
+	, _gps_position(gps_position)
+	, _heading_offset(heading_offset)
 {
 	decodeInit();
 }
@@ -85,24 +85,21 @@ GPSDriverFemto::~GPSDriverFemto()
 
 int GPSDriverFemto::handleMessage(int len)
 {
-    int ret = 0; 
+    int ret = 0;
     uint16_t messageid = _femto_msg.header.femto_header.messageid;
 
     FEMTO_DEBUG("FEMTO process_message messid=%u\n",messageid);
 
     if (messageid == FEMTO_MSG_ID_UAVGPS) /**< uavgpsB*/
     {
-		memset(_gps_position,0,sizeof(struct vehicle_gps_position_s));
-		memset(&_femto_uav_gps,0,sizeof(struct femto_uav_gps_t));
-
-		memcpy(&_femto_uav_gps.time_utc_usec,&_femto_msg.data.bytes[0],sizeof(struct femto_uav_gps_t));
+		memcpy(&_femto_uav_gps,_femto_msg.data,sizeof(femto_uav_gps_t));
 
 		_gps_position->time_utc_usec = _femto_uav_gps.time_utc_usec;
 		_gps_position->lat = _femto_uav_gps.lat;
 		_gps_position->lon = _femto_uav_gps.lon;
 		_gps_position->alt = _femto_uav_gps.alt;
-		_gps_position->alt_ellipsoid = _femto_uav_gps.alt_ellipsoid; 
-		_gps_position->s_variance_m_s = _femto_uav_gps.s_variance_m_s;  
+		_gps_position->alt_ellipsoid = _femto_uav_gps.alt_ellipsoid;
+		_gps_position->s_variance_m_s = _femto_uav_gps.s_variance_m_s;
 		_gps_position->c_variance_rad = _femto_uav_gps.c_variance_rad;
 		_gps_position->eph = _femto_uav_gps.eph;
 		_gps_position->epv = _femto_uav_gps.epv;
@@ -120,7 +117,7 @@ int GPSDriverFemto::handleMessage(int len)
 		_gps_position->fix_type = _femto_uav_gps.fix_type;
 		_gps_position->vel_ned_valid = _femto_uav_gps.vel_ned_valid;
 		_gps_position->satellites_used = _femto_uav_gps.satellites_used;
-		
+
 		_gps_position->timestamp = gps_absolute_time();
 
 		ret = 1;
@@ -149,12 +146,12 @@ void GPSDriverFemto::receiveWait(unsigned timeout_min)
 	while (gps_absolute_time() < time_started + timeout_min * 1000) {
 		receive(timeout_min);
 	}
-	
+
 }
 
 int GPSDriverFemto::receive(unsigned timeout)
 {
-		uint8_t buf[GPS_READ_BUFFER_SIZE] = "";
+		uint8_t buf[GPS_READ_BUFFER_SIZE];
 
 		/* timeout additional to poll */
 		uint64_t time_started = gps_absolute_time();
@@ -193,18 +190,18 @@ int GPSDriverFemto::receive(unsigned timeout)
 			} else if (ret == 0) {
 				/* Timeout while polling or just nothing read if reading, let's
 				 * stay here, and use timeout below. */
-				 
+
 			} else{
 				/* if we have new data from GPS, go handle it */
-				bytes_count = ret;				
+				bytes_count = ret;
 			}
 
 			/* in case we get crap from GPS or time out */
-			if (time_started + timeout * 1000 * 4 < gps_absolute_time()) {	
-				FEMTO_DEBUG("femtomes timeout\n");	
+			if (time_started + timeout * 1000 * 4 < gps_absolute_time()) {
+				FEMTO_DEBUG("femtomes timeout\n");
 				return -1;
 			}
-		}	
+		}
 }
 
 #define HEXDIGIT_CHAR(d) ((char)((d) + (((d) < 0xA) ? '0' : 'A'-0xA)))
@@ -212,27 +209,27 @@ int GPSDriverFemto::receive(unsigned timeout)
 int GPSDriverFemto::parseChar(uint8_t temp)
 {
 	int iRet = 0;
-	
+
 	switch (_decode_state)
 	{
 		case FemtoDecodeState::pream_ble1:
 			if (temp == FEMTO_PREAMBLE1) {
-				_decode_state = FemtoDecodeState::pream_ble2; 
+				_decode_state = FemtoDecodeState::pream_ble2;
 				_femto_msg.read = 0;
 			}
 			break;
-			
+
 		case FemtoDecodeState::pream_ble2:
 			if (temp == FEMTO_PREAMBLE2)
 			{
-				_decode_state = FemtoDecodeState::pream_ble3; 
+				_decode_state = FemtoDecodeState::pream_ble3;
 			}
 			else
 			{
 				_decode_state = FemtoDecodeState::pream_ble1;
 			}
 			break;
-			
+
 		case FemtoDecodeState::pream_ble3:
 			if (temp == FEMTO_PREAMBLE3)
 			{
@@ -243,7 +240,7 @@ int GPSDriverFemto::parseChar(uint8_t temp)
 				_decode_state = FemtoDecodeState::pream_ble1;
 			}
 			break;
-			
+
 		case FemtoDecodeState::head_length:
 			_femto_msg.header.data[0] = FEMTO_PREAMBLE1;
 			_femto_msg.header.data[1] = FEMTO_PREAMBLE2;
@@ -253,7 +250,7 @@ int GPSDriverFemto::parseChar(uint8_t temp)
 			_decode_state = FemtoDecodeState::head_data;
 			_femto_msg.read = 4;
 			break;
-			
+
 		case FemtoDecodeState::head_data:
 			if (_femto_msg.read >= sizeof(_femto_msg.header.data)) {
 				_decode_state = FemtoDecodeState::pream_ble1;
@@ -267,11 +264,11 @@ int GPSDriverFemto::parseChar(uint8_t temp)
 			}
 			break;
 		case FemtoDecodeState::data:
-			if (_femto_msg.read >= sizeof(_femto_msg.data)) {
+			if (_femto_msg.read >= FEMO_MSG_MAX_LENGTH) {
 				_decode_state = FemtoDecodeState::pream_ble1;
 				break;
 			}
-			_femto_msg.data.bytes[_femto_msg.read - _femto_msg.header.femto_header.headerlength] = temp;
+			_femto_msg.data[_femto_msg.read - _femto_msg.header.femto_header.headerlength] = temp;
 			_femto_msg.read++;
 			if (_femto_msg.read >= (_femto_msg.header.femto_header.messagelength + _femto_msg.header.femto_header.headerlength))
 			{
@@ -293,9 +290,9 @@ int GPSDriverFemto::parseChar(uint8_t temp)
 		case FemtoDecodeState::crc4:
 			_femto_msg.crc += (uint32_t) (temp << 24);
 			_decode_state = FemtoDecodeState::pream_ble1;
-		
-			uint32_t crc = CalculateBlockCRC32((uint32_t)_femto_msg.header.femto_header.headerlength, (uint8_t *)&_femto_msg.header.data, (uint32_t)0);
-			crc = CalculateBlockCRC32((uint32_t)_femto_msg.header.femto_header.messagelength, (uint8_t *)&_femto_msg.data, crc);
+
+			uint32_t crc = calculateBlockCRC32((uint32_t)_femto_msg.header.femto_header.headerlength, (uint8_t *)&_femto_msg.header.data, (uint32_t)0);
+			crc = calculateBlockCRC32((uint32_t)_femto_msg.header.femto_header.messagelength, (uint8_t *)&_femto_msg.data[0], crc);
 
 			if (_femto_msg.crc == crc)
 			{
@@ -329,17 +326,17 @@ int GPSDriverFemto::writeAckedCommandFemto(const char* command, const char* repl
 	/**< write command*/
 	write(command, strlen(command));
 	/**< wait for reply*/
-	uint8_t buf[GPS_READ_BUFFER_SIZE] = "";	
+	uint8_t buf[GPS_READ_BUFFER_SIZE];
 	gps_abstime time_started = gps_absolute_time();
 	while (time_started + timeout * 1000 * 2 > gps_absolute_time()) {
 		int ret = read(buf, sizeof(buf), 1000); /**< wait 1000us */
+		buf[sizeof(buf)-1] = 0;
 		if (ret > 0 && strstr((char *)buf, reply) != NULL) {
 			FEMTO_DEBUG("command reply success: %s", command);
 			return 0;
 		}
-	}	
+	}
 	return -1;
-
 }
 
 int GPSDriverFemto::configure(unsigned &baudrate,OutputMode output_mode)
@@ -349,7 +346,7 @@ int GPSDriverFemto::configure(unsigned &baudrate,OutputMode output_mode)
 	_configure_done = false;
 
 	/** Try different baudrates (115200 is the default for Femtomes) and request the baudrate that we want.	 */
-	const unsigned baudrates_to_try[] = {9600, 38400, 19200, 57600, 115200};
+	const unsigned baudrates_to_try[] = {115200};
 	bool success = false;
 
 	unsigned test_baudrate;
@@ -362,11 +359,11 @@ int GPSDriverFemto::configure(unsigned &baudrate,OutputMode output_mode)
 		}
 
 		setBaudrate(test_baudrate);
-		
+
 		FEMTO_DEBUG("baudrate set to %i", test_baudrate);
 
 		for (int run = 0; run < 2; ++run) { /** try several times*/
-			if (writeAckedCommandFemto("UNLOGALL\r\n", "<UNLOGALL OK", FEMO_RESPONSE_TIMEOUT) == 0 && 
+			if (writeAckedCommandFemto("UNLOGALL\r\n", "<UNLOGALL OK", FEMO_RESPONSE_TIMEOUT) == 0 &&
 				writeAckedCommandFemto("VERSION\r\n", "<VERSION OK", FEMO_RESPONSE_TIMEOUT) == 0) {
 				FEMTO_DEBUG("got port for baudrate %i", test_baudrate);
 				success = true;
@@ -374,12 +371,12 @@ int GPSDriverFemto::configure(unsigned &baudrate,OutputMode output_mode)
 			}
 		}
 	}
-	
+
 	if (!success) {
 		FEMTO_DEBUG("femtomes gps start failed %i", test_baudrate);
 		return -1;
 	}
-	/** 
+	/**
 	* We successfully got a response and know to which port we are connected. Now set the desired baudrate
 	* if it's different from the current one.
 	*/
@@ -389,7 +386,6 @@ int GPSDriverFemto::configure(unsigned &baudrate,OutputMode output_mode)
 
 	if (baudrate != desired_baudrate) {
 		baudrate = desired_baudrate;
-		//@TODO
 		const char baud_config[] = "com%c 115200\r\n"; // configure baudrate to 115200
 		char baud_config_str[sizeof(baud_config)];
 		int len = snprintf(baud_config_str, sizeof(baud_config_str), baud_config, _port);
@@ -403,7 +399,7 @@ int GPSDriverFemto::configure(unsigned &baudrate,OutputMode output_mode)
 
 		for (int run = 0; run < 10; ++run) {
 			/** We ask for the port config again. If we get a reply, we know that the changed settings work.*/
-			if (writeAckedCommandFemto("UNLOGALL\r\n", "<UNLOGALL OK",FEMO_RESPONSE_TIMEOUT) == 0 && 
+			if (writeAckedCommandFemto("UNLOGALL\r\n", "<UNLOGALL OK",FEMO_RESPONSE_TIMEOUT) == 0 &&
 				writeAckedCommandFemto("VERSION\r\n", "<VERSION OK",FEMO_RESPONSE_TIMEOUT) == 0) {
 				success = true;
 				break;
@@ -435,7 +431,7 @@ int GPSDriverFemto::configure(unsigned &baudrate,OutputMode output_mode)
 		FEMTO_DEBUG("command LOG UAVGPSB 0.2 failed");
 	}
 
-	if (output_mode == OutputMode::RTCM && _board == FemtoBoardType::BT_6A0) {
+	if (output_mode == OutputMode::RTCM) {
 		SurveyInStatus status;
 		status.latitude = status.longitude = (double)NAN;
 		status.altitude = NAN;
@@ -507,8 +503,8 @@ GPSDriverFemto::sendSurveyInStatusUpdate(bool active, bool valid, double latitud
 }
 
 #define CRC32_POLYNOMIAL 0xEDB88320L
-uint32_t 
-GPSDriverFemto::CRC32Value(uint32_t icrc)
+uint32_t
+GPSDriverFemto::crc32Value(uint32_t icrc)
 {
     int i;
     uint32_t crc = icrc;
@@ -522,12 +518,12 @@ GPSDriverFemto::CRC32Value(uint32_t icrc)
     return crc;
 }
 
-uint32_t 
-GPSDriverFemto::CalculateBlockCRC32(uint32_t length, uint8_t *buffer, uint32_t crc)
+uint32_t
+GPSDriverFemto::calculateBlockCRC32(uint32_t length, uint8_t *buffer, uint32_t crc)
 {
     while ( length-- != 0 )
     {
-        crc = ((crc >> 8) & 0x00FFFFFFL) ^ (CRC32Value(((uint32_t) crc ^ *buffer++) & 0xff));
+        crc = ((crc >> 8) & 0x00FFFFFFL) ^ (crc32Value(((uint32_t) crc ^ *buffer++) & 0xff));
     }
     return( crc );
 }
