@@ -189,10 +189,6 @@ GPSDriverUBX::configure(unsigned &baudrate, OutputMode output_mode)
 			} else {
 				_proto_ver_27_or_higher = false;
 
-				if (auto_baudrate) {
-					desired_baudrate = UBX_TX_CFG_PRT_BAUDRATE;
-				}
-
 				UBX_DEBUG("trying old protocol");
 
 				/* Send a CFG-PRT message to set the UBX protocol for in and out
@@ -218,6 +214,9 @@ GPSDriverUBX::configure(unsigned &baudrate, OutputMode output_mode)
 					continue;
 				}
 
+				if (auto_baudrate) {
+					desired_baudrate = UBX_TX_CFG_PRT_BAUDRATE;
+				}
 				/* Send a CFG-PRT message again, this time change the baudrate */
 				cfg_prt[0].baudRate	= desired_baudrate;
 				cfg_prt[1].baudRate	= desired_baudrate;
