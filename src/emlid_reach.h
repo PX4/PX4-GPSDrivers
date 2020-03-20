@@ -133,15 +133,15 @@ typedef struct {
 
 /**
  * Driver class for Emlid Reach
- * Populates caller provided vehicle_gps_position_s
+ * Populates caller provided sensor_gps_s
  * Some ERB messages are cached and correlated by timestamp before publishing it
  */
 class GPSDriverEmlidReach : public GPSHelper
 {
 public:
 	GPSDriverEmlidReach(GPSCallbackPtr callback, void *callback_user,
-			    struct vehicle_gps_position_s *gps_position,
-			    struct satellite_info_s *satellite_info
+			    sensor_gps_s *gps_position,
+			    satellite_info_s *satellite_info
 			   );
 
 	virtual ~GPSDriverEmlidReach() = default;
@@ -175,9 +175,9 @@ private:
 	uint8_t _erb_checksum_cnt{};
 
 	/** Pointer provided by caller, ie gps.cpp */
-	struct vehicle_gps_position_s *_gps_position {nullptr};
+	sensor_gps_s *_gps_position {nullptr};
 	/** Pointer provided by caller, gps.cpp */
-	struct satellite_info_s *_satellite_info {nullptr};
+	satellite_info_s *_satellite_info {nullptr};
 
 	bool _testing_connection{false};
 	/** counts decoded sentence when testing connection */
@@ -204,7 +204,7 @@ private:
 	 */
 	int erbParseChar(uint8_t b);
 
-	/** ERB sentence into vehicle_gps_position_s or satellite_info_s, to be used by GPSHelper
+	/** ERB sentence into sensor_gps_s or satellite_info_s, to be used by GPSHelper
 	 *  @return 1 if gps_position updated, 2 for satellite_info_s (can be bit OR), 0 for nothing
 	 */
 	int handleErbSentence();

@@ -54,8 +54,8 @@ public:
 	/**
 	 * @param heading_offset heading offset in radians [-pi, pi]. It is substracted from the measurement.
 	 */
-	GPSDriverAshtech(GPSCallbackPtr callback, void *callback_user, struct vehicle_gps_position_s *gps_position,
-			 struct satellite_info_s *satellite_info, float heading_offset = 0.f);
+	GPSDriverAshtech(GPSCallbackPtr callback, void *callback_user, sensor_gps_s *gps_position,
+			 satellite_info_s *satellite_info, float heading_offset = 0.f);
 	virtual ~GPSDriverAshtech();
 
 	int receive(unsigned timeout) override;
@@ -116,8 +116,8 @@ private:
 
 	void activateRTCMOutput();
 
-	struct satellite_info_s *_satellite_info {nullptr};
-	struct vehicle_gps_position_s *_gps_position {nullptr};
+	satellite_info_s *_satellite_info {nullptr};
+	sensor_gps_s *_gps_position {nullptr};
 	uint64_t _last_timestamp_time{0};
 
 	NMEADecodeState _decode_state{NMEADecodeState::uninit};

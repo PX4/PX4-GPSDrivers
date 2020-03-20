@@ -309,8 +309,8 @@ class GPSDriverSBF : public GPSBaseStationSupport
 {
 public:
 	GPSDriverSBF(GPSCallbackPtr callback, void *callback_user,
-		     struct vehicle_gps_position_s *gps_position,
-		     struct satellite_info_s *satellite_info,
+		     sensor_gps_s *gps_position,
+		     satellite_info_s *satellite_info,
 		     uint8_t dynamic_model);
 
 	virtual ~GPSDriverSBF() override;
@@ -353,8 +353,8 @@ private:
 	 */
 	bool sendMessageAndWaitForAck(const char *msg, const int timeout);
 
-	struct vehicle_gps_position_s *_gps_position { nullptr };
-	struct satellite_info_s *_satellite_info { nullptr };
+	sensor_gps_s *_gps_position { nullptr };
+	satellite_info_s *_satellite_info { nullptr };
 	uint8_t _dynamic_model{ 7 };
 	uint64_t _last_timestamp_time { 0 };
 	bool _configured { false };
