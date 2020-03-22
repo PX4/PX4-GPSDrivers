@@ -88,8 +88,6 @@ int GPSDriverFemto::handleMessage(int len)
     int ret = 0;
     uint16_t messageid = _femto_msg.header.femto_header.messageid;
 
-    FEMTO_DEBUG("FEMTO process_message messid=%u\n",messageid);
-
     if (messageid == FEMTO_MSG_ID_UAVGPS) /**< uavgpsB*/
     {
 		memcpy(&_femto_uav_gps,_femto_msg.data,sizeof(femto_uav_gps_t));
@@ -113,7 +111,7 @@ int GPSDriverFemto::handleMessage(int len)
 		_gps_position->vel_d_m_s = _femto_uav_gps.vel_d_m_s;
 		_gps_position->cog_rad = _femto_uav_gps.cog_rad;
 		_gps_position->timestamp_time_relative = _femto_uav_gps.timestamp_time_relative;
-		_gps_position->heading = _femto_uav_gps.heading;
+		_gps_position->heading = _femto_uav_gps.heading - _heading_offset;
 		_gps_position->fix_type = _femto_uav_gps.fix_type;
 		_gps_position->vel_ned_valid = _femto_uav_gps.vel_ned_valid;
 		_gps_position->satellites_used = _femto_uav_gps.satellites_used;
@@ -169,7 +167,6 @@ int GPSDriverFemto::receive(unsigned timeout)
 					int ret = handleMessage(l);
 
 					if (ret > 0) {
-						FEMTO_DEBUG("femtomes parse one packet success\n");
 						_decode_state = FemtoDecodeState::pream_ble1;
 						return ret;
 					}
@@ -297,7 +294,6 @@ int GPSDriverFemto::parseChar(uint8_t temp)
 			if (_femto_msg.crc == crc)
 			{
 				iRet = _femto_msg.read;
-				FEMTO_DEBUG("data packet is compelete");
 			}
 			else
 			{
@@ -409,10 +405,7 @@ int GPSDriverFemto::configure(unsigned &baudrate,OutputMode output_mode)
 		if (!success) {
 			return -1;
 		}
-
-		FEMTO_DEBUG("Successfully configured the baudrate");
 	}
-	PX4_INFO("Successfully configured the baudrate");
 #if 0
 	const char *config_options[][2] = {
 		"UNLOGALL\r\n",     "<UNLOGALL OK"    		/**< disable all NMEA and NMEA-Like Messages*/
@@ -425,10 +418,10 @@ int GPSDriverFemto::configure(unsigned &baudrate,OutputMode output_mode)
 		}
 	}
 #endif
-	if (writeAckedCommandFemto("LOG UAVGPSB 0.2\r\n", "<LOG OK",FEMO_RESPONSE_TIMEOUT) == 0){
-		FEMTO_DEBUG("command LOG UAVGPSB 0.2 success");
+	if (writeAckedCommandFemto("LOG UAVGPSB 0.05\r\n", "<LOG OK",FEMO_RESPONSE_TIMEOUT) == 0){
+		FEMTO_DEBUG("command LOG UAVGPSB 0.05 success");
 	}else{
-		FEMTO_DEBUG("command LOG UAVGPSB 0.2 failed");
+		FEMTO_DEBUG("command LOG UAVGPSB 0.05 failed");
 	}
 
 	if (output_mode == OutputMode::RTCM) {
@@ -457,7 +450,6 @@ void GPSDriverFemto::activateCorrectionOutput()
 	char buffer[100];
 
 	if (_base_settings.type == BaseSettingsType::survey_in) {
-		FEMTO_DEBUG("enabling survey-in");
 		if(writeAckedCommandFemto("POSAVE AUTO\r\n","<POSAVE OK",FEMO_RESPONSE_TIMEOUT) == 0)
 		{
 			FEMTO_DEBUG("POSEAVE OK");
