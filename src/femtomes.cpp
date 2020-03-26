@@ -87,6 +87,7 @@ int GPSDriverFemto::handleMessage(int len)
 {
     int ret = 0;
     uint16_t messageid = _femto_msg.header.femto_header.messageid;
+    float heading = 0.f;
 
     if (messageid == FEMTO_MSG_ID_UAVGPS) /**< uavgpsB*/
     {
@@ -110,12 +111,17 @@ int GPSDriverFemto::handleMessage(int len)
 		_gps_position->vel_e_m_s = _femto_uav_gps.vel_e_m_s;
 		_gps_position->vel_d_m_s = _femto_uav_gps.vel_d_m_s;
 		_gps_position->cog_rad = _femto_uav_gps.cog_rad;
-		_gps_position->timestamp_time_relative = _femto_uav_gps.timestamp_time_relative;
-		_gps_position->heading = _femto_uav_gps.heading - _heading_offset;
+		_gps_position->timestamp_time_relative = _femto_uav_gps.timestamp_time_relative; 	
 		_gps_position->fix_type = _femto_uav_gps.fix_type;
 		_gps_position->vel_ned_valid = _femto_uav_gps.vel_ned_valid;
 		_gps_position->satellites_used = _femto_uav_gps.satellites_used;
 
+		heading = _femto_uav_gps.heading - _heading_offset;
+		if(heading > M_PI_F)
+		{
+			heading -= 2.f * M_PI_F;// final range is [-pi, pi]
+		}
+		_gps_position->heading = heading;
 		_gps_position->timestamp = gps_absolute_time();
 
 		ret = 1;
