@@ -185,7 +185,7 @@ public:
 	 *         -1 not implemented
 	 * 	    0 success
 	 */
-	virtual int reset(GPSRestartType restart_type)	{ return -1; }
+	virtual int reset(GPSRestartType restart_type)	{ (void)restart_type; return -1; }
 
 	float getPositionUpdateRate() { return _rate_lat_lon; }
 	float getVelocityUpdateRate() { return _rate_vel; }
