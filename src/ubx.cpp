@@ -149,8 +149,11 @@ GPSDriverUBX::configure(unsigned &baudrate, OutputMode output_mode)
 					   cfg_valset_msg_size);
 			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1INPROT_NMEA, 0, cfg_valset_msg_size);
 			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1OUTPROT_UBX, 1, cfg_valset_msg_size);
-			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1OUTPROT_RTCM3X, output_mode == OutputMode::GPS ? 0 : 1,
-					   cfg_valset_msg_size);
+
+			if (output_mode == OutputMode::RTCM) {
+				cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1OUTPROT_RTCM3X, 1, cfg_valset_msg_size);
+			}
+
 			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1OUTPROT_NMEA, 0, cfg_valset_msg_size);
 			// TODO: are we ever connected to UART2?
 
@@ -160,8 +163,11 @@ GPSDriverUBX::configure(unsigned &baudrate, OutputMode output_mode)
 					   cfg_valset_msg_size);
 			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_USBINPROT_NMEA, 0, cfg_valset_msg_size);
 			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_USBOUTPROT_UBX, 1, cfg_valset_msg_size);
-			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_USBOUTPROT_RTCM3X, output_mode == OutputMode::GPS ? 0 : 1,
-					   cfg_valset_msg_size);
+
+			if (output_mode == OutputMode::RTCM) {
+				cfgValset<uint8_t>(UBX_CFG_KEY_CFG_USBOUTPROT_RTCM3X, 1, cfg_valset_msg_size);
+			}
+
 			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_USBOUTPROT_NMEA, 0, cfg_valset_msg_size);
 
 			bool cfg_valset_success = false;
@@ -217,6 +223,7 @@ GPSDriverUBX::configure(unsigned &baudrate, OutputMode output_mode)
 				if (auto_baudrate) {
 					desired_baudrate = UBX_TX_CFG_PRT_BAUDRATE;
 				}
+
 				/* Send a CFG-PRT message again, this time change the baudrate */
 				cfg_prt[0].baudRate	= desired_baudrate;
 				cfg_prt[1].baudRate	= desired_baudrate;
@@ -436,7 +443,6 @@ int GPSDriverUBX::configureDevice()
 {
 	/* set configuration parameters */
 	int cfg_valset_msg_size = initCfgValset();
-	cfgValset<uint8_t>(UBX_CFG_KEY_NAVHPG_DGNSSMODE, 3 /* RTK Fixed */, cfg_valset_msg_size);
 	cfgValset<uint8_t>(UBX_CFG_KEY_NAVSPG_FIXMODE, 3 /* Auto 2d/3d */, cfg_valset_msg_size);
 	cfgValset<uint8_t>(UBX_CFG_KEY_NAVSPG_UTCSTANDARD, 3 /* USNO (U.S. Naval Observatory derived from GPS) */,
 			   cfg_valset_msg_size);
@@ -460,6 +466,16 @@ int GPSDriverUBX::configureDevice()
 	if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true) < 0) {
 		return -1;
 	}
+
+	// RTK (optional, as only RTK devices like F9P support it)
+	cfg_valset_msg_size = initCfgValset();
+	cfgValset<uint8_t>(UBX_CFG_KEY_NAVHPG_DGNSSMODE, 3 /* RTK Fixed */, cfg_valset_msg_size);
+
+	if (!sendMessage(UBX_MSG_CFG_VALSET, (uint8_t *)&_buf, cfg_valset_msg_size)) {
+		return -1;
+	}
+
+	waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, false);
 
 	// Configure message rates
 	// Send a new CFG-VALSET message to make sure it does not get too large
