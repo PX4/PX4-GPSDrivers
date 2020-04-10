@@ -35,7 +35,6 @@
 /** @file Femtomes protocol definitions */
 
 #include "gps_helper.h"
-#include "base_station.h"
 #include "../../definitions.h"
 
 class RTCMParsing;
@@ -43,7 +42,7 @@ class RTCMParsing;
 /* ms, timeout for waiting for a response*/
 #define FEMO_RESPONSE_TIMEOUT		200
 
-#define FEMO_MSG_MAX_LENGTH		256
+#define FEMO_MSG_MAX_LENGTH			256
 /* Femtomes ID for UAV output message */
 #define FEMTO_MSG_ID_UAVGPS 		8001
 
@@ -138,15 +137,15 @@ enum class FemtoDecodeState {
 	crc4				/**< Frame crc4 */
 };
 
-class GPSDriverFemto : public GPSBaseStationSupport
+class GPSDriverFemto : public GPSHelper
 {
 public:
 	/**
 	 * @param heading_offset heading offset in radians [-pi, pi]. It is substracted from the measurement.
 	 */
 	GPSDriverFemto(GPSCallbackPtr callback, void *callback_user, struct vehicle_gps_position_s *gps_position,
-			 struct satellite_info_s *satellite_info, float heading_offset = 0.f);
-	virtual ~GPSDriverFemto();
+				float heading_offset = 0.f);
+	virtual ~GPSDriverFemto() = default;
 
 	int receive(unsigned timeout) override;
 	int configure(unsigned &baudrate, OutputMode output_mode) override;
@@ -185,33 +184,10 @@ private:
 	 */
 	void receiveWait(unsigned timeout_min);
 
-	/**
-	 * enable output of correction output
-	 */
-	void activateCorrectionOutput();
-
-	void sendSurveyInStatusUpdate(bool active, bool valid, double latitude = (double)NAN, double longitude = (double)NAN,
-				      float altitude = NAN);
-
-	void activateRTCMOutput();
-
-	struct satellite_info_s *_satellite_info {nullptr};
-	struct vehicle_gps_position_s *_gps_position {nullptr};
-	femto_uav_gps_t _femto_uav_gps;
-	femto_msg_t _femto_msg;
-	FemtoDecodeState _decode_state{FemtoDecodeState::pream_ble1};
-
-	bool _got_pashr_pos_message{false}; /**< If we got a PASHR,POS message, we will ignore GGA messages */
-
-	uint64_t _last_timestamp_time{0};
-
-	char _port{' '}; /**< port we are connected to (e.g. 'A') */
-	RTCMParsing *_rtcm_parsing{nullptr};
-
-	gps_abstime _survey_in_start{ 0 };
-
-	OutputMode _output_mode{ OutputMode::GPS };
-	bool _correction_output_activated{false};
-	bool _configure_done{false};
-	float _heading_offset;
+	
+	struct vehicle_gps_position_s 	*_gps_position {nullptr};
+	FemtoDecodeState 				_decode_state{FemtoDecodeState::pream_ble1};
+	femto_uav_gps_t 				_femto_uav_gps;
+	femto_msg_t 					_femto_msg;
+	float 							_heading_offset;
 };

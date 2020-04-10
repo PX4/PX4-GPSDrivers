@@ -67,20 +67,12 @@
 
 GPSDriverFemto::GPSDriverFemto(GPSCallbackPtr callback, void *callback_user,
 				   struct vehicle_gps_position_s *gps_position,
-				   struct satellite_info_s *satellite_info, float heading_offset)
-	: GPSBaseStationSupport(callback, callback_user)
-	, _satellite_info(satellite_info)
+				   float heading_offset)
+	: GPSHelper(callback, callback_user)
 	, _gps_position(gps_position)
 	, _heading_offset(heading_offset)
 {
 	decodeInit();
-}
-
-GPSDriverFemto::~GPSDriverFemto()
-{
-	if (_rtcm_parsing) {
-		delete (_rtcm_parsing);
-	}
 }
 
 int GPSDriverFemto::handleMessage(int len)
@@ -126,20 +118,6 @@ int GPSDriverFemto::handleMessage(int len)
 		ret = 1;
 	}
 	return ret;
-}
-
-void GPSDriverFemto::activateRTCMOutput()
-{
-	const char *config_options[][2] = {
-		"LOG RTCM 1\r\n",     "<LOG OK"    		/**< log rtcm*/
-		"SAVECONFIG\r\n",     "<SAVECONFIG OK"   	/**< saveconfig*/
-	};
-
-	for (unsigned int conf_i = 0; conf_i < sizeof(config_options) / sizeof(config_options[0]); conf_i++) {
-		if (writeAckedCommandFemto(config_options[conf_i][0], config_options[conf_i][1], FEMO_RESPONSE_TIMEOUT) != 0) {
-			FEMTO_DEBUG("command %s failed", config_options[conf_i][0]);
-		}
-	}
 }
 
 void GPSDriverFemto::receiveWait(unsigned timeout_min)
@@ -200,7 +178,7 @@ int GPSDriverFemto::receive(unsigned timeout)
 
 			/* in case we get crap from GPS or time out */
 			if (time_started + timeout * 1000 * 4 < gps_absolute_time()) {
-				FEMTO_DEBUG("femtomes timeout\n");
+				FEMTO_DEBUG("Femto: timeout\n");
 				return -1;
 			}
 		}
@@ -302,7 +280,7 @@ int GPSDriverFemto::parseChar(uint8_t temp)
 			}
 			else
 			{
-				FEMTO_DEBUG("data packet is bad");
+				FEMTO_DEBUG("Femto: data packet is bad");
 			}
 			break;
 	}
@@ -312,13 +290,6 @@ int GPSDriverFemto::parseChar(uint8_t temp)
 void GPSDriverFemto::decodeInit()
 {
 	_decode_state = FemtoDecodeState::pream_ble1;
-
-	if (_output_mode == OutputMode::RTCM) {
-		if (!_rtcm_parsing) {
-			_rtcm_parsing = new RTCMParsing();
-		}
-		_rtcm_parsing->reset();
-	}
 
 }
 
@@ -333,7 +304,7 @@ int GPSDriverFemto::writeAckedCommandFemto(const char* command, const char* repl
 		int ret = read(buf, sizeof(buf), 1000); /**< wait 1000us */
 		buf[sizeof(buf)-1] = 0;
 		if (ret > 0 && strstr((char *)buf, reply) != NULL) {
-			FEMTO_DEBUG("command reply success: %s", command);
+			FEMTO_DEBUG("Femto: command reply success: %s", command);
 			return 0;
 		}
 	}
@@ -342,12 +313,14 @@ int GPSDriverFemto::writeAckedCommandFemto(const char* command, const char* repl
 
 int GPSDriverFemto::configure(unsigned &baudrate,OutputMode output_mode)
 {
-	_output_mode = output_mode;
-	_correction_output_activated = false;
-	_configure_done = false;
+
+	if (output_mode != OutputMode::GPS) {
+		FEMTO_DEBUG("Femto: Unsupported Output Mode %i", (int)output_mode);
+		return -1;
+	}
 
 	/** Try different baudrates (115200 is the default for Femtomes) and request the baudrate that we want.	 */
-	const unsigned baudrates_to_try[] = {115200};
+	const unsigned baudrates_to_try[] = {9600, 38400, 19200, 57600, 115200};
 	bool success = false;
 
 	unsigned test_baudrate;
@@ -361,12 +334,12 @@ int GPSDriverFemto::configure(unsigned &baudrate,OutputMode output_mode)
 
 		setBaudrate(test_baudrate);
 
-		FEMTO_DEBUG("baudrate set to %i", test_baudrate);
+		FEMTO_DEBUG("Femto: baudrate set to %i", test_baudrate);
 
 		for (int run = 0; run < 2; ++run) { /** try several times*/
 			if (writeAckedCommandFemto("UNLOGALL\r\n", "<UNLOGALL OK", FEMO_RESPONSE_TIMEOUT) == 0 &&
 				writeAckedCommandFemto("VERSION\r\n", "<VERSION OK", FEMO_RESPONSE_TIMEOUT) == 0) {
-				FEMTO_DEBUG("got port for baudrate %i", test_baudrate);
+				FEMTO_DEBUG("Femto: got port for baudrate %i", test_baudrate);
 				success = true;
 				break;
 			}
@@ -374,7 +347,7 @@ int GPSDriverFemto::configure(unsigned &baudrate,OutputMode output_mode)
 	}
 
 	if (!success) {
-		FEMTO_DEBUG("femtomes gps start failed %i", test_baudrate);
+		FEMTO_DEBUG("Femto: gps start failed %i", test_baudrate);
 		return -1;
 	}
 	/**
@@ -387,10 +360,8 @@ int GPSDriverFemto::configure(unsigned &baudrate,OutputMode output_mode)
 
 	if (baudrate != desired_baudrate) {
 		baudrate = desired_baudrate;
-		const char baud_config[] = "com%c 115200\r\n"; // configure baudrate to 115200
-		char baud_config_str[sizeof(baud_config)];
-		int len = snprintf(baud_config_str, sizeof(baud_config_str), baud_config, _port);
-		write(baud_config_str, len);
+		const char baud_config[] = "com 115200\r\n"; // configure baudrate to 115200
+		write(baud_config, sizeof(baud_config));
 		decodeInit();
 		receiveWait(200);
 		decodeInit();
@@ -411,92 +382,14 @@ int GPSDriverFemto::configure(unsigned &baudrate,OutputMode output_mode)
 			return -1;
 		}
 	}
-#if 0
-	const char *config_options[][2] = {
-		"UNLOGALL\r\n",     "<UNLOGALL OK"    		/**< disable all NMEA and NMEA-Like Messages*/
-		"LOG UAVGPSB 0.2\r\n", "<LOG OK"   	/**< disable all ATM (ATOM) Messages*/
-	};
 
-	for (unsigned int conf_i = 0; conf_i < sizeof(config_options) / sizeof(config_options[0]); conf_i++) {
-		if (writeAckedCommandFemto(config_options[conf_i][0], config_options[conf_i][1], FEMO_RESPONSE_TIMEOUT) != 0) {
-			FEMTO_DEBUG("command %s failed", config_options[conf_i][0]);
-		}
-	}
-#endif
 	if (writeAckedCommandFemto("LOG UAVGPSB 0.05\r\n", "<LOG OK",FEMO_RESPONSE_TIMEOUT) == 0){
-		FEMTO_DEBUG("command LOG UAVGPSB 0.05 success");
+		FEMTO_DEBUG("Femto: command LOG UAVGPSB 0.05 success");
 	}else{
-		FEMTO_DEBUG("command LOG UAVGPSB 0.05 failed");
+		FEMTO_DEBUG("Femto: command LOG UAVGPSB 0.05 failed");
 	}
 
-	if (output_mode == OutputMode::RTCM) {
-		SurveyInStatus status;
-		status.latitude = status.longitude = (double)NAN;
-		status.altitude = NAN;
-		status.duration = 0;
-		status.mean_accuracy = 0;
-		const bool valid = false;
-		const bool active = true;
-		status.flags = (int)valid | ((int)active << 1);
-		surveyInStatus(status);
-	}
-
-	_configure_done = true;
 	return 0;
-}
-
-void GPSDriverFemto::activateCorrectionOutput()
-{
-	if (_correction_output_activated || _output_mode != OutputMode::RTCM) {
-		return;
-	}
-
-	_correction_output_activated = true;
-	char buffer[100];
-
-	if (_base_settings.type == BaseSettingsType::survey_in) {
-		if(writeAckedCommandFemto("POSAVE AUTO\r\n","<POSAVE OK",FEMO_RESPONSE_TIMEOUT) == 0)
-		{
-			FEMTO_DEBUG("POSEAVE OK");
-			_base_settings.settings.survey_in.min_dur = 0; // use it as counter how long survey-in has been active
-			_survey_in_start = gps_absolute_time();
-			sendSurveyInStatusUpdate(true, false);
-		}
-
-	} else {
-		FEMTO_DEBUG("setting base station position");
-
-		const FixedPositionSettings &settings = _base_settings.settings.fixed_position;
-
-		int len = snprintf(buffer, sizeof(buffer), "FIX POSITION %.8lf %.8lf %.5f\r\n",
-				   settings.latitude, settings.longitude,(double)settings.altitude);
-
-		if (len >= 0 && len < (int)sizeof(buffer)) {
-			if(writeAckedCommandFemto("POSAVE AUTO\r\n","<FIX OK",FEMO_RESPONSE_TIMEOUT) == 0)
-			{
-				FEMTO_DEBUG("FIX OK");
-				_base_settings.settings.survey_in.min_dur = 0; // use it as counter how long survey-in has been active
-				_survey_in_start = gps_absolute_time();
-				sendSurveyInStatusUpdate(true, false);
-			}
-		}
-
-		activateRTCMOutput();
-		sendSurveyInStatusUpdate(false, true, settings.latitude, settings.longitude, settings.altitude);
-	}
-}
-
-void
-GPSDriverFemto::sendSurveyInStatusUpdate(bool active, bool valid, double latitude, double longitude, float altitude)
-{
-	SurveyInStatus status;
-	status.latitude = latitude;
-	status.longitude = longitude;
-	status.altitude = altitude;
-	status.duration = _base_settings.settings.survey_in.min_dur;
-	status.mean_accuracy = 0; /**< unknown*/
-	status.flags = (int)valid | ((int)active << 1);
-	surveyInStatus(status);
 }
 
 #define CRC32_POLYNOMIAL 0xEDB88320L
