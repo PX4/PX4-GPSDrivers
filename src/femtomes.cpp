@@ -320,7 +320,7 @@ int GPSDriverFemto::configure(unsigned &baudrate,OutputMode output_mode)
 	}
 
 	/** Try different baudrates (115200 is the default for Femtomes) and request the baudrate that we want.	 */
-	const unsigned baudrates_to_try[] = {9600, 38400, 19200, 57600, 115200};
+	const unsigned baudrates_to_try[] = {115200};
 	bool success = false;
 
 	unsigned test_baudrate;
