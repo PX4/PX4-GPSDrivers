@@ -244,7 +244,7 @@ int GPSDriverFemto::parseChar(uint8_t temp)
 			}
 			break;
 		case FemtoDecodeState::data:
-			if (_femto_msg.read >= FEMO_MSG_MAX_LENGTH) {
+			if (_femto_msg.read >= FEMTO_MSG_MAX_LENGTH) {
 				_decode_state = FemtoDecodeState::pream_ble1;
 				break;
 			}
@@ -300,8 +300,8 @@ int GPSDriverFemto::writeAckedCommandFemto(const char* command, const char* repl
 	/**< wait for reply*/
 	uint8_t buf[GPS_READ_BUFFER_SIZE];
 	gps_abstime time_started = gps_absolute_time();
-	while (time_started + timeout * 1000 * 2 > gps_absolute_time()) {
-		int ret = read(buf, sizeof(buf), 1000); /**< wait 1000us */
+	while (time_started + timeout * 1000 > gps_absolute_time()) {
+		int ret = read(buf, sizeof(buf), timeout);
 		buf[sizeof(buf)-1] = 0;
 		if (ret > 0 && strstr((char *)buf, reply) != NULL) {
 			FEMTO_DEBUG("Femto: command reply success: %s", command);
@@ -337,8 +337,8 @@ int GPSDriverFemto::configure(unsigned &baudrate,OutputMode output_mode)
 		FEMTO_DEBUG("Femto: baudrate set to %i", test_baudrate);
 
 		for (int run = 0; run < 2; ++run) { /** try several times*/
-			if (writeAckedCommandFemto("UNLOGALL\r\n", "<UNLOGALL OK", FEMO_RESPONSE_TIMEOUT) == 0 &&
-				writeAckedCommandFemto("VERSION\r\n", "<VERSION OK", FEMO_RESPONSE_TIMEOUT) == 0) {
+			if (writeAckedCommandFemto("UNLOGALL\r\n", "<UNLOGALL OK", FEMTO_RESPONSE_TIMEOUT) == 0 &&
+				writeAckedCommandFemto("VERSION\r\n", "<VERSION OK", FEMTO_RESPONSE_TIMEOUT) == 0) {
 				FEMTO_DEBUG("Femto: got port for baudrate %i", test_baudrate);
 				success = true;
 				break;
@@ -371,8 +371,8 @@ int GPSDriverFemto::configure(unsigned &baudrate,OutputMode output_mode)
 
 		for (int run = 0; run < 10; ++run) {
 			/** We ask for the port config again. If we get a reply, we know that the changed settings work.*/
-			if (writeAckedCommandFemto("UNLOGALL\r\n", "<UNLOGALL OK",FEMO_RESPONSE_TIMEOUT) == 0 &&
-				writeAckedCommandFemto("VERSION\r\n", "<VERSION OK",FEMO_RESPONSE_TIMEOUT) == 0) {
+			if (writeAckedCommandFemto("UNLOGALL\r\n", "<UNLOGALL OK",FEMTO_RESPONSE_TIMEOUT) == 0 &&
+				writeAckedCommandFemto("VERSION\r\n", "<VERSION OK",FEMTO_RESPONSE_TIMEOUT) == 0) {
 				success = true;
 				break;
 			}
@@ -383,7 +383,7 @@ int GPSDriverFemto::configure(unsigned &baudrate,OutputMode output_mode)
 		}
 	}
 
-	if (writeAckedCommandFemto("LOG UAVGPSB 0.05\r\n", "<LOG OK",FEMO_RESPONSE_TIMEOUT) == 0){
+	if (writeAckedCommandFemto("LOG UAVGPSB 0.05\r\n", "<LOG OK",FEMTO_RESPONSE_TIMEOUT) == 0){
 		FEMTO_DEBUG("Femto: command LOG UAVGPSB 0.05 success");
 	}else{
 		FEMTO_DEBUG("Femto: command LOG UAVGPSB 0.05 failed");

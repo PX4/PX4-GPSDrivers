@@ -40,9 +40,9 @@
 class RTCMParsing;
 
 /* ms, timeout for waiting for a response*/
-#define FEMO_RESPONSE_TIMEOUT		200
+#define FEMTO_RESPONSE_TIMEOUT		200
 
-#define FEMO_MSG_MAX_LENGTH			256
+#define FEMTO_MSG_MAX_LENGTH		256
 /* Femtomes ID for UAV output message */
 #define FEMTO_MSG_ID_UAVGPS 		8001
 
@@ -186,8 +186,8 @@ private:
 
 	
 	struct vehicle_gps_position_s 	*_gps_position {nullptr};
-	FemtoDecodeState 				_decode_state{FemtoDecodeState::pream_ble1};
-	femto_uav_gps_t 				_femto_uav_gps;
+	FemtoDecodeState				_decode_state{FemtoDecodeState::pream_ble1};
+	femto_uav_gps_t					_femto_uav_gps;
 	femto_msg_t 					_femto_msg;
-	float 							_heading_offset;
+	float 						_heading_offset;
 };
