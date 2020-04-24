@@ -455,7 +455,10 @@ int GPSDriverUBX::configureDevice()
 	cfgValset<uint8_t>(UBX_CFG_KEY_ODO_OUTLPCOG, 0, cfg_valset_msg_size);
 
 	// measurement rate
-	cfgValset<uint16_t>(UBX_CFG_KEY_RATE_MEAS, 100 /* 10 Hz update rate */, cfg_valset_msg_size);
+	// In case of F9P we use 10Hz, otherwise 5Hz (receivers such as M9N can go higher as well, but
+	// the number of used satellites will be restricted to 16. Not mentioned in datasheet)
+	const int rate_meas = (_board == Board::u_blox9_F9P) ? 100 : 200;
+	cfgValset<uint16_t>(UBX_CFG_KEY_RATE_MEAS, rate_meas, cfg_valset_msg_size);
 	cfgValset<uint16_t>(UBX_CFG_KEY_RATE_NAV, 1, cfg_valset_msg_size);
 	cfgValset<uint8_t>(UBX_CFG_KEY_RATE_TIMEREF, 0, cfg_valset_msg_size);
 
@@ -1330,6 +1333,15 @@ GPSDriverUBX::payloadRxAddMonVer(const uint8_t b)
 		if (buf_index == sizeof(ubx_payload_rx_mon_ver_part2_t) - 1) {
 			// Part 2 complete: decode Part 2 buffer
 			UBX_DEBUG("VER ext \" %30s\"", _buf.payload_rx_mon_ver_part2.extension);
+
+			// in case of u-blox9 family, check if it's an F9P
+			if (_board == Board::u_blox9) {
+				if (strstr((const char *)_buf.payload_rx_mon_ver_part2.extension, "MOD=") &&
+				    strstr((const char *)_buf.payload_rx_mon_ver_part2.extension, "F9P")) {
+					_board = Board::u_blox9_F9P;
+					UBX_DEBUG("F9P detected");
+				}
+			}
 		}
 	}
 
