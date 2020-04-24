@@ -902,7 +902,8 @@ private:
 		u_blox6 = 6,
 		u_blox7 = 7,
 		u_blox8 = 8, ///< M8N or M8P
-		u_blox9 = 9, ///< F9P
+		u_blox9 = 9, ///< M9N, or any F9*, except F9P
+		u_blox9_F9P = 10, ///< F9P
 	};
 
 	sensor_gps_s *_gps_position {nullptr};
