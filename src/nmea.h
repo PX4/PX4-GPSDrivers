@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (c) 2012-2020 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2020 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -58,35 +58,35 @@ public:
 				  uint32_t nmea_baud = 9600);
 	
 	virtual ~GPSDriverNMEA() = default;
-    
+
 	int receive(unsigned timeout);
     int configure(unsigned &baudrate, OutputMode output_mode);
 
 private:
 	
 	void decodeInit(void);
-    int handleMessage(int len);
-    int parseChar(uint8_t b);
+	int handleMessage(int len);
+	int parseChar(uint8_t b);
 
-    int32_t read_int();
-    double read_float();
-    char read_char();
-    enum nmea_decode_state_t {
-            NMEA_DECODE_UNINIT,
-            NMEA_DECODE_GOT_SYNC1,
-            NMEA_DECODE_GOT_NMEA,
-            NMEA_DECODE_GOT_FIRST_CS_BYTE
-    };
+	int32_t read_int();
+	double read_float();
+	char read_char();
+	enum nmea_decode_state_t {
+			NMEA_DECODE_UNINIT,
+			NMEA_DECODE_GOT_SYNC1,
+			NMEA_DECODE_GOT_NMEA,
+			NMEA_DECODE_GOT_FIRST_CS_BYTE
+	};
 
-    sensor_gps_s *_gps_position {nullptr};
-    struct satellite_info_s *_satellite_info {nullptr};
-    uint64_t _last_timestamp_time{0};
-    int _nmea_fd;
+	sensor_gps_s *_gps_position {nullptr};
+	struct satellite_info_s *_satellite_info {nullptr};
+	uint64_t _last_timestamp_time{0};
+	int _nmea_fd;
 
-    nmea_decode_state_t _decode_state{NMEA_DECODE_UNINIT};
-    uint8_t _rx_buffer[NMEA_RECV_BUFFER_SIZE] {};
-    uint16_t _rx_buffer_bytes{};
-    bool _parse_error{}; /**< parse error flag */
-    char *_parse_pos{}; /**< parse position */
-    uint32_t _baudrate{9600};
+	nmea_decode_state_t _decode_state{NMEA_DECODE_UNINIT};
+	uint8_t _rx_buffer[NMEA_RECV_BUFFER_SIZE] {};
+	uint16_t _rx_buffer_bytes{};
+	bool _parse_error{}; /**< parse error flag */
+	char *_parse_pos{}; /**< parse position */
+	uint32_t _baudrate{9600};
 };

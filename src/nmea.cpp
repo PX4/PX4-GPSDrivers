@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (c) 2012-2020 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2020 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -270,7 +270,7 @@ int GPSDriverNMEA::handleMessage(int len)
 
 //		mavlink_log_info(&mavlink_log_pub, "get GGA data ");
 
-	} else if ((memcmp(_rx_buffer + 3, "GNS,", 3) == 0 ) && (uiCalcComma == 13)) {
+	} else if (memcmp(_rx_buffer + 3, "GNS,", 3) == 0) {
 		/*
 		  Message GNS
 		  Description GNSS fix data
