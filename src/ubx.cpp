@@ -82,12 +82,16 @@
 GPSDriverUBX::GPSDriverUBX(Interface gpsInterface, GPSCallbackPtr callback, void *callback_user,
 			   struct vehicle_gps_position_s *gps_position,
 			   struct satellite_info_s *satellite_info,
-			   uint8_t dynamic_model)
+			   uint8_t dynamic_model,
+			   float heading_offset,
+			   UBXMode mode)
 	: GPSBaseStationSupport(callback, callback_user)
 	, _gps_position(gps_position)
 	, _satellite_info(satellite_info)
 	, _interface(gpsInterface)
 	, _dyn_model(dynamic_model)
+	, _mode(mode)
+	, _heading_offset(heading_offset)
 {
 	decodeInit();
 }
@@ -495,6 +499,63 @@ int GPSDriverUBX::configureDevice()
 
 	if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true) < 0) {
 		return -1;
+	}
+
+	int uart2_baudrate = 460800;
+
+	if (_mode == UBXMode::RoverWithMovingBase) {
+		UBX_DEBUG("Configuring UART2 for rover");
+		cfg_valset_msg_size = initCfgValset();
+		// heading output @3Hz
+		cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_RELPOSNED_I2C, 3, cfg_valset_msg_size);
+		// enable RTCM input on uart2 + set baudrate
+		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2_STOPBITS, 1, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2_DATABITS, 0, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2_PARITY, 0, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2INPROT_UBX, 0, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2INPROT_RTCM3X, 1, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2INPROT_NMEA, 0, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2OUTPROT_UBX, 0, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2OUTPROT_RTCM3X, 0, cfg_valset_msg_size);
+		cfgValset<uint32_t>(UBX_CFG_KEY_CFG_UART2_BAUDRATE, uart2_baudrate, cfg_valset_msg_size);
+
+		if (!sendMessage(UBX_MSG_CFG_VALSET, (uint8_t *)&_buf, cfg_valset_msg_size)) {
+			return -1;
+		}
+
+		if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true) < 0) {
+			return -1;
+		}
+
+	} else if (_mode == UBXMode::MovingBase) {
+		UBX_DEBUG("Configuring UART2 for moving base");
+		// enable RTCM output on uart2 + set baudrate
+		cfg_valset_msg_size = initCfgValset();
+		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2_STOPBITS, 1, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2_DATABITS, 0, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2_PARITY, 0, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2INPROT_UBX, 0, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2INPROT_RTCM3X, 0, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2INPROT_NMEA, 0, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2OUTPROT_UBX, 0, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2OUTPROT_RTCM3X, 1, cfg_valset_msg_size);
+		cfgValset<uint32_t>(UBX_CFG_KEY_CFG_UART2_BAUDRATE, uart2_baudrate, cfg_valset_msg_size);
+
+		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE4072_0_UART2, 1, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE4072_1_UART2, 1, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1077_UART2, 1, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1087_UART2, 1, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1097_UART2, 1, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1127_UART2, 1, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1230_UART2, 1, cfg_valset_msg_size);
+
+		if (!sendMessage(UBX_MSG_CFG_VALSET, (uint8_t *)&_buf, cfg_valset_msg_size)) {
+			return -1;
+		}
+
+		if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true) < 0) {
+			return -1;
+		}
 	}
 
 	return 0;
@@ -998,6 +1059,17 @@ GPSDriverUBX::payloadRxInit()
 
 	case UBX_MSG_NAV_DOP:
 		if (_rx_payload_length != sizeof(ubx_payload_rx_nav_dop_t)) {
+			_rx_state = UBX_RXMSG_ERROR_LENGTH;
+
+		} else if (!_configured) {
+			_rx_state = UBX_RXMSG_IGNORE;        // ignore if not _configured
+
+		}
+
+		break;
+
+	case UBX_MSG_NAV_RELPOSNED:
+		if (_rx_payload_length != sizeof(ubx_payload_rx_nav_relposned_t)) {
 			_rx_state = UBX_RXMSG_ERROR_LENGTH;
 
 		} else if (!_configured) {
@@ -1644,6 +1716,37 @@ GPSDriverUBX::payloadRxDone()
 		_got_velned = true;
 
 		ret = 1;
+		break;
+
+	case UBX_MSG_NAV_RELPOSNED:
+		UBX_TRACE_RXMSG("Rx NAV-RELPOSNED");
+
+		if (_mode == UBXMode::RoverWithMovingBase) {
+			float heading = _buf.payload_rx_nav_relposned.relPosHeading * 1e-5f;
+			float heading_acc = _buf.payload_rx_nav_relposned.accHeading * 1e-5f;
+			float rel_length = _buf.payload_rx_nav_relposned.relPosLength + _buf.payload_rx_nav_relposned.relPosHPLength * 1e-2f;
+			float rel_length_acc = _buf.payload_rx_nav_relposned.accLength * 1e-2f;
+			bool heading_valid = _buf.payload_rx_nav_relposned.flags & (1 << 8);
+			bool rel_pos_valid = _buf.payload_rx_nav_relposned.flags & (1 << 2);
+			(void)heading_acc;
+			(void)rel_length_acc;
+			UBX_DEBUG("Heading: %.1f deg, acc: %.1f deg, relLen: %.1f cm, relAcc: %.1f cm, valid: %i %i", (double)heading,
+				  (double)heading_acc, (double)rel_length, (double)rel_length_acc, heading_valid, rel_pos_valid);
+
+			if (heading_valid && rel_pos_valid && rel_length < 1000.f) { // validity & sanity checks
+				heading *= M_PI_F / 180.0f; // deg to rad, now in range [0, 2pi]
+				heading -= _heading_offset; // range: [-pi, 3pi]
+
+				if (heading > M_PI_F) {
+					heading -= 2.f * M_PI_F; // final range is [-pi, pi]
+				}
+
+				_gps_position->heading = heading;
+			}
+
+			ret = 1;
+		}
+
 		break;
 
 	case UBX_MSG_MON_VER:

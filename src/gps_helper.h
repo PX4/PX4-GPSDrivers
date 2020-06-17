@@ -192,6 +192,11 @@ public:
 	void resetUpdateRates();
 	void storeUpdateRates();
 
+	/**
+	 * Allow a driver to disable RTCM injection
+	 */
+	virtual bool shouldInjectRTCM() { return true; }
+
 protected:
 
 	/**

@@ -291,6 +291,7 @@
 #define UBX_CFG_KEY_MSGOUT_UBX_NAV_SAT_I2C       0x20910015
 #define UBX_CFG_KEY_MSGOUT_UBX_NAV_DOP_I2C       0x20910038
 #define UBX_CFG_KEY_MSGOUT_UBX_NAV_PVT_I2C       0x20910006
+#define UBX_CFG_KEY_MSGOUT_UBX_NAV_RELPOSNED_I2C 0x2091008d
 #define UBX_CFG_KEY_MSGOUT_UBX_RXM_SFRBX_I2C     0x20910231
 #define UBX_CFG_KEY_MSGOUT_UBX_RXM_RAWX_I2C      0x209102a4
 #define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1005_I2C  0x209102bd
@@ -299,6 +300,14 @@
 #define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1097_I2C  0x20910318
 #define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1127_I2C  0x209102d6
 #define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1230_I2C  0x20910303
+
+#define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE4072_0_UART2  0x20910300
+#define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE4072_1_UART2  0x20910383
+#define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1077_UART2  0x209102ce
+#define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1087_UART2  0x209102d3
+#define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1097_UART2  0x2091031a
+#define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1127_UART2  0x209102d8
+#define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1230_UART2  0x20910305
 
 #define UBX_CFG_KEY_SPI_ENABLED                  0x10640006
 #define UBX_CFG_KEY_SPI_MAXFF                    0x20640001
@@ -699,6 +708,31 @@ typedef struct {
 	uint8_t     reserved3[8];
 } ubx_payload_tx_cfg_tmode3_t;
 
+/* NAV RELPOSNED (protocol version 27+) */
+typedef struct {
+	uint8_t     version;         /**< message version (expected 0x01) */
+	uint8_t     reserved0;
+	uint16_t    refStationId;    /**< Reference station ID. Must be in the range 0..4095 */
+	uint32_t    iTOW;            /**< [ms] GPS time of week of the navigation epoch */
+	int32_t     relPosN;         /**< [cm] North component of relative position vector */
+	int32_t     relPosE;         /**< [cm] East component of relative position vector */
+	int32_t     relPosD;         /**< [cm] Down component of relative position vector */
+	int32_t     relPosLength;    /**< [cm] Length of the relative position vector */
+	int32_t     relPosHeading;   /**< [1e-5 deg] Heading of the relative position vector */
+	uint32_t    reserved1;
+	int8_t      relPosHPN;       /**< [0.1 mm] High-precision North component of relative position vector */
+	int8_t      relPosHPE;       /**< [0.1 mm] High-precision East component of relative position vector */
+	int8_t      relPosHPD;       /**< [0.1 mm] High-precision Down component of relative position vector */
+	int8_t      relPosHPLength;  /**< [0.1 mm] High-precision component of the length of the relative position vector */
+	uint32_t    accN;            /**< [0.1 mm] Accuracy of relative position North component */
+	uint32_t    accE;            /**< [0.1 mm] Accuracy of relative position East component */
+	uint32_t    accD;            /**< [0.1 mm] Accuracy of relative position Down component */
+	uint32_t    accLength;       /**< [0.1 mm] Accuracy of the length of the relative position vector */
+	uint32_t    accHeading;      /**< [1e-5 deg] Accuracy of the heading of the relative position vector */
+	uint32_t    reserved2;
+	uint32_t    flags;
+} ubx_payload_rx_nav_relposned_t;
+
 /* General message and payload buffer union */
 typedef union {
 	ubx_payload_rx_nav_pvt_t		payload_rx_nav_pvt;
@@ -728,6 +762,7 @@ typedef union {
 	ubx_payload_tx_cfg_tmode3_t		payload_tx_cfg_tmode3;
 	ubx_payload_tx_cfg_cfg_t		payload_tx_cfg_cfg;
 	ubx_payload_tx_cfg_valset_t		payload_tx_cfg_valset;
+	ubx_payload_rx_nav_relposned_t  payload_rx_nav_relposned;
 } ubx_buf_t;
 
 #pragma pack(pop)
@@ -768,16 +803,26 @@ typedef enum {
 class GPSDriverUBX : public GPSBaseStationSupport
 {
 public:
+	enum class UBXMode : uint8_t {
+		Normal,              ///< all non-heading configurations
+		RoverWithMovingBase, ///< expect RTCM input on UART2 from a moving base for heading output
+		MovingBase,          ///< RTCM output on UART2 to a rover (GPS is installed on the vehicle)
+	};
+
 	GPSDriverUBX(Interface gpsInterface, GPSCallbackPtr callback, void *callback_user,
 		     struct vehicle_gps_position_s *gps_position,
 		     struct satellite_info_s *satellite_info,
-		     uint8_t dynamic_model = 7);
+		     uint8_t dynamic_model = 7,
+		     float heading_offset = 0.f,
+		     UBXMode mode = UBXMode::Normal);
 
 	virtual ~GPSDriverUBX();
 
 	int receive(unsigned timeout) override;
 	int configure(unsigned &baudrate, OutputMode output_mode) override;
 	int reset(GPSRestartType restart_type) override;
+
+	bool shouldInjectRTCM() override { return _mode != UBXMode::RoverWithMovingBase; }
 
 private:
 
@@ -940,8 +985,9 @@ private:
 	const Interface		_interface;
 	Board			_board{Board::unknown};
 
-	// ublox Dynamic platform model default 7: airborne with <2g acceleration
-	uint8_t _dyn_model{7};
+	uint8_t _dyn_model{7}; ///< ublox Dynamic platform model. Default 7: airborne with <2g acceleration
+	const UBXMode _mode;
+	const float _heading_offset;
 };
 
 
