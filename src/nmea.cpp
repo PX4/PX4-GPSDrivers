@@ -50,16 +50,21 @@
 #include "nmea.h"
 #include <systemlib/mavlink_log.h>
 
+#define MAX(X,Y)	((X) > (Y) ? (X) : (Y))
+#define NMEA_UNUSED(x) (void)x;
+
+#define NMEA_PI 3.141592653589793238462643383280f
+
 extern orb_advert_t mavlink_log_pub;
 
 GPSDriverNMEA::GPSDriverNMEA(GPSCallbackPtr callback, void *callback_user,
 				   sensor_gps_s *gps_position,
 				   satellite_info_s *satellite_info,
-				   uint32_t nmea_baud)
+				   float heading_offset)
 	: GPSHelper(callback, callback_user)
-	, _satellite_info(satellite_info),
-	, _gps_position(gps_position),
-	, _baudrate(nmea_baud)
+	, _satellite_info(satellite_info)
+	, _gps_position(gps_position)
+	, _heading_offset(heading_offset)
 {
 	decodeInit();
 	_decode_state = NMEA_DECODE_UNINIT;
@@ -88,7 +93,8 @@ int GPSDriverNMEA::handleMessage(int len)
 	char *bufptr = (char *)(_rx_buffer + 6);
 	int ret = 0;
 
-    	if ((memcmp(_rx_buffer + 3, "ZDA,", 3) == 0) && (uiCalcComma == 6)) {
+	if ((memcmp(_rx_buffer + 3, "ZDA,", 3) == 0) && (uiCalcComma == 6)) {
+
 		/*
 		UTC day, month, and year, and local time zone offset
 		An example of the ZDA message string is:
@@ -107,11 +113,14 @@ int GPSDriverNMEA::handleMessage(int len)
 		7	The checksum data, always begins with *
 		Fields 5 and 6 together yield the total offset. For example, if field 5 is -5 and field 6 is +15, local time is 5 hours and 15 minutes earlier than GMT.
 		*/
-		double nmea_time = 0.0;
-		int day = 0, month = 0, year = 0, local_time_off_hour __attribute__((unused)) = 0,
-		    local_time_off_min __attribute__((unused)) = 0;
+		double utc_time = 0.0;
+		int day = 0, month = 0, year = 0, local_time_off_hour = 0, local_time_off_min = 0;
+		NMEA_UNUSED(local_time_off_hour);
+		NMEA_UNUSED(local_time_off_min);
 
-		if (bufptr && *(++bufptr) != ',') { nmea_time = strtod(bufptr, &endp); bufptr = endp; }
+		_gps_position->nmea_protol_detected = true;
+
+		if (bufptr && *(++bufptr) != ',') { utc_time = strtod(bufptr, &endp); bufptr = endp; }
 
 		if (bufptr && *(++bufptr) != ',') { day = strtol(bufptr, &endp, 10); bufptr = endp; }
 
@@ -123,38 +132,39 @@ int GPSDriverNMEA::handleMessage(int len)
 
 		if (bufptr && *(++bufptr) != ',') { local_time_off_min = strtol(bufptr, &endp, 10); bufptr = endp; }
 
-
-		int nmea_hour = static_cast<int>(nmea_time / 10000);
-		int nmea_minute = static_cast<int>((nmea_time - nmea_hour * 10000) / 100);
-		double nmea_sec = static_cast<double>(nmea_time - nmea_hour * 10000 - nmea_minute * 100);
+		int utc_hour = static_cast<int>(utc_time / 10000);
+		int utc_minute = static_cast<int>((utc_time - utc_hour * 10000) / 100);
+		double utc_sec = static_cast<double>(utc_time - utc_hour * 10000 - utc_minute * 100);
 
 		/*
-		 * convert to unix timestamp
-		 */
+		* convert to unix timestamp
+		*/
 		struct tm timeinfo = {};
 		timeinfo.tm_year = year - 1900;
 		timeinfo.tm_mon = month - 1;
 		timeinfo.tm_mday = day;
-		timeinfo.tm_hour = nmea_hour;
-		timeinfo.tm_min = nmea_minute;
-		timeinfo.tm_sec = int(nmea_sec);
+		timeinfo.tm_hour = utc_hour;
+		timeinfo.tm_min = utc_minute;
+		timeinfo.tm_sec = int(utc_sec);
 		timeinfo.tm_isdst = 0;
 
 #ifndef NO_MKTIME
 		time_t epoch = mktime(&timeinfo);
 
 		if (epoch > GPS_EPOCH_SECS) {
-			uint64_t usecs = static_cast<uint64_t>((nmea_sec - static_cast<uint64_t>(nmea_sec))) * 1000000;
+			uint64_t usecs = static_cast<uint64_t>((utc_sec - static_cast<uint64_t>(utc_sec)) * 1000000);
 
 			// FMUv2+ boards have a hardware RTC, but GPS helps us to configure it
 			// and control its drift. Since we rely on the HRT for our monotonic
 			// clock, updating it from time to time is safe.
 
-			timespec ts{};
-			ts.tv_sec = epoch;
-			ts.tv_nsec = usecs * 1000;
-
-			setClock(ts);
+			if (!clock_set){
+				timespec ts{};
+				ts.tv_sec = epoch;
+				ts.tv_nsec = usecs * 1000;
+				setClock(ts);
+				clock_set = true;
+			}
 
 			_gps_position->time_utc_usec = static_cast<uint64_t>(epoch) * 1000000ULL;
 			_gps_position->time_utc_usec += usecs;
@@ -166,16 +176,16 @@ int GPSDriverNMEA::handleMessage(int len)
 #else
 		_gps_position->time_utc_usec = 0;
 #endif
+		_TIME_received = true;
+		_gps_position->timestamp = gps_absolute_time();
 
-		_last_timestamp_time = gps_absolute_time();
-
-	}	else if ((memcmp(_rx_buffer + 3, "GGA,", 3) == 0) && (uiCalcComma == 14)) {
+	} else if ((memcmp(_rx_buffer + 3, "GGA,", 3) == 0) && (uiCalcComma >= 14)) {
 		/*
 		  Time, position, and fix related data
 		  An example of the GBS message string is:
-		  $xxGGA,time,lat,NS,long,EW,quality,numSV,HDOP,alt,M,sep,M,diffAge,diffStation*cs<CR><LF>
-
+		  $xxGGA,time,lat,NS,long,EW,quality,numSV,HDOP,alt,M,sep,M,diffAge,diffStation*cs
 		  $GPGGA,172814.0,3723.46587704,N,12202.26957864,W,2,6,1.2,18.893,M,-25.669,M,2.0,0031*4F
+		  $GNGGA,092721.00,2926.688113,N,11127.771644,E,2,08,1.11,106.3,M,-20,M,1.0,3721*53
 
 		  Note - The data string exceeds the nmea standard length.
 		  GGA message fields
@@ -207,13 +217,14 @@ int GPSDriverNMEA::handleMessage(int len)
 		  15
 		  The checksum data, always begins with *
 		*/
-		double nmea_time __attribute__((unused)) = 0.0, lat = 0.0, lon = 0.0, alt = 0.0;
+		double utc_time = 0.0, lat = 0.0, lon = 0.0, alt = 0.0;
 		float hdop = 99.9;
-		int  num_of_sv __attribute__((unused)) = 0, fix_quality  = 0;
+		int  num_of_sv = 0, fix_quality  = 0;
 		char ns = '?', ew = '?';
 
+		_gps_position->nmea_protol_detected = true;
 
-		if (bufptr && *(++bufptr) != ',') { nmea_time = strtod(bufptr, &endp); bufptr = endp; }
+		if (bufptr && *(++bufptr) != ',') { utc_time = strtod(bufptr, &endp); bufptr = endp; }
 
 		if (bufptr && *(++bufptr) != ',') { lat = strtod(bufptr, &endp); bufptr = endp; }
 
@@ -244,8 +255,8 @@ int GPSDriverNMEA::handleMessage(int len)
 		_gps_position->lat = static_cast<int>((int(lat * 0.01) + (lat * 0.01 - int(lat * 0.01)) * 100.0 / 60.0) * 10000000);
 		_gps_position->hdop = static_cast<float>(hdop);
 		_gps_position->alt = static_cast<int>(alt * 1000);
-		_rate_count_lat_lon++;
-
+		sat_num_gga = static_cast<int>(num_of_sv);
+		_last_POS_timeUTC = utc_time;
 		if (fix_quality <= 0) {
 			_gps_position->fix_type = 0;
 
@@ -262,58 +273,88 @@ int GPSDriverNMEA::handleMessage(int len)
 			_gps_position->fix_type = 3 + fix_quality - 1;
 		}
 
+		_POS_received = true;
+		_ALT_received = true;
+		_SVNUM_received = true;
+		_FIX_received = true;
+
+		_gps_position->c_variance_rad = 0.1f;
 		_gps_position->timestamp = gps_absolute_time();
 
-		_gps_position->vel_ned_valid = true;                      /**< Flag to indicate if NED speed is valid */
-		_gps_position->c_variance_rad = 0.1f;
-		ret = 1;
+		// mavlink_log_info(&mavlink_log_pub, "GGA time->>> %d ",(int)(utc_time));
 
-//		mavlink_log_info(&mavlink_log_pub, "get GGA data ");
-
-	} else if (memcmp(_rx_buffer + 3, "GNS,", 3) == 0) {
+	} else if (memcmp(_rx_buffer, "$GPHDT,", 7) == 0 && uiCalcComma == 2) {
 		/*
-		  Message GNS
-		  Description GNSS fix data
-		  Firmware Supported on:
-		  • u-blox 9 protocol versions 27 and 27.1
-		  Type Output Message
-		  Comment The output of this message is dependent on the currently selected datum (default:
-		  WGS84)
-		  Time and position, together with GNSS fixing related data (number of satellites in use, and
-		  the resulting HDOP, age of differential data if in use, etc.).
-		  ID for CFG-MSG Number of fields
-		  Message Info 0xF0 0x0D 16
-		  Message Structure:
-		  $xxGNS,time,lat,NS,long,EW,posMode,numSV,HDOP,alt,altRef,diffAge,diffStation,navStatus*cs<CR><LF>
-		  Example:
-		  $GPGNS,091547.00,5114.50897,N,00012.28663,W,AA,10,0.83,111.1,45.6,,,V*71
-		  FieldNo.  Name    Unit     Format                  Example Description
-		  0        xxGNS    -       string            $GPGNS GNS Message ID (xx = current Talker ID)
-		  1        time     -       hhmmss.ss         091547.00 UTC time, see note on UTC representation
-		  2        lat      -       ddmm.mmmmm        5114.50897 Latitude (degrees & minutes), see format description
-		  3        NS       -       character         N North/South indicator
-		  4        long     -       dddmm.mmmmm       00012.28663 Longitude (degrees & minutes), see format description
-		  5        EW       -       character         E East/West indicator
-		  6      posMode    -       character         AA Positioning mode, see position fix flags description. First character for GPS, second character forGLONASS
-		  7       numSV     -       numeric         10 Number of satellites used (range: 0-99)
-		  8         HDOP    -       numeric         0.83 Horizontal Dilution of Precision
-		  9         alt     m       numeric         111.1 Altitude above mean sea level
-		  10        sep    m        numeric         45.6 Geoid separation: difference between ellipsoid and mean sea level UBX-18010854 - R05 Advance Information Page 18 of 262 u-blox ZED-F9P Interface Description - Manual GNS continued
-		  11    diffAge    s        numeric         - Age of differential corrections (blank when DGPS is not used)
-		  12 diffStation   -        numeric         - ID of station providing differential corrections (blank when DGPS is not used)
-		  13 navStatus    -         character         V Navigational status indicator (V = Equipment is not providing navigational status information) NMEA v4.10 and above only
-		  14 cs - hexadecimal *71 Checksum
-		  15 <CR><LF> - character - Carriage return and line feed
+		Heading message
+		Example $GPHDT,121.2,T*35
+
+		f1 Last computed heading value, in degrees (0-359.99)
+		T “T” for “True”
+		 */
+
+		float heading = 0.f;
+
+		_gps_position->nmea_protol_detected = true;
+
+		if (bufptr && *(++bufptr) != ',') {
+			heading = strtof(bufptr, &endp); bufptr = endp;
+
+			heading *= M_PI_F / 180.0f; // deg to rad, now in range [0, 2pi]
+			heading -= _heading_offset; // range: [-pi, 3pi]
+
+			if (heading > M_PI_F) {
+				heading -= 2.f * M_PI_F; // final range is [-pi, pi]
+			}
+
+			_gps_position->heading = heading;
+		}
+
+		_HEAD_received = true;
+
+	} else if ((memcmp(_rx_buffer + 3, "GNS,", 3) == 0 ) && (uiCalcComma >= 12)) {
+
+		/*
+		Message GNS
+		Type Output Message
+		Time and position, together with GNSS fixing related data (number of satellites in use, and
+		the resulting HDOP, age of differential data if in use, etc.).
+		Message Structure:
+		$xxGNS,time,lat,NS,long,EW,posMode,numSV,HDOP,alt,altRef,diffAge,diffStation,navStatus*cs<CR><LF>
+		Example:
+		$GPGNS,091547.00,5114.50897,N,00012.28663,W,AA,10,0.83,111.1,45.6,,,V*71
+		$GNGNS,092721.00,2926.68811,N,11127.77164,E,DNNN,08,1.11,106.3,-20,1.0,3721,V*0D
+
+		FieldNo.  Name    Unit     Format                  Example Description
+		0        xxGNS    -       string            $GPGNS GNS Message ID (xx = current Talker ID)
+		1        time     -       hhmmss.ss         091547.00 UTC time, see note on UTC representation
+		2        lat      -       ddmm.mmmmm        5114.50897 Latitude (degrees & minutes), see format description
+		3        NS       -       character         N North/South indicator
+		4        long     -       dddmm.mmmmm       00012.28663 Longitude (degrees & minutes), see format description
+		5        EW       -       character         E East/West indicator
+		6      posMode    -       character         AA Positioning mode, see position fix flags description. First character for GPS, second character forGLONASS
+		7       numSV     -       numeric         10 Number of satellites used (range: 0-99)
+		8         HDOP    -       numeric         0.83 Horizontal Dilution of Precision
+		9         alt     m       numeric         111.1 Altitude above mean sea level
+		10        sep    m        numeric         45.6 Geoid separation: difference between ellipsoid and mean sea level UBX-18010854 - R05 Advance Information Page 18 of 262 u-blox ZED-F9P Interface Description - Manual GNS continued
+		11    diffAge    s        numeric         - Age of differential corrections (blank when DGPS is not used)
+		12 diffStation   -        numeric         - ID of station providing differential corrections (blank when DGPS is not used)
+		13 navStatus    -         character         V Navigational status indicator (V = Equipment is not providing navigational status information) NMEA v4.10 and above only
+		14 cs - hexadecimal *71   Checksum
+		15 <CR><LF> - character - Carriage return and line feed
 		*/
-		double nmea_time __attribute__((unused)) = 0.0; 
+		double utc_time = 0.0;
 		double lat = 0.0, lon = 0.0;
-		char pos_Mode __attribute__((unused)) =  'N';
+		char pos_Mode[5] = {'N','N','N','N','N'};
 		int num_of_sv =0;
 		float alt =0.0;
 		float HDOP =0;
 		char ns = '?', ew = '?';
-	
-		if (bufptr && *(++bufptr) != ',') { nmea_time = strtod(bufptr, &endp); bufptr = endp; }
+		int i = 0;
+		NMEA_UNUSED(pos_Mode);
+
+		_gps_position->nmea_protol_detected = true;
+
+		if (bufptr && *(++bufptr) != ',') { utc_time = strtod(bufptr, &endp); bufptr = endp; }
 
 		if (bufptr && *(++bufptr) != ',') { lat = strtod(bufptr, &endp); bufptr = endp; }
 
@@ -323,21 +364,18 @@ int GPSDriverNMEA::handleMessage(int len)
 
 		if (bufptr && *(++bufptr) != ',') { ew = *(bufptr++);}
 
-		//  for ( int i=0;i< 3;i++){
+		do{
+			pos_Mode[i] =  *(bufptr);
+			i++;
 
-		// 	if(bufptr && *(++bufptr) != ',') { pos_Mode =  *(bufptr++); } 
+		} while (*(++bufptr) != ',');
 
-		//  }
-					do {
-				pos_Mode +=  *(bufptr);
-					} while (*(++bufptr) != ',');
-		
 		if (bufptr && *(++bufptr) != ',') { num_of_sv = strtol(bufptr, &endp, 10); bufptr = endp; }
 
 		if (bufptr && *(++bufptr) != ',') { HDOP = strtod(bufptr, &endp); bufptr = endp; }
 
 		if (bufptr && *(++bufptr) != ',') { alt = strtod(bufptr, &endp); bufptr = endp; }
-	
+
 		if (ns == 'S') {
 			lat = -lat;
 		}
@@ -345,59 +383,62 @@ int GPSDriverNMEA::handleMessage(int len)
 		if (ew == 'W') {
 			lon = -lon;
 		}
+
 		/* convert from degrees, minutes and seconds to degrees * 1e7 */
 		_gps_position->lat = static_cast<int>((int(lat * 0.01) + (lat * 0.01 - int(lat * 0.01)) * 100.0 / 60.0) * 10000000);
 		_gps_position->lon = static_cast<int>((int(lon * 0.01) + (lon * 0.01 - int(lon * 0.01)) * 100.0 / 60.0) * 10000000);
 		_gps_position->hdop = static_cast<float>(HDOP);
 		_gps_position->alt = static_cast<int>(alt * 1000);
+		sat_num_gns = static_cast<int>(num_of_sv);
+		_last_POS_timeUTC = utc_time;
 
-		_rate_count_lat_lon++;
+		_POS_received = true;
+		_ALT_received= true;
+		_SVNUM_received = true;
 
-		_gps_position->satellites_used = static_cast<int>(num_of_sv);
-
-		// _gps_position->timestamp = gps_absolute_time();
-
-		// ret = 1;
-
-		// mavlink_log_info(&mavlink_log_pub, "get GNS posMode %c/nsv %.d/ hdop %.2f",
-
-		// (char)(pos_Mode),
-		// (int)(num_of_sv),
+		// mavlink_log_info(&mavlink_log_pub, "GNS> posMode %s/sv_num %d/ hdop %.2f",
+		// (char*)(pos_Mode),
+		// (int)(sat_num_gns),
 		// (double)(HDOP));
 
-	}	else if ((memcmp(_rx_buffer + 3, "RMC,", 3) == 0 )) {
+	}	else if ((memcmp(_rx_buffer + 3, "RMC,", 3) == 0 ) && (uiCalcComma >= 11)) {
+
 		/*
-		  Position, velocity, and time
-		  The RMC string is:
+		Position, velocity, and time
+		The RMC string is:
 
-           $xxRMC,time,status,lat,NS,long,EW,spd,cog,date,mv,mvEW,posMode,navStatus*cs<CR><LF>
-		  The Talker ID ($--) will vary depending on the satellite system used for the position solution:
+		$xxRMC,time,status,lat,NS,long,EW,spd,cog,date,mv,mvEW,posMode,navStatus*cs<CR><LF>
+		The Talker ID ($--) will vary depending on the satellite system used for the position solution:
+		$GNRMC,092721.00,A,2926.688113,N,11127.771644,E,0.780,,200520,,,D,V*1D
 
-		  GPRMC message fields
-		  Field	Meaning
-		   0	Message ID $GPRMC
-		   1	UTC of position fix
-		   2	Status A=active or V=void
-		   3	Latitude
-		   4	Longitude
-		   5	Speed over the ground in knots
-		   6	Track angle in degrees (True)
-		   7	Date
-		   8	Magnetic variation in degrees
-		   9	The checksum data, always begins with *
+		GPRMC message fields
+		Field	Meaning
+		0	Message ID $GPRMC
+		1	UTC of position fix
+		2	Status A=active or V=void
+		3	Latitude
+		4	Longitude
+		5	Speed over the ground in knots
+		6	Track angle in degrees (True)
+		7	Date
+		8	Magnetic variation in degrees
+		9	The checksum data, always begins with *
 		*/
-		double nmea_time = 0.0; 
-		char Sts __attribute__((unused));
+		double utc_time = 0.0;
+		char Status = 'V';
 		double lat = 0.0, lon = 0.0;
 		float ground_speed_K =0.0;
 		float A_track =0.0;
 		int nmea_date =0 ;
-		float Mag_var __attribute__((unused)) = 0.0;
+		float Mag_var = 0.0;
 		char ns = '?', ew = '?';
+		NMEA_UNUSED(Mag_var);
 
-		if (bufptr && *(++bufptr) != ',') { nmea_time = strtod(bufptr, &endp); bufptr = endp; }
+		_gps_position->nmea_protol_detected = true;
 
-		if (bufptr && *(++bufptr) != ',') { Sts = *(bufptr++); }
+		if (bufptr && *(++bufptr) != ',') { utc_time = strtod(bufptr, &endp); bufptr = endp; }
+
+		if (bufptr && *(++bufptr) != ',') { Status = *(bufptr++); }
 
 		if (bufptr && *(++bufptr) != ',') { lat = strtod(bufptr, &endp); bufptr = endp; }
 
@@ -414,7 +455,7 @@ int GPSDriverNMEA::handleMessage(int len)
 		if (bufptr && *(++bufptr) != ',') { nmea_date = strtod(bufptr, &endp); bufptr = endp; }
 
 		if (bufptr && *(++bufptr) != ',') { Mag_var = strtod(bufptr, &endp); bufptr = endp; }
-		
+
 		if (ns == 'S') {
 			lat = -lat;
 		}
@@ -423,13 +464,17 @@ int GPSDriverNMEA::handleMessage(int len)
 			lon = -lon;
 		}
 
-        float track_rad = static_cast<float>(A_track) * M_PI_F/ 180.0f;
-        float velocity_ms =static_cast<float>(ground_speed_K) / 1.9438445f;
-        float velocity_north =static_cast<float>(velocity_ms) * cosf(track_rad);
-        float velocity_east  = static_cast<float>(velocity_ms) *sinf(track_rad);
-		int nmea_hour = static_cast<int>(nmea_time / 10000);
-		int nmea_minute = static_cast<int>((nmea_time - nmea_hour * 10000) / 100);
-		double nmea_sec = static_cast<double>(nmea_time - nmea_hour * 10000 - nmea_minute * 100);
+		if (Status == 'V') {
+			return 0;
+		}
+
+		float track_rad = static_cast<float>(A_track) * NMEA_PI/ 180.0f;
+		float velocity_ms =static_cast<float>(ground_speed_K) / 1.9438445f;
+		float velocity_north =static_cast<float>(velocity_ms) * cosf(track_rad);
+		float velocity_east  = static_cast<float>(velocity_ms) *sinf(track_rad);
+		int utc_hour = static_cast<int>(utc_time / 10000);
+		int utc_minute = static_cast<int>((utc_time - utc_hour * 10000) / 100);
+		double utc_sec = static_cast<double>(utc_time - utc_hour * 10000 - utc_minute * 100);
 		int nema_day= static_cast<int>(nmea_date / 10000);
 		int nmea_mth = static_cast<int>((nmea_date - nema_day * 10000) / 100);
 		int nmea_year = static_cast<int>(nmea_date - nema_day * 10000 - nmea_mth * 100);
@@ -437,45 +482,44 @@ int GPSDriverNMEA::handleMessage(int len)
 		_gps_position->lat = static_cast<int>((int(lat * 0.01) + (lat * 0.01 - int(lat * 0.01)) * 100.0 / 60.0) * 10000000);
 		_gps_position->lon = static_cast<int>((int(lon * 0.01) + (lon * 0.01 - int(lon * 0.01)) * 100.0 / 60.0) * 10000000);
 
-		_rate_count_lat_lon++;
-
-        _gps_position->vel_m_s = velocity_ms;   
-        _gps_position->vel_n_m_s =velocity_north;   
-        _gps_position->vel_e_m_s =velocity_east;
-        _gps_position->cog_rad =track_rad;
+		_gps_position->vel_m_s = velocity_ms;
+		_gps_position->vel_n_m_s =velocity_north;
+		_gps_position->vel_e_m_s =velocity_east;
+		_gps_position->cog_rad =track_rad;
 		_gps_position->vel_ned_valid = true; /**< Flag to indicate if NED speed is valid */
 		_gps_position->c_variance_rad = 0.1f;
 		_gps_position->s_variance_m_s = 0;
-		_rate_count_vel++;
+		_last_VEL_timeUTC = utc_time;
 
 		/*
 		 * convert to unix timestamp
 		 */
 		struct tm timeinfo = {};
-		timeinfo.tm_year = nmea_year + 2000;
-		timeinfo.tm_mon = nmea_mth;
+		timeinfo.tm_year = nmea_year + 100;
+		timeinfo.tm_mon = nmea_mth - 1;
 		timeinfo.tm_mday = nema_day;
-		timeinfo.tm_hour = nmea_hour;
-		timeinfo.tm_min = nmea_minute;
-		timeinfo.tm_sec = int(nmea_sec);
+		timeinfo.tm_hour = utc_hour;
+		timeinfo.tm_min = utc_minute;
+		timeinfo.tm_sec = int(utc_sec);
 		timeinfo.tm_isdst = 0;
 
 #ifndef NO_MKTIME
 		time_t epoch = mktime(&timeinfo);
 
 		if (epoch > GPS_EPOCH_SECS) {
-			uint64_t usecs = static_cast<uint64_t>((nmea_sec - static_cast<uint64_t>(nmea_sec))) * 1000000;
+			uint64_t usecs = static_cast<uint64_t>((utc_sec - static_cast<uint64_t>(utc_sec)) * 1000000);
 
 			// FMUv2+ boards have a hardware RTC, but GPS helps us to configure it
 			// and control its drift. Since we rely on the HRT for our monotonic
 			// clock, updating it from time to time is safe.
-
+			if (!clock_set){
 			timespec ts{};
 			ts.tv_sec = epoch;
 			ts.tv_nsec = usecs * 1000;
 
 			setClock(ts);
-
+			clock_set = true;
+			}
 			_gps_position->time_utc_usec = static_cast<uint64_t>(epoch) * 1000000ULL;
 			_gps_position->time_utc_usec += usecs;
 
@@ -486,40 +530,52 @@ int GPSDriverNMEA::handleMessage(int len)
 #else
 		_gps_position->time_utc_usec = 0;
 #endif
-		_last_timestamp_time = gps_absolute_time();
 
-		// mavlink_log_info(&mavlink_log_pub, "get RMC data ");
+		_POS_received = true;
+		_TIME_received = true;
+		_VEL_received = true;
 
-	}	else if ((memcmp(_rx_buffer + 3, "GST,", 3) == 0)) {
+		// mavlink_log_info(&mavlink_log_pub, "RMC time->>> %d ",(int)(utc_time));
+
+	}	else if ((memcmp(_rx_buffer + 3, "GST,", 3) == 0) && (uiCalcComma == 8)) {
+
 		/*
-		  Position error statistics
-		  An example of the GST message string is:
+		Position error statistics
+		An example of the GST message string is:
 
-		  $GPGST,172814.0,0.006,0.023,0.020,273.6,0.023,0.020,0.031*6A
+		$GPGST,172814.0,0.006,0.023,0.020,273.6,0.023,0.020,0.031*6A
+		$GNGST,091200.54,45,,,,1.2,0.77,2.2*70
+		$GNGST,092720.50,43,,,,2.6,2.6,5.9*49
 
-		  The Talker ID ($--) will vary depending on the satellite system used for the position solution:
+		The Talker ID ($--) will vary depending on the satellite system used for the position solution:
 
-		  $GP - GPS only
-		  $GL - GLONASS only
-		  $GN - Combined
-		  GST message fields
-		  Field   Meaning
-		  0   Message ID $GPGST
-		  1   UTC of position fix
-		  2   RMS value of the pseudorange residuals; includes carrier phase residuals during periods of RTK (float) and RTK (fixed) processing
-		  3   Error ellipse semi-major axis 1 sigma error, in meters
-		  4   Error ellipse semi-minor axis 1 sigma error, in meters
-		  5   Error ellipse orientation, degrees from true north
-		  6   Latitude 1 sigma error, in meters
-		  7   Longitude 1 sigma error, in meters
-		  8   Height 1 sigma error, in meters
-		  9   The checksum data, always begins with *
+		$GP - GPS only
+		$GL - GLONASS only
+		$GN - Combined
+		GST message fields
+		Field   Meaning
+		0   Message ID $GPGST
+		1   UTC of position fix
+		2   RMS value of the pseudorange residuals; includes carrier phase residuals during periods of RTK (float) and RTK (fixed) processing
+		3   Error ellipse semi-major axis 1 sigma error, in meters
+		4   Error ellipse semi-minor axis 1 sigma error, in meters
+		5   Error ellipse orientation, degrees from true north
+		6   Latitude 1 sigma error, in meters
+		7   Longitude 1 sigma error, in meters
+		8   Height 1 sigma error, in meters
+		9   The checksum data, always begins with *
 		*/
-		float nmea_time __attribute__((unused)) = 0.0, lat_err = 0.0, lon_err = 0.0, alt_err = 0.0;
-		float min_err __attribute__((unused)) = 0.0, maj_err __attribute__((unused)) = 0.0,
-		deg_from_north __attribute__((unused)) = 0.0, rms_err __attribute__((unused)) = 0.0;
+		float utc_time = 0.0, lat_err = 0.0, lon_err = 0.0, alt_err = 0.0;
+		float min_err = 0.0, maj_err = 0.0, deg_from_north = 0.0, rms_err = 0.0;
 
-		if (bufptr && *(++bufptr) != ',') { nmea_time = strtod(bufptr, &endp); bufptr = endp; }
+		NMEA_UNUSED(min_err);
+		NMEA_UNUSED(maj_err);
+		NMEA_UNUSED(deg_from_north);
+		NMEA_UNUSED(rms_err);
+
+		_gps_position->nmea_protol_detected = true;
+
+		if (bufptr && *(++bufptr) != ',') { utc_time = strtod(bufptr, &endp); bufptr = endp; }
 
 		if (bufptr && *(++bufptr) != ',') { rms_err = strtod(bufptr, &endp); bufptr = endp; }
 
@@ -539,35 +595,49 @@ int GPSDriverNMEA::handleMessage(int len)
 					   + static_cast<float>(lon_err) * static_cast<float>(lon_err));
 		_gps_position->epv = static_cast<float>(alt_err);
 
-		// mavlink_log_info(&mavlink_log_pub, "get GST data ");		
+		_EPH_received = true;
+		_last_FIX_timeUTC = utc_time;
 
-	} else if ((memcmp(_rx_buffer + 3, "GSA,", 3) == 0)) {
+		// mavlink_log_info(&mavlink_log_pub, "gst data->>>eph %.2f---epv %.2f ",(double)(_gps_position->eph),(double)(_gps_position->epv));
+
+	} else if ((memcmp(_rx_buffer + 3, "GSA,", 3) == 0)&& (uiCalcComma >= 17)) {
+
 		/*
-		  GPS DOP and active satellites
-		  An example of the GSA message string is:
-          $GPGSA,<1>,<2>,<3>,<3>,,,,,<3>,<3>,<3>,<4>,<5>,<6>*<7><CR><LF>
+		GPS DOP and active satellites
+		An example of the GSA message string is:
+		$GPGSA,<1>,<2>,<3>,<3>,,,,,<3>,<3>,<3>,<4>,<5>,<6>*<7><CR><LF>
+		$GNGSA,A,3,82,67,74,68,73,80,83,,,,,,0.99,0.53,0.84,2*09
+		$GNGSA,A,3,12,19,06,17,02,09,28,05,,,,,2.38,1.10,2.11,1*05
+		$GNGSA,A,3,27,04,16,08,09,26,31,11,,,,,1.96,1.05,1.65,1*08
 
-		  GSA message fields
-           Field	Meaning
-               0	Message ID $GPGSA
-               1	Mode 1, M = manual, A = automatic
-               2	Mode 2, Fix type, 1 = not available, 2 = 2D, 3 = 3D
-               3	PRN number, 01 through 32 for GPS, 33 through 64 for SBAS, 64+ for GLONASS
-               4 	PDOP: 0.5 through 99.9
-               5	HDOP: 0.5 through 99.9
-               6	VDOP: 0.5 through 99.9
-               7	The checksum data, always begins with *
+		GSA message fields
+		Field	Meaning
+		0	Message ID $GPGSA
+		1	Mode 1, M = manual, A = automatic
+		2	Mode 2, Fix type, 1 = not available, 2 = 2D, 3 = 3D
+		3	PRN number, 01 through 32 for GPS, 33 through 64 for SBAS, 64+ for GLONASS
+		4 	PDOP: 0.5 through 99.9
+		5	HDOP: 0.5 through 99.9
+		6	VDOP: 0.5 through 99.9
+		7	The checksum data, always begins with *
 		*/
-	    char M_pos __attribute__((unused)) = ' ';
-		int fix_mode __attribute__((unused)) = 0;
-		int sv_temp __attribute__((unused)) = 0;   
-		float pdop  __attribute__((unused)) = 99.9, hdop = 99.9 ,vdop = 99.9;	
+		char M_pos = ' ';
+		int fix_mode = 0;
+		int sat_id[12]{0};
+		float pdop = 99.9, hdop = 99.9 ,vdop = 99.9;
+
+		NMEA_UNUSED(M_pos);
+		NMEA_UNUSED(sat_id);
+		NMEA_UNUSED(pdop);
+
+		_gps_position->nmea_protol_detected = true;
+
 		if (bufptr && *(++bufptr) != ',') { M_pos = *(bufptr++); }
 
 		if (bufptr && *(++bufptr) != ',') { fix_mode = strtod(bufptr, &endp); bufptr = endp; }
 
-        for (int y = 0; y < 12; y++){
-			if (bufptr && *(++bufptr )!= ',') {sv_temp = strtod(bufptr, &endp); bufptr = endp; }
+		for (int y = 0; y < 12; y++){
+			if (bufptr && *(++bufptr )!= ',') {sat_id[y] = strtod(bufptr, &endp); bufptr = endp; }
 		}
 		if (bufptr && *(++bufptr) != ',') { pdop = strtod(bufptr, &endp); bufptr = endp; }
 
@@ -575,42 +645,39 @@ int GPSDriverNMEA::handleMessage(int len)
 
 		if (bufptr && *(++bufptr) != ',') { vdop = strtod(bufptr, &endp); bufptr = endp; }
 
-		_gps_position->hdop = static_cast<float>(hdop);
-		_gps_position->vdop = static_cast<float>(vdop);
-
-		// mavlink_log_info(&mavlink_log_pub, "get GSA data ");
-
-	} else if ((memcmp(_rx_buffer + 3, "GSV,", 3) == 0)) {
-		/*
-		  The GSV message string identifies the number of SVs in view, the PRN numbers, elevations, azimuths, and SNR values. An example of the GSV message string is:
-
-		  $GPGSV,4,1,13,02,02,213,,03,-3,000,,11,00,121,,14,13,172,05*67
-
-		  GSV message fields
-		  Field   Meaning
-		  0   Message ID $GPGSV
-		  1   Total number of messages of this type in this cycle
-		  2   Message number
-		  3   Total number of SVs visible
-		  4   SV PRN number
-		  5   Elevation, in degrees, 90 maximum
-		  6   Azimuth, degrees from True North, 000 through 359
-		  7   SNR, 00 through 99 dB (null when not tracking)
-		  8-11    Information about second SV, same format as fields 4 through 7
-		  12-15   Information about third SV, same format as fields 4 through 7
-		  16-19   Information about fourth SV, same format as fields 4 through 7
-		  20  The checksum data, always begins with *
-		*/
-		bool bGPS = false;
-
-		if (memcmp(_rx_buffer, "$GP", 3) != 0) {
-			return 0;
+		if (fix_mode <= 1) {
+			_gps_position->fix_type = 0;
 
 		} else {
-			bGPS = true;
-		}
+		_gps_position->hdop = static_cast<float>(hdop);
+		_gps_position->vdop = static_cast<float>(vdop);
+		_DOP_received = true;
 
-		int all_msg_num = 0, this_msg_num = 0, tot_sv_visible = 0;
+		}
+		// mavlink_log_info(&mavlink_log_pub, "gsa data->>>hdop %.2f---vdop %.2f ",(double)(_gps_position->hdop),(double)(_gps_position->vdop));
+	} else if ((memcmp(_rx_buffer + 3, "GSV,", 3) == 0)) {
+		/*
+		The GSV message string identifies the number of SVs in view, the PRN numbers, elevations, azimuths, and SNR values. An example of the GSV message string is:
+
+		$GPGSV,4,1,13,02,02,213,,03,-3,000,,11,00,121,,14,13,172,05*67
+
+		GSV message fields
+		Field   Meaning
+		0   Message ID $GPGSV
+		1   Total number of messages of this type in this cycle
+		2   Message number
+		3   Total number of SVs visible
+		4   SV PRN number
+		5   Elevation, in degrees, 90 maximum
+		6   Azimuth, degrees from True North, 000 through 359
+		7   SNR, 00 through 99 dB (null when not tracking)
+		8-11    Information about second SV, same format as fields 4 through 7
+		12-15   Information about third SV, same format as fields 4 through 7
+		16-19   Information about fourth SV, same format as fields 4 through 7
+		20  The checksum data, always begins with *
+		*/
+
+		int all_page_num = 0, this_page_num = 0, tot_sv_visible = 0;
 		struct gsv_sat {
 			int svid;
 			int elevation;
@@ -619,17 +686,36 @@ int GPSDriverNMEA::handleMessage(int len)
 		} sat[4];
 		memset(sat, 0, sizeof(sat));
 
-		if (bufptr && *(++bufptr) != ',') { all_msg_num = strtol(bufptr, &endp, 10); bufptr = endp; }
+		_gps_position->nmea_protol_detected = true;
 
-		if (bufptr && *(++bufptr) != ',') { this_msg_num = strtol(bufptr, &endp, 10); bufptr = endp; }
+		if (bufptr && *(++bufptr) != ',') { all_page_num = strtol(bufptr, &endp, 10); bufptr = endp; }
+
+		if (bufptr && *(++bufptr) != ',') { this_page_num = strtol(bufptr, &endp, 10); bufptr = endp; }
 
 		if (bufptr && *(++bufptr) != ',') { tot_sv_visible = strtol(bufptr, &endp, 10); bufptr = endp; }
 
-		if ((this_msg_num < 1) || (this_msg_num > all_msg_num)) {
+		if ((this_page_num < 1) || (this_page_num > all_page_num)) {
 			return 0;
 		}
 
-		if (this_msg_num == 0 && bGPS && _satellite_info) {
+		if (memcmp(_rx_buffer, "$GP", 3) == 0) {
+			sat_num_gpgsv = tot_sv_visible;
+
+		} else if (memcmp(_rx_buffer, "$GL", 3) == 0) {
+			sat_num_glgsv = tot_sv_visible;
+
+		} else if (memcmp(_rx_buffer, "$GA", 3) == 0) {
+			sat_num_gagsv = tot_sv_visible;
+
+		} else if (memcmp(_rx_buffer, "$GB", 3) == 0) {
+			sat_num_gbgsv = tot_sv_visible;
+
+		} else if (memcmp(_rx_buffer, "$BD", 3) == 0) {
+			sat_num_bdgsv = tot_sv_visible;
+
+		}
+
+		if (this_page_num == 0 && _satellite_info) {
 			memset(_satellite_info->svid,     0, sizeof(_satellite_info->svid));
 			memset(_satellite_info->used,     0, sizeof(_satellite_info->used));
 			memset(_satellite_info->snr,      0, sizeof(_satellite_info->snr));
@@ -639,9 +725,11 @@ int GPSDriverNMEA::handleMessage(int len)
 
 		int end = 4;
 
-		if (this_msg_num == all_msg_num) {
-			end =  tot_sv_visible - (this_msg_num - 1) * 4;
-			// _gps_position->satellites_used = tot_sv_visible;
+		if (this_page_num == all_page_num) {
+			end =  tot_sv_visible - (this_page_num - 1) * 4;
+
+			_SVNUM_received = true;
+			_SVINFO_received = true;
 
 			if (_satellite_info) {
 				_satellite_info->count = satellite_info_s::SAT_INFO_MAX_SATELLITES;
@@ -659,17 +747,19 @@ int GPSDriverNMEA::handleMessage(int len)
 
 				if (bufptr && *(++bufptr) != ',') { sat[y].snr = strtol(bufptr, &endp, 10); bufptr = endp; }
 
-				_satellite_info->svid[y + (this_msg_num - 1) * 4]      = sat[y].svid;
-				_satellite_info->used[y + (this_msg_num - 1) * 4]      = (sat[y].snr > 0);
-				_satellite_info->snr[y + (this_msg_num - 1) * 4]       = sat[y].snr;
-				_satellite_info->elevation[y + (this_msg_num - 1) * 4] = sat[y].elevation;
-				_satellite_info->azimuth[y + (this_msg_num - 1) * 4]   = sat[y].azimuth;
+				_satellite_info->svid[y + (this_page_num - 1) * 4]      = sat[y].svid;
+				_satellite_info->used[y + (this_page_num - 1) * 4]      = (sat[y].snr > 0);
+				_satellite_info->snr[y + (this_page_num - 1) * 4]       = sat[y].snr;
+				_satellite_info->elevation[y + (this_page_num - 1) * 4] = sat[y].elevation;
+				_satellite_info->azimuth[y + (this_page_num - 1) * 4]   = sat[y].azimuth;
 			}
 		}
+
 		// mavlink_log_info(&mavlink_log_pub, "get GSV data ");
-		
 	} else if ((memcmp(_rx_buffer+ 3, "VTG,", 3) == 0) && (uiCalcComma == 9)) {
-                 /*$GPVTG,,T,,M,0.00,N,0.00,K*4E                 
+
+		/*$GNVTG,,T,,M,0.683,N,1.265,K,A*30
+		  $GNVTG,,T,,M,0.780,N,1.445,K,D*33
 
                 Field	Meaning
                 0	Message ID $GPVTG
@@ -682,52 +772,94 @@ int GPSDriverNMEA::handleMessage(int len)
                 7	Speed over ground in kilometers/hour (kph)
                 8	K: speed over ground is measured in kph
                 9	The checksum data, always begins with *
-				*/
- 
-                float track_true = 0.0;
-                char T __attribute__((unused)) ;
-                float Mtrack_true __attribute__((unused)) = 0.0;
-                char M  __attribute__((unused)) ;
-                float ground_speed =0.0; 
-                char N  __attribute__((unused));
-                float ground_speed_K __attribute__((unused)) = 0.0;
-                char K __attribute__((unused));
- 
-                 if (bufptr && *(++bufptr) != ',') {track_true = strtod(bufptr, &endp); bufptr = endp; }
+		*/
 
-                 if (bufptr && *(++bufptr) != ',') { T= *(bufptr++); }
+		float track_true = 0.0;
+		char T;
+		float Mtrack_true = 0.0;
+		char M;
+		float ground_speed =0.0;
+		char N;
+		float ground_speed_K = 0.0;
+		char K;
+		NMEA_UNUSED(T);
+		NMEA_UNUSED(Mtrack_true);
+		NMEA_UNUSED(M);
+		NMEA_UNUSED(N );
+		NMEA_UNUSED(ground_speed_K);
+		NMEA_UNUSED(K);
 
-                 if (bufptr && *(++bufptr) != ',') {Mtrack_true = strtod(bufptr, &endp); bufptr = endp; }
+		_gps_position->nmea_protol_detected = true;
 
-                 if (bufptr && *(++bufptr) != ',') { M= *(bufptr++); }
+		if (bufptr && *(++bufptr) != ',') {track_true = strtod(bufptr, &endp); bufptr = endp; }
 
-                 if(bufptr && *(++bufptr) != ',') { ground_speed = strtod(bufptr,&endp); bufptr = endp; }
+		if (bufptr && *(++bufptr) != ',') { T= *(bufptr++); }
 
-                 if(bufptr && *(++bufptr) != ',') { N = *(bufptr++); }
+		if (bufptr && *(++bufptr) != ',') {Mtrack_true = strtod(bufptr, &endp); bufptr = endp; }
 
-                 if(bufptr && *(++bufptr) != ',') { ground_speed_K = strtod(bufptr, &endp); bufptr= endp; }
+		if (bufptr && *(++bufptr) != ',') { M= *(bufptr++); }
 
-                 if(bufptr && *(++bufptr) != ',') { K = *(bufptr++); }
+		if(bufptr && *(++bufptr) != ',') { ground_speed = strtod(bufptr,&endp); bufptr = endp; }
 
-                 float track_rad = static_cast<float>(track_true) * M_PI_F/ 180.0f;
-                 float velocity_ms =static_cast<float>(ground_speed) / 1.9438445f;
-                 float velocity_north =static_cast<float>(velocity_ms) * cosf(track_rad);
-                 float velocity_east  = static_cast<float>(velocity_ms) *sinf(track_rad);
+		if(bufptr && *(++bufptr) != ',') { N = *(bufptr++); }
 
-                  _gps_position->vel_m_s = velocity_ms;        
-                  _gps_position->vel_n_m_s =velocity_north;   
-                  _gps_position->vel_e_m_s =velocity_east;
-                  _gps_position->cog_rad =track_rad;  
-				  _gps_position->vel_ned_valid = true;				/** Flag to indicate if NED speed is valid */
-				  _gps_position->c_variance_rad = 0.1f;
-		  
-				  _rate_count_vel++;
-				// mavlink_log_info(&mavlink_log_pub, "get VTG data ");
- 
+		if(bufptr && *(++bufptr) != ',') { ground_speed_K = strtod(bufptr, &endp); bufptr= endp; }
+
+		if(bufptr && *(++bufptr) != ',') { K = *(bufptr++); }
+
+		float track_rad = static_cast<float>(track_true) * NMEA_PI/ 180.0f;
+		float velocity_ms =static_cast<float>(ground_speed) / 1.9438445f;
+		float velocity_north =static_cast<float>(velocity_ms) * cosf(track_rad);
+		float velocity_east  = static_cast<float>(velocity_ms) *sinf(track_rad);
+
+		_gps_position->vel_m_s = velocity_ms;
+		_gps_position->vel_n_m_s =velocity_north;
+		_gps_position->vel_e_m_s =velocity_east;
+		_gps_position->cog_rad =track_rad;
+		_gps_position->vel_ned_valid = true;				/** Flag to indicate if NED speed is valid */
+		_gps_position->c_variance_rad = 0.1f;
+		_gps_position->s_variance_m_s = 0;
+
+		_VEL_received = true;
+		// mavlink_log_info(&mavlink_log_pub, "get VTG data ");
 	}
 
-	if (ret > 0) {
-		_gps_position->timestamp_time_relative = (int32_t)(_last_timestamp_time - _gps_position->timestamp);
+	if (	_POS_received &&
+		_ALT_received &&
+		_SVNUM_received &&
+		_SVINFO_received &&
+		_FIX_received &&
+		(_DOP_received ||
+		_EPH_received) &&
+		_VEL_received &&
+		_TIME_received  ) {
+
+		sat_num_gsv = sat_num_gpgsv + sat_num_glgsv + sat_num_gagsv + sat_num_gbgsv + sat_num_bdgsv;
+
+		_rate_count_lat_lon++;
+		_rate_count_vel++;
+
+		_gps_position->satellites_used = MAX(sat_num_gns, sat_num_gsv);
+		_gps_position->satellites_used = MAX(_gps_position->satellites_used, sat_num_gga);
+
+		clock_set = false;
+
+		_POS_received = false;
+		_ALT_received = false;
+		_SVNUM_received = false;
+		_SVINFO_received = false;
+		_FIX_received = false;
+		_DOP_received = false;
+		_VEL_received = false;
+		_EPH_received = false;
+		_HEAD_received = false;
+		sat_num_gpgsv = 0;
+		sat_num_glgsv = 0;
+		sat_num_gagsv = 0;
+		sat_num_gbgsv = 0;
+		sat_num_bdgsv = 0;
+
+		ret = 1;
 	}
 
 	return ret;
@@ -735,60 +867,96 @@ int GPSDriverNMEA::handleMessage(int len)
 
 int GPSDriverNMEA::receive(unsigned timeout)
 {
-	{
-
 		uint8_t buf[GPS_READ_BUFFER_SIZE];
-
 		/* timeout additional to poll */
 		uint64_t time_started = gps_absolute_time();
-		
-		int j = 0;
-		ssize_t bytes_count = 0;
+		uint8_t _bytes_parsed = 0;
+		unsigned bytes_count = 0;
 
 		while (true) {
 
-			/* pass received bytes to the packet decoder */
-			while (j < bytes_count) {
-				int l = 0;
+		// read from serial, timeout may be truncated further in read()
+		bytes_count = read(buf, sizeof(buf), timeout * 2);
 
-				if ((l = parseChar(buf[j])) > 0) {
-					/* return to configure during configuration or to the gps driver during normal work
-					 * if a packet has arrived */
-					if (handleMessage(l) > 0) {
-						return 1;
-					}
-				}
+        /* pass received bytes to the packet decoder */
+        while (_bytes_parsed < bytes_count) {
+            int l = 0;
 
-				j++;
-			}
+            if ((l = parseChar(buf[_bytes_parsed++])) > 0) {
+                /* return to configure during configuration or to the gps driver during normal work
+                 * if a packet has arrived */
+                int ret = handleMessage(l);
 
-			/* everything is read */
-			j = bytes_count = 0;
-
-			/* then poll or read for new data */
-			int ret = read(buf, sizeof(buf), timeout * 2);
-
-			if (ret < 0) {
-				/* something went wrong when polling */
-				return -1;
-
-			} else if (ret == 0) {
-				/* Timeout while polling or just nothing read if reading, let's
-				 * stay here, and use timeout below. */
-
-			} else if (ret > 0) {
-				/* if we have new data from GPS, go handle it */
-				bytes_count = ret;
-			}
-
-			/* in case we get crap from GPS or time out */
-			if (time_started + timeout * 1000 * 2 < gps_absolute_time()) {
-				return -1;
-			}
-		}
+                if (ret > 0) {
+            	return ret;
+                }
+            }
 	}
 
+        /* everything is read */
+        _bytes_parsed = bytes_count = 0;
+
+		/* in case we get crap from GPS or time out */
+		if (time_started + timeout * 1000 * 2 < gps_absolute_time()) {
+			return -1;
+		}
+	}
 }
+
+// int GPSDriverNMEA::receive(unsigned timeout)
+// {
+
+// 		uint8_t buf[GPS_READ_BUFFER_SIZE];
+
+// 		/* timeout additional to poll */
+// 		uint64_t time_started = gps_absolute_time();
+
+// 		int j = 0;
+// 		ssize_t bytes_count = 0;
+
+// 		while (true) {
+
+// 			/* pass received bytes to the packet decoder */
+// 			while (j < bytes_count) {
+// 				int l = 0;
+
+// 				if ((l = parseChar(buf[j])) > 0) {
+// 					/* return to configure during configuration or to the gps driver during normal work
+// 					 * if a packet has arrived */
+// 					if (handleMessage(l) > 0) {
+// 						return 1;
+// 					}
+// 				}
+
+// 				j++;
+// 			}
+
+// 			/* everything is read */
+// 			j = bytes_count = 0;
+
+// 			/* then poll or read for new data */
+// 			int ret = read(buf, sizeof(buf), timeout * 2);
+
+// 			if (ret < 0) {
+// 				/* something went wrong when polling */
+// 				return -1;
+
+// 			} else if (ret == 0) {
+// 				/* Timeout while polling or just nothing read if reading, let's
+// 				 * stay here, and use timeout below. */
+
+// 			} else if (ret > 0) {
+// 				/* if we have new data from GPS, go handle it */
+// 				bytes_count = ret;
+// 			}
+
+// 			/* in case we get crap from GPS or time out */
+// 			if (time_started + timeout * 1000 * 2 < gps_absolute_time()) {
+// 				return -1;
+// 			}
+// 		}
+
+// }
 #define HEXDIGIT_CHAR(d) ((char)((d) + (((d) < 0xA) ? '0' : 'A'-0xA)))
 
 int GPSDriverNMEA::parseChar(uint8_t b)
@@ -843,7 +1011,7 @@ int GPSDriverNMEA::parseChar(uint8_t b)
 			iRet = _rx_buffer_bytes;
 		}
 
-                _decode_state = NMEA_DECODE_UNINIT;
+        _decode_state = NMEA_DECODE_UNINIT;
 		_rx_buffer_bytes = 0;
 		break;
 	}
@@ -858,9 +1026,23 @@ void GPSDriverNMEA::decodeInit()
 
 int GPSDriverNMEA::configure(unsigned &baudrate, OutputMode output_mode)
 {
-if (output_mode != OutputMode::GPS) {
-		GPS_WARN("NMEA: Unsupported Output Mode %i", (int)output_mode);
-	return -1;
-}
-	return setBaudrate(_baudrate);
+  	if (output_mode != OutputMode::GPS) {
+                  GPS_WARN("NMEA: Unsupported Output Mode %i", (int)output_mode);
+ 		return -1;
+  	}
+
+	const unsigned baudrates_to_try[] = {9600, 19200, 38400, 57600, 115200};
+
+	for (unsigned int baud_i = 0; baud_i < sizeof(baudrates_to_try) / sizeof(baudrates_to_try[0]); baud_i++) {
+
+		baudrate = baudrates_to_try[baud_i];
+		setBaudrate(baudrate);
+		receive(400);
+		gps_usleep(2000);
+
+		if (_gps_position->nmea_protol_detected) {
+			return 0;
+		}
+	}
+	return setBaudrate(NMEA_DEFAULT_BAUDRATE);
 }
