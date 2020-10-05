@@ -50,42 +50,31 @@
  * @see https://www.u-blox.com/sites/default/files/u-blox_ZED-F9P_InterfaceDescription_%28UBX-18010854%29.pdf
  */
 
-#include <assert.h>
-#include <math.h>
-#include <stdio.h>
 #include <string.h>
-#include <ctime>
 
-#include "ubx.h"
+#include "base_station.h"
 #include "rtcm.h"
+#include "ubx.h"
 
-#define UBX_CONFIG_TIMEOUT	250		// ms, timeout for waiting ACK
-#define UBX_PACKET_TIMEOUT	2		// ms, if now data during this delay assume that full update received
-#define DISABLE_MSG_INTERVAL	1000000		// us, try to disable message with this interval
-
-#define MIN(X,Y)	((X) < (Y) ? (X) : (Y))
-#define SWAP16(X)	((((X) >>  8) & 0x00ff) | (((X) << 8) & 0xff00))
-
-#define FNV1_32_INIT	((uint32_t)0x811c9dc5)	// init value for FNV1 hash algorithm
-#define FNV1_32_PRIME	((uint32_t)0x01000193)	// magic prime for FNV1 hash algorithm
-
+#define MIN(X,Y)              ((X) < (Y) ? (X) : (Y))
+#define SWAP16(X)             ((((X) >>  8) & 0x00ff) | (((X) << 8) & 0xff00))
 
 /**** Trace macros, disable for production builds */
-#define UBX_TRACE_PARSER(...)	{/*GPS_INFO(__VA_ARGS__);*/}	// decoding progress in parse_char()
-#define UBX_TRACE_RXMSG(...)	{/*GPS_INFO(__VA_ARGS__);*/}	// Rx msgs in payload_rx_done()
-#define UBX_TRACE_SVINFO(...)	{/*GPS_INFO(__VA_ARGS__);*/}	// NAV-SVINFO processing (debug use only, will cause rx buffer overflows)
+#define UBX_TRACE_PARSER(...) {/*GPS_INFO(__VA_ARGS__);*/}    // decoding progress in parse_char()
+#define UBX_TRACE_RXMSG(...)  {/*GPS_INFO(__VA_ARGS__);*/}    // Rx msgs in payload_rx_done()
+#define UBX_TRACE_SVINFO(...) {/*GPS_INFO(__VA_ARGS__);*/}    // NAV-SVINFO processing (debug use only, will cause rx buffer overflows)
 
 /**** Warning macros, disable to save memory */
-#define UBX_WARN(...)		{GPS_WARN(__VA_ARGS__);}
-#define UBX_DEBUG(...)		{/*GPS_WARN(__VA_ARGS__);*/}
+#define UBX_WARN(...)         {GPS_WARN(__VA_ARGS__);}
+#define UBX_DEBUG(...)        {/*GPS_WARN(__VA_ARGS__);*/}
 
 GPSDriverUBX::GPSDriverUBX(Interface gpsInterface, GPSCallbackPtr callback, void *callback_user,
-			   sensor_gps_s* gps_position, satellite_info_s* satellite_info, uint8_t dynamic_model)
-	: GPSBaseStationSupport(callback, callback_user)
-	, _interface(gpsInterface)
-	, _gps_position(gps_position)
-	, _satellite_info(satellite_info)
-	, _dyn_model(dynamic_model)
+			   sensor_gps_s* gps_position, satellite_info_s* satellite_info, uint8_t dynamic_model) :
+	GPSBaseStationSupport(callback, callback_user),
+	_interface(gpsInterface),
+	_gps_position(gps_position),
+	_satellite_info(satellite_info),
+	_dyn_model(dynamic_model)
 {
 	decodeInit();
 }
@@ -104,12 +93,15 @@ GPSDriverUBX::configure(unsigned &baudrate, OutputMode output_mode)
 	_output_mode = output_mode;
 
 	ubx_payload_tx_cfg_prt_t cfg_prt[2];
+
 	uint16_t out_proto_mask = output_mode == OutputMode::GPS ?
 				  UBX_TX_CFG_PRT_OUTPROTOMASK_GPS :
 				  UBX_TX_CFG_PRT_OUTPROTOMASK_RTCM;
+
 	uint16_t in_proto_mask = output_mode == OutputMode::GPS ?
 				 UBX_TX_CFG_PRT_INPROTOMASK_GPS :
 				 UBX_TX_CFG_PRT_INPROTOMASK_RTCM;
+
 	const bool auto_baudrate = baudrate == 0;
 
 	if (_interface == Interface::UART) {

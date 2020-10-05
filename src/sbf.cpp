@@ -59,11 +59,11 @@
 GPSDriverSBF::GPSDriverSBF(GPSCallbackPtr callback, void *callback_user,
 			   sensor_gps_s *gps_position,
 			   satellite_info_s *satellite_info,
-			   uint8_t dynamic_model)
-	: GPSBaseStationSupport(callback, callback_user)
-	, _gps_position(gps_position)
-	, _satellite_info(satellite_info)
-	, _dynamic_model(dynamic_model)
+			   uint8_t dynamic_model) :
+	GPSBaseStationSupport(callback, callback_user),
+	_gps_position(gps_position),
+	_satellite_info(satellite_info),
+	_dynamic_model(dynamic_model)
 {
 	decodeInit();
 }

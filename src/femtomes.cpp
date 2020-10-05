@@ -67,10 +67,10 @@
 
 GPSDriverFemto::GPSDriverFemto(GPSCallbackPtr callback, void *callback_user,
 			       struct sensor_gps_s *gps_position,
-			       float heading_offset)
-	: GPSHelper(callback, callback_user)
-	, _gps_position(gps_position)
-	, _heading_offset(heading_offset)
+			       float heading_offset) :
+	GPSHelper(callback, callback_user),
+	_gps_position(gps_position),
+	_heading_offset(heading_offset)
 {
 	decodeInit();
 }

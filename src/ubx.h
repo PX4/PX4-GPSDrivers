@@ -49,9 +49,13 @@
 
 #pragma once
 
-#include "gps_helper.h"
-#include "base_station.h"
-#include "../../definitions.h"
+#define UBX_CONFIG_TIMEOUT    250 // ms, timeout for waiting ACK
+#define UBX_PACKET_TIMEOUT    2   // ms, if now data during this delay assume that full update received
+
+#define DISABLE_MSG_INTERVAL  1000000    // us, try to disable message with this interval
+
+#define FNV1_32_INIT          static_cast<uint32_t>(0x811c9dc5)    // init value for FNV1 hash algorithm
+#define FNV1_32_PRIME         static_cast<uint32_t>(0x01000193)    // magic prime for FNV1 hash algorithm
 
 #define UBX_SYNC1             0xB5
 #define UBX_SYNC2             0x62
