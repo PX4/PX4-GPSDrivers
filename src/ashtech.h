@@ -119,35 +119,34 @@ private:
 
 	void activateRTCMOutput();
 
-	float _heading_offset;
-
-	sensor_gps_s *_gps_position {nullptr};
-	satellite_info_s *_satellite_info {nullptr};
-
-	uint64_t _last_timestamp_time{0};
-
-	NMEADecodeState _decode_state{NMEADecodeState::uninit};
-
-	uint8_t _rx_buffer[ASHTECH_RECV_BUFFER_SIZE];
-	uint16_t _rx_buffer_bytes{};
-
+	bool _correction_output_activated{false};
+	bool _configure_done{false};
 	bool _got_pashr_pos_message{false}; /**< If we got a PASHR,POS message, we will ignore GGA messages */
-
-	NMEACommand _waiting_for_command;
-	NMEACommandState _command_state{NMEACommandState::idle};
 
 	char _port{'A'}; /**< port we are connected to (e.g. 'A') */
 
-	AshtechBoard _board{AshtechBoard::other}; /**< board we are connected to */
+	uint8_t _rx_buffer[ASHTECH_RECV_BUFFER_SIZE];
+	uint16_t _rx_buffer_bytes{};
+	uint64_t _last_timestamp_time{0};
 
-	RTCMParsing	*_rtcm_parsing{nullptr};
+	float _heading_offset;
 
 	gps_abstime _survey_in_start{0};
 
+	sensor_gps_s* _gps_position {nullptr};
+
+	satellite_info_s* _satellite_info {nullptr};
+
+	AshtechBoard _board{AshtechBoard::other}; /**< board we are connected to */
+
+	NMEACommand _waiting_for_command;
+
+	NMEACommandState _command_state{NMEACommandState::idle};
+
+	NMEADecodeState _decode_state{NMEADecodeState::uninit};
+
 	OutputMode _output_mode{OutputMode::GPS};
 
-	bool _correction_output_activated{false};
-	bool _configure_done{false};
-
+	RTCMParsing* _rtcm_parsing{nullptr};
 };
 
