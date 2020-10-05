@@ -423,15 +423,18 @@ typedef struct {
 
 /* Rx NAV-SVINFO Part 2 (repeated) */
 typedef struct {
-	uint8_t		chn; 		/**< Channel number, 255 for SVs not assigned to a channel */
-	uint8_t		svid; 		/**< Satellite ID */
+	uint8_t		chn;            /**< Channel number, 255 for SVs not assigned to a channel */
+	uint8_t		svid;           /**< Satellite ID */
 	uint8_t		flags;
 	uint8_t		quality;
-	uint8_t		cno;		/**< Carrier to Noise Ratio (Signal Strength) [dbHz] */
-	int8_t		elev; 		/**< Elevation [deg] */
-	int16_t		azim; 		/**< Azimuth [deg] */
-	int32_t		prRes; 		/**< Pseudo range residual [cm] */
+	int8_t		elev;           /**< Elevation [deg] */
+	int16_t		azim;           /**< Azimuth [deg] */
+	uint8_t		cno;            /**< Carrier to Noise Ratio (Signal Strength) [dbHz] */
+	uint8_t		snr;            /**< Signal to Noise Ratio */
+	uint8_t		prn;            /**< Psuedo Random Number SBAS code, [120-144] */
+	int32_t		prRes;          /**< Pseudo range residual [cm] */
 } ubx_payload_rx_nav_svinfo_part2_t;
+
 
 /* Rx NAV-SAT Part 1 */
 typedef struct {
@@ -443,12 +446,13 @@ typedef struct {
 
 /* Rx NAV-SAT Part 2 (repeated) */
 typedef struct {
-	uint8_t		gnssId;		/**< GNSS identifier */
-	uint8_t		svId; 		/**< Satellite ID */
-	uint8_t		cno;		/**< Carrier to Noise Ratio (Signal Strength) [dbHz] */
-	int8_t		elev; 		/**< Elevation [deg] range: +/-90 */
-	int16_t		azim; 		/**< Azimuth [deg] range: 0-360 */
-	int16_t		prRes; 		/**< Pseudo range residual [0.1 m] */
+	uint8_t		gnssId;         /**< GNSS identifier */
+	uint8_t		svId;           /**< Satellite ID */
+	int8_t		elev;           /**< Elevation [deg] range: +/-90 */
+	int16_t		azim;           /**< Azimuth [deg] range: 0-360 */
+	uint8_t		cno;            /**< Carrier to Noise Ratio (Signal Strength) [dbHz] */
+	uint8_t		prn;            /**< Psuedo Random Number SBAS code, [120-144] */
+	int16_t		prRes;          /**< Pseudo range residual [0.1 m] */
 	uint32_t	flags;
 } ubx_payload_rx_nav_sat_part2_t;
 
@@ -762,8 +766,7 @@ class GPSDriverUBX : public GPSBaseStationSupport
 {
 public:
 	GPSDriverUBX(Interface gpsInterface, GPSCallbackPtr callback, void *callback_user,
-		     sensor_gps_s *gps_position,
-		     satellite_info_s *satellite_info,
+		     sensor_gps_s *gps_position, satellite_info_s *satellite_info,
 		     uint8_t dynamic_model = 7);
 
 	virtual ~GPSDriverUBX();
@@ -906,6 +909,8 @@ private:
 		u_blox9_F9P = 10, ///< F9P
 	};
 
+	const Interface		_interface;
+
 	sensor_gps_s *_gps_position {nullptr};
 	satellite_info_s *_satellite_info {nullptr};
 	uint64_t		_last_timestamp_time{0};
@@ -930,7 +935,6 @@ private:
 
 	RTCMParsing	*_rtcm_parsing{nullptr};
 
-	const Interface		_interface;
 	Board			_board{Board::unknown};
 
 	// ublox Dynamic platform model default 7: airborne with <2g acceleration

@@ -45,8 +45,7 @@
 class RTCMParsing;
 
 #define ASHTECH_RECV_BUFFER_SIZE 512
-
-#define ASH_RESPONSE_TIMEOUT	200		// ms, timeout for waiting for a response
+#define ASH_RESPONSE_TIMEOUT     200    // ms, timeout for waiting for a response
 
 class GPSDriverAshtech : public GPSBaseStationSupport
 {
@@ -56,10 +55,12 @@ public:
 	 */
 	GPSDriverAshtech(GPSCallbackPtr callback, void *callback_user, sensor_gps_s *gps_position,
 			 satellite_info_s *satellite_info, float heading_offset = 0.f);
+
 	virtual ~GPSDriverAshtech();
 
-	int receive(unsigned timeout) override;
 	int configure(unsigned &baudrate, OutputMode output_mode) override;
+
+	int receive(unsigned timeout) override;
 
 private:
 	enum class NMEACommand {
@@ -90,7 +91,9 @@ private:
 	};
 
 	void decodeInit(void);
+
 	int handleMessage(int len);
+
 	int parseChar(uint8_t b);
 
 	/**
@@ -116,18 +119,25 @@ private:
 
 	void activateRTCMOutput();
 
-	satellite_info_s *_satellite_info {nullptr};
+	float _heading_offset;
+
 	sensor_gps_s *_gps_position {nullptr};
+	satellite_info_s *_satellite_info {nullptr};
+
 	uint64_t _last_timestamp_time{0};
 
 	NMEADecodeState _decode_state{NMEADecodeState::uninit};
+
 	uint8_t _rx_buffer[ASHTECH_RECV_BUFFER_SIZE];
 	uint16_t _rx_buffer_bytes{};
+
 	bool _got_pashr_pos_message{false}; /**< If we got a PASHR,POS message, we will ignore GGA messages */
 
 	NMEACommand _waiting_for_command;
 	NMEACommandState _command_state{NMEACommandState::idle};
+
 	char _port{'A'}; /**< port we are connected to (e.g. 'A') */
+
 	AshtechBoard _board{AshtechBoard::other}; /**< board we are connected to */
 
 	RTCMParsing	*_rtcm_parsing{nullptr};
@@ -135,9 +145,9 @@ private:
 	gps_abstime _survey_in_start{0};
 
 	OutputMode _output_mode{OutputMode::GPS};
+
 	bool _correction_output_activated{false};
 	bool _configure_done{false};
 
-	float _heading_offset;
 };
 

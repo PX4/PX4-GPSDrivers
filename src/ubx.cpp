@@ -71,22 +71,20 @@
 
 
 /**** Trace macros, disable for production builds */
-#define UBX_TRACE_PARSER(...)	{/*GPS_INFO(__VA_ARGS__);*/}	/* decoding progress in parse_char() */
-#define UBX_TRACE_RXMSG(...)		{/*GPS_INFO(__VA_ARGS__);*/}	/* Rx msgs in payload_rx_done() */
-#define UBX_TRACE_SVINFO(...)	{/*GPS_INFO(__VA_ARGS__);*/}	/* NAV-SVINFO processing (debug use only, will cause rx buffer overflows) */
+#define UBX_TRACE_PARSER(...)	{/*GPS_INFO(__VA_ARGS__);*/}	// decoding progress in parse_char()
+#define UBX_TRACE_RXMSG(...)	{/*GPS_INFO(__VA_ARGS__);*/}	// Rx msgs in payload_rx_done()
+#define UBX_TRACE_SVINFO(...)	{/*GPS_INFO(__VA_ARGS__);*/}	// NAV-SVINFO processing (debug use only, will cause rx buffer overflows)
 
 /**** Warning macros, disable to save memory */
 #define UBX_WARN(...)		{GPS_WARN(__VA_ARGS__);}
 #define UBX_DEBUG(...)		{/*GPS_WARN(__VA_ARGS__);*/}
 
 GPSDriverUBX::GPSDriverUBX(Interface gpsInterface, GPSCallbackPtr callback, void *callback_user,
-			   sensor_gps_s *gps_position,
-			   satellite_info_s *satellite_info,
-			   uint8_t dynamic_model)
+			   sensor_gps_s* gps_position, satellite_info_s* satellite_info, uint8_t dynamic_model)
 	: GPSBaseStationSupport(callback, callback_user)
+	, _interface(gpsInterface)
 	, _gps_position(gps_position)
 	, _satellite_info(satellite_info)
-	, _interface(gpsInterface)
 	, _dyn_model(dynamic_model)
 {
 	decodeInit();
@@ -1194,20 +1192,22 @@ GPSDriverUBX::payloadRxAddNavSat(const uint8_t b)
 
 			if (buf_index == sizeof(ubx_payload_rx_nav_sat_part2_t) - 1) {
 				// Part 2 complete: decode Part 2 buffer
-				unsigned sat_index = (_rx_payload_index - sizeof(ubx_payload_rx_nav_sat_part1_t)) / sizeof(
-							     ubx_payload_rx_nav_sat_part2_t);
-				_satellite_info->used[sat_index]	= (uint8_t)(_buf.payload_rx_nav_sat_part2.flags & 0x01);
-				_satellite_info->snr[sat_index]		= (uint8_t)(_buf.payload_rx_nav_sat_part2.cno);
-				_satellite_info->elevation[sat_index]	= (uint8_t)(_buf.payload_rx_nav_sat_part2.elev);
-				_satellite_info->azimuth[sat_index]	= (uint8_t)((float)_buf.payload_rx_nav_sat_part2.azim * 255.0f / 360.0f);
-				_satellite_info->svid[sat_index]	= (uint8_t)(_buf.payload_rx_nav_sat_part2.svId);
-				UBX_TRACE_SVINFO("SAT #%02u  used %u  snr %3u  elevation %3u  azimuth %3u  svid %3u",
-						 (unsigned)sat_index + 1,
-						 (unsigned)_satellite_info->used[sat_index],
-						 (unsigned)_satellite_info->snr[sat_index],
-						 (unsigned)_satellite_info->elevation[sat_index],
-						 (unsigned)_satellite_info->azimuth[sat_index],
-						 (unsigned)_satellite_info->svid[sat_index]
+				unsigned sat_index = (_rx_payload_index - sizeof(ubx_payload_rx_nav_sat_part1_t)) /
+																 sizeof(ubx_payload_rx_nav_sat_part2_t);
+				_satellite_info->svid[sat_index]	  = static_cast<uint8_t>(_buf.payload_rx_nav_sat_part2.svId);
+				_satellite_info->used[sat_index]	  = static_cast<uint8_t>(_buf.payload_rx_nav_sat_part2.flags & 0x01);
+				_satellite_info->elevation[sat_index] = static_cast<uint8_t>(_buf.payload_rx_nav_sat_part2.elev);
+				_satellite_info->azimuth[sat_index]	  = static_cast<uint8_t>(static_cast<float>(_buf.payload_rx_nav_sat_part2.azim) * 255.0f / 360.0f);
+				_satellite_info->snr[sat_index]		  = static_cast<uint8_t>(_buf.payload_rx_nav_sat_part2.cno);
+				_satellite_info->prn[sat_index]		  = static_cast<uint8_t>(_buf.payload_rx_nav_sat_part2.prn);
+				UBX_TRACE_SVINFO("SAT #%02u  svid %3u  used %u  elevation %3u  azimuth %3u  snr %3u  prn %3u",
+						 static_cast<unsigned>(sat_index + 1),
+						 static_cast<unsigned>(_satellite_info->svid[sat_index]),
+						 static_cast<unsigned>(_satellite_info->used[sat_index]),
+						 static_cast<unsigned>(_satellite_info->elevation[sat_index]),
+						 static_cast<unsigned>(_satellite_info->azimuth[sat_index]),
+						 static_cast<unsigned>(_satellite_info->snr[sat_index]),
+						 static_cast<unsigned>(_satellite_info->prn[sat_index])
 						);
 			}
 		}
@@ -1219,6 +1219,7 @@ GPSDriverUBX::payloadRxAddNavSat(const uint8_t b)
 
 	return ret;
 }
+
 /**
  * Add NAV-SVINFO payload rx byte
  */
@@ -1249,20 +1250,23 @@ GPSDriverUBX::payloadRxAddNavSvinfo(const uint8_t b)
 
 			if (buf_index == sizeof(ubx_payload_rx_nav_svinfo_part2_t) - 1) {
 				// Part 2 complete: decode Part 2 buffer
-				unsigned sat_index = (_rx_payload_index - sizeof(ubx_payload_rx_nav_svinfo_part1_t)) / sizeof(
-							     ubx_payload_rx_nav_svinfo_part2_t);
-				_satellite_info->used[sat_index]	= (uint8_t)(_buf.payload_rx_nav_svinfo_part2.flags & 0x01);
-				_satellite_info->snr[sat_index]		= (uint8_t)(_buf.payload_rx_nav_svinfo_part2.cno);
-				_satellite_info->elevation[sat_index]	= (uint8_t)(_buf.payload_rx_nav_svinfo_part2.elev);
-				_satellite_info->azimuth[sat_index]	= (uint8_t)((float)_buf.payload_rx_nav_svinfo_part2.azim * 255.0f / 360.0f);
-				_satellite_info->svid[sat_index]	= (uint8_t)(_buf.payload_rx_nav_svinfo_part2.svid);
-				UBX_TRACE_SVINFO("SVINFO #%02u  used %u  snr %3u  elevation %3u  azimuth %3u  svid %3u",
-						 (unsigned)sat_index + 1,
-						 (unsigned)_satellite_info->used[sat_index],
-						 (unsigned)_satellite_info->snr[sat_index],
-						 (unsigned)_satellite_info->elevation[sat_index],
-						 (unsigned)_satellite_info->azimuth[sat_index],
-						 (unsigned)_satellite_info->svid[sat_index]
+				unsigned sat_index = (_rx_payload_index - sizeof(ubx_payload_rx_nav_svinfo_part1_t)) /
+																 sizeof(ubx_payload_rx_nav_svinfo_part2_t);
+				_satellite_info->svid[sat_index]      = static_cast<uint8_t>(_buf.payload_rx_nav_svinfo_part2.svid);
+				_satellite_info->used[sat_index]      = static_cast<uint8_t>(_buf.payload_rx_nav_svinfo_part2.flags & 0x01);
+				_satellite_info->elevation[sat_index] = static_cast<uint8_t>(_buf.payload_rx_nav_svinfo_part2.elev);
+				_satellite_info->azimuth[sat_index]   = static_cast<uint8_t>(static_cast<float>(_buf.payload_rx_nav_svinfo_part2.azim) * 255.0f / 360.0f);
+				_satellite_info->snr[sat_index]       = static_cast<uint8_t>(_buf.payload_rx_nav_svinfo_part2.cno);
+				_satellite_info->prn[sat_index]       = static_cast<uint8_t>(_buf.payload_rx_nav_svinfo_part2.prn);
+
+				UBX_TRACE_SVINFO("SVINFO #%02u  svid %3u  used %u  elevation %3u  azimuth %3u  snr %3u  prn %3u",
+						 static_cast<unsigned>(sat_index + 1),
+						 static_cast<unsigned>(_satellite_info->svid[sat_index]),
+						 static_cast<unsigned>(_satellite_info->used[sat_index]),
+						 static_cast<unsigned>(_satellite_info->elevation[sat_index]),
+						 static_cast<unsigned>(_satellite_info->azimuth[sat_index]),
+						 static_cast<unsigned>(_satellite_info->snr[sat_index]),
+						 static_cast<unsigned>(_satellite_info->prn[sat_index])
 						);
 			}
 		}
@@ -1584,9 +1588,9 @@ GPSDriverUBX::payloadRxDone()
 				  svin.dur, svin.meanAcc / 10, svin.obs, (int)svin.valid, (int)svin.active);
 
 			SurveyInStatus status{};
-			double ecef_x = ((double)svin.meanX + (double)svin.meanXHP * 0.01) * 0.01;
-			double ecef_y = ((double)svin.meanY + (double)svin.meanYHP * 0.01) * 0.01;
-			double ecef_z = ((double)svin.meanZ + (double)svin.meanZHP * 0.01) * 0.01;
+			double ecef_x = (static_cast<double>(svin.meanX) + static_cast<double>(svin.meanXHP) * 0.01) * 0.01;
+			double ecef_y = (static_cast<double>(svin.meanY) + static_cast<double>(svin.meanYHP) * 0.01) * 0.01;
+			double ecef_z = (static_cast<double>(svin.meanZ) + static_cast<double>(svin.meanZHP) * 0.01) * 0.01;
 			ECEF2lla(ecef_x, ecef_y, ecef_z, status.latitude, status.longitude, status.altitude);
 			status.duration = svin.dur;
 			status.mean_accuracy = svin.meanAcc / 10;
@@ -1606,13 +1610,13 @@ GPSDriverUBX::payloadRxDone()
 	case UBX_MSG_NAV_VELNED:
 		UBX_TRACE_RXMSG("Rx NAV-VELNED");
 
-		_gps_position->vel_m_s		= (float)_buf.payload_rx_nav_velned.speed * 1e-2f;
-		_gps_position->vel_n_m_s	= (float)_buf.payload_rx_nav_velned.velN * 1e-2f; /* NED NORTH velocity */
-		_gps_position->vel_e_m_s	= (float)_buf.payload_rx_nav_velned.velE * 1e-2f; /* NED EAST velocity */
-		_gps_position->vel_d_m_s	= (float)_buf.payload_rx_nav_velned.velD * 1e-2f; /* NED DOWN velocity */
-		_gps_position->cog_rad		= (float)_buf.payload_rx_nav_velned.heading * M_DEG_TO_RAD_F * 1e-5f;
-		_gps_position->c_variance_rad	= (float)_buf.payload_rx_nav_velned.cAcc * M_DEG_TO_RAD_F * 1e-5f;
-		_gps_position->vel_ned_valid	= true;
+		_gps_position->vel_m_s        = static_cast<float>(_buf.payload_rx_nav_velned.speed) * 1e-2f;
+		_gps_position->vel_n_m_s      = static_cast<float>(_buf.payload_rx_nav_velned.velN)  * 1e-2f; // NED NORTH velocity
+		_gps_position->vel_e_m_s      = static_cast<float>(_buf.payload_rx_nav_velned.velE)  * 1e-2f; // NED EAST velocity
+		_gps_position->vel_d_m_s      = static_cast<float>(_buf.payload_rx_nav_velned.velD)  * 1e-2f; // NED DOWN velocity
+		_gps_position->cog_rad        = static_cast<float>(_buf.payload_rx_nav_velned.heading) * M_DEG_TO_RAD_F * 1e-5f;
+		_gps_position->c_variance_rad = static_cast<float>(_buf.payload_rx_nav_velned.cAcc)    * M_DEG_TO_RAD_F * 1e-5f;
+		_gps_position->vel_ned_valid  = true;
 
 		_rate_count_vel++;
 		_got_velned = true;

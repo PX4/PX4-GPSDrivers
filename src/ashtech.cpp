@@ -51,12 +51,12 @@
 #define ASH_DEBUG(...)		{/*GPS_WARN(__VA_ARGS__);*/}
 
 GPSDriverAshtech::GPSDriverAshtech(GPSCallbackPtr callback, void *callback_user,
-				   sensor_gps_s *gps_position,
-				   satellite_info_s *satellite_info, float heading_offset) :
-	GPSBaseStationSupport(callback, callback_user),
-	_satellite_info(satellite_info),
-	_gps_position(gps_position),
-	_heading_offset(heading_offset)
+				   sensor_gps_s *gps_position, satellite_info_s *satellite_info,
+				   float heading_offset)
+	: GPSBaseStationSupport(callback, callback_user)
+	, _heading_offset(heading_offset)
+	, _gps_position(gps_position)
+	, _satellite_info(satellite_info)
 {
 	decodeInit();
 }
@@ -563,7 +563,9 @@ int GPSDriverAshtech::handleMessage(int len)
 			int elevation;
 			int azimuth;
 			int snr;
+			int prn;
 		} sat[4];
+
 		memset(sat, 0, sizeof(sat));
 
 		if (bufptr && *(++bufptr) != ',') { all_msg_num = strtol(bufptr, &endp, 10); bufptr = endp; }
@@ -577,11 +579,12 @@ int GPSDriverAshtech::handleMessage(int len)
 		}
 
 		if (this_msg_num == 0 && bGPS && _satellite_info) {
-			memset(_satellite_info->svid,     0, sizeof(_satellite_info->svid));
-			memset(_satellite_info->used,     0, sizeof(_satellite_info->used));
-			memset(_satellite_info->snr,      0, sizeof(_satellite_info->snr));
+			memset(_satellite_info->svid,      0, sizeof(_satellite_info->svid));
+			memset(_satellite_info->used,      0, sizeof(_satellite_info->used));
 			memset(_satellite_info->elevation, 0, sizeof(_satellite_info->elevation));
-			memset(_satellite_info->azimuth,  0, sizeof(_satellite_info->azimuth));
+			memset(_satellite_info->azimuth,   0, sizeof(_satellite_info->azimuth));
+			memset(_satellite_info->snr,       0, sizeof(_satellite_info->snr));
+			memset(_satellite_info->prn,       0, sizeof(_satellite_info->prn));
 		}
 
 		int end = 4;
@@ -607,11 +610,12 @@ int GPSDriverAshtech::handleMessage(int len)
 
 				if (bufptr && *(++bufptr) != ',') { sat[y].snr = strtol(bufptr, &endp, 10); bufptr = endp; }
 
-				_satellite_info->svid[y + (this_msg_num - 1) * 4]      = sat[y].svid;
-				_satellite_info->used[y + (this_msg_num - 1) * 4]      = (sat[y].snr > 0);
-				_satellite_info->snr[y + (this_msg_num - 1) * 4]       = sat[y].snr;
+				_satellite_info->svid[y      + (this_msg_num - 1) * 4] = sat[y].svid;
+				_satellite_info->used[y      + (this_msg_num - 1) * 4] = (sat[y].snr > 0);
 				_satellite_info->elevation[y + (this_msg_num - 1) * 4] = sat[y].elevation;
-				_satellite_info->azimuth[y + (this_msg_num - 1) * 4]   = sat[y].azimuth;
+				_satellite_info->azimuth[y   + (this_msg_num - 1) * 4] = sat[y].azimuth;
+				_satellite_info->snr[y       + (this_msg_num - 1) * 4] = sat[y].snr;
+				_satellite_info->prn[y       + (this_msg_num - 1) * 4] = sat[y].prn;
 			}
 		}
 
