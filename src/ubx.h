@@ -771,11 +771,89 @@ public:
 
 	virtual ~GPSDriverUBX();
 
-	int receive(unsigned timeout) override;
 	int configure(unsigned &baudrate, OutputMode output_mode) override;
+	int receive(unsigned timeout) override;
 	int reset(GPSRestartType restart_type) override;
 
 private:
+
+private:
+
+	int activateRTCMOutput();
+
+	/**
+	 * While parsing add every byte (except the sync bytes) to the checksum
+	 */
+	void addByteToChecksum(const uint8_t);
+
+	/**
+	 * Calculate & add checksum for given buffer
+	 */
+	void calcChecksum(const uint8_t *buffer, const uint16_t length, ubx_checksum_t *checksum);
+
+	/**
+	 * Configure message rate.
+	 * Note: this is deprecated with protocol version >= 27
+	 * @return true on success, false on write error
+	 */
+	bool configureMessageRate(const uint16_t msg, const uint8_t rate);
+
+	/**
+	 * Combines the configure_message_rate & wait_for_ack calls.
+	 * Note: this is deprecated with protocol version >= 27
+	 * @return true on success
+	 */
+	inline bool configureMessageRateAndAck(uint16_t msg, uint8_t rate, bool report_ack_error = false);
+
+	/**
+	 * Send configuration values and desired message rates
+	 * @return 0 on success, <0 on error
+	 */
+	int configureDevice();
+	/**
+	 * Send configuration values and desired message rates (for protocol version < 27)
+	 * @return 0 on success, <0 on error
+	 */
+	int configureDevicePreV27();
+
+	/**
+	 * Add a configuration value to _buf and increase the message size msg_size as needed
+	 * @param key_id one of the UBX_CFG_KEY_* constants
+	 * @param value configuration value
+	 * @param msg_size CFG-VALSET message size: this is an input & output param
+	 * @return true on success, false if buffer too small
+	 */
+	template<typename T>
+	bool cfgValset(uint32_t key_id, T value, int &msg_size);
+
+	/**
+	 * Add a configuration value that is port-specific (MSGOUT messages).
+	 * Note: Key ID must be the one for I2C, and the implementation assumes the
+	 *       Key ID's are in increasing order for the other ports: I2C, UART1, UART2, USB, SPI
+	 *       (this is a safe assumption for all MSGOUT messages according to u-blox).
+	 *
+	 * @param key_id I2C key ID
+	 * @param value configuration value
+	 * @param msg_size CFG-VALSET message size: this is an input & output param
+	 * @return true on success, false if buffer too small
+	 */
+	bool cfgValsetPort(uint32_t key_id, uint8_t value, int &msg_size);
+
+	/**
+	 * Reset the parse state machine for a fresh start
+	 */
+	void decodeInit(void);
+
+	/**
+	 * Calculate FNV1 hash
+	 */
+	uint32_t fnv1_32_str(uint8_t *str, uint32_t hval);
+
+	/**
+	 * Init _buf as CFG-VALSET
+	 * @return size of the message (without any config values)
+	 */
+	int initCfgValset();
 
 	/**
 	 * Start or restart the survey-in procees. This is only used in RTCM ouput mode.
@@ -803,24 +881,14 @@ private:
 	 * Add payload rx byte
 	 */
 	int payloadRxAdd(const uint8_t b);
-	int payloadRxAddNavSvinfo(const uint8_t b);
-	int payloadRxAddNavSat(const uint8_t b);
 	int payloadRxAddMonVer(const uint8_t b);
+	int payloadRxAddNavSat(const uint8_t b);
+	int payloadRxAddNavSvinfo(const uint8_t b);
 
 	/**
 	 * Finish payload rx
 	 */
 	int payloadRxDone(void);
-
-	/**
-	 * Reset the parse state machine for a fresh start
-	 */
-	void decodeInit(void);
-
-	/**
-	 * While parsing add every byte (except the sync bytes) to the checksum
-	 */
-	void addByteToChecksum(const uint8_t);
 
 	/**
 	 * Send a message
@@ -829,75 +897,9 @@ private:
 	bool sendMessage(const uint16_t msg, const uint8_t *payload, const uint16_t length);
 
 	/**
-	 * Configure message rate.
-	 * Note: this is deprecated with protocol version >= 27
-	 * @return true on success, false on write error
-	 */
-	bool configureMessageRate(const uint16_t msg, const uint8_t rate);
-
-	/**
-	 * Calculate & add checksum for given buffer
-	 */
-	void calcChecksum(const uint8_t *buffer, const uint16_t length, ubx_checksum_t *checksum);
-
-	/**
 	 * Wait for message acknowledge
 	 */
 	int waitForAck(const uint16_t msg, const unsigned timeout, const bool report);
-
-	/**
-	 * Combines the configure_message_rate & wait_for_ack calls.
-	 * Note: this is deprecated with protocol version >= 27
-	 * @return true on success
-	 */
-	inline bool configureMessageRateAndAck(uint16_t msg, uint8_t rate, bool report_ack_error = false);
-
-	/**
-	 * Send configuration values and desired message rates
-	 * @return 0 on success, <0 on error
-	 */
-	int configureDevice();
-	/**
-	 * Send configuration values and desired message rates (for protocol version < 27)
-	 * @return 0 on success, <0 on error
-	 */
-	int configureDevicePreV27();
-
-	/**
-	 * Init _buf as CFG-VALSET
-	 * @return size of the message (without any config values)
-	 */
-	int initCfgValset();
-
-	/**
-	 * Add a configuration value to _buf and increase the message size msg_size as needed
-	 * @param key_id one of the UBX_CFG_KEY_* constants
-	 * @param value configuration value
-	 * @param msg_size CFG-VALSET message size: this is an input & output param
-	 * @return true on success, false if buffer too small
-	 */
-	template<typename T>
-	bool cfgValset(uint32_t key_id, T value, int &msg_size);
-
-	/**
-	 * Add a configuration value that is port-specific (MSGOUT messages).
-	 * Note: Key ID must be the one for I2C, and the implementation assumes the
-	 *       Key ID's are in increasing order for the other ports: I2C, UART1, UART2, USB, SPI
-	 *       (this is a safe assumption for all MSGOUT messages according to u-blox).
-	 *
-	 * @param key_id I2C key ID
-	 * @param value configuration value
-	 * @param msg_size CFG-VALSET message size: this is an input & output param
-	 * @return true on success, false if buffer too small
-	 */
-	bool cfgValsetPort(uint32_t key_id, uint8_t value, int &msg_size);
-
-	int activateRTCMOutput();
-
-	/**
-	 * Calculate FNV1 hash
-	 */
-	uint32_t fnv1_32_str(uint8_t *str, uint32_t hval);
 
 	enum class Board : uint8_t {
 		unknown = 0,
