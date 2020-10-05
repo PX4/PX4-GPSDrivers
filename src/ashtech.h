@@ -63,6 +63,11 @@ public:
 	int receive(unsigned timeout) override;
 
 private:
+	enum class AshtechBoard {
+		trimble_mb_two,
+		other
+	};
+
 	enum class NMEACommand {
 		Acked, // Command that returns a (N)Ack
 		PRT,   // port config
@@ -85,10 +90,12 @@ private:
 		decode_rtcm3
 	};
 
-	enum class AshtechBoard {
-		trimble_mb_two,
-		other
-	};
+	/**
+	 * enable output of correction output
+	 */
+	void activateCorrectionOutput();
+
+	void activateRTCMOutput();
 
 	void decodeInit(void);
 
@@ -97,27 +104,20 @@ private:
 	int parseChar(uint8_t b);
 
 	/**
+	 * receive data for at least the specified amount of time
+	 */
+	void receiveWait(unsigned timeout_min);
+
+	void sendSurveyInStatusUpdate(bool active, bool valid, double latitude = static_cast<double>(NAN),
+				      double longitude = static_cast<double>(NAN), float altitude = NAN);
+
+	/**
 	 * Write a command and wait for a (N)Ack
 	 * @return 0 on success, <0 otherwise
 	 */
 	int writeAckedCommand(const void *buf, int buf_length, unsigned timeout);
 
 	int waitForReply(NMEACommand command, const unsigned timeout);
-
-	/**
-	 * receive data for at least the specified amount of time
-	 */
-	void receiveWait(unsigned timeout_min);
-
-	/**
-	 * enable output of correction output
-	 */
-	void activateCorrectionOutput();
-
-	void sendSurveyInStatusUpdate(bool active, bool valid, double latitude = (double)NAN, double longitude = (double)NAN,
-				      float altitude = NAN);
-
-	void activateRTCMOutput();
 
 	bool _correction_output_activated{false};
 	bool _configure_done{false};
