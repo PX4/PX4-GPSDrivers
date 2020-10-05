@@ -909,36 +909,40 @@ private:
 		u_blox9_F9P = 10, ///< F9P
 	};
 
-	const Interface		_interface;
+	const Interface _interface{};
 
-	sensor_gps_s *_gps_position {nullptr};
-	satellite_info_s *_satellite_info {nullptr};
-	uint64_t		_last_timestamp_time{0};
-	bool			_configured{false};
-	ubx_ack_state_t		_ack_state{UBX_ACK_IDLE};
-	bool			_got_posllh{false};
-	bool			_got_velned{false};
-	ubx_decode_state_t	_decode_state{};
-	uint16_t		_rx_msg{};
-	ubx_rxmsg_state_t	_rx_state{UBX_RXMSG_IGNORE};
-	uint16_t		_rx_payload_length{};
-	uint16_t		_rx_payload_index{};
-	uint8_t			_rx_ck_a{};
-	uint8_t			_rx_ck_b{};
-	gps_abstime		_disable_cmd_last{0};
-	uint16_t		_ack_waiting_msg{0};
-	ubx_buf_t		_buf{};
-	uint32_t		_ubx_version{0};
-	bool			_use_nav_pvt{false};
-	bool			_proto_ver_27_or_higher{false}; ///< true if protocol version 27 or higher detected
-	OutputMode		_output_mode{OutputMode::GPS};
+	gps_abstime             _disable_cmd_last{0};
+	sensor_gps_s*           _gps_position {nullptr};
+	satellite_info_s*       _satellite_info {nullptr};
+	ubx_ack_state_t         _ack_state{UBX_ACK_IDLE};
+	ubx_buf_t               _buf{};
+	ubx_decode_state_t      _decode_state{};
+	ubx_rxmsg_state_t       _rx_state{UBX_RXMSG_IGNORE};
 
-	RTCMParsing	*_rtcm_parsing{nullptr};
+	bool _configured{false};
+	bool _got_posllh{false};
+	bool _got_velned{false};
+	bool _proto_ver_27_or_higher{false}; ///< true if protocol version 27 or higher detected
+	bool _use_nav_pvt{false};
 
-	Board			_board{Board::unknown};
+	uint8_t _rx_ck_a{0};
+	uint8_t _rx_ck_b{0};
+	uint8_t _dyn_model{7};  ///< ublox Dynamic platform model default 7: airborne with <2g acceleration
 
-	// ublox Dynamic platform model default 7: airborne with <2g acceleration
-	uint8_t _dyn_model{7};
+	uint16_t _ack_waiting_msg{0};
+	uint16_t _rx_msg{};
+	uint16_t _rx_payload_index{0};
+	uint16_t _rx_payload_length{0};
+
+	uint32_t _ubx_version{0};
+
+	uint64_t _last_timestamp_time{0};
+
+	Board _board{Board::unknown};
+
+	OutputMode _output_mode{OutputMode::GPS};
+
+	RTCMParsing* _rtcm_parsing{nullptr};
 };
 
 
