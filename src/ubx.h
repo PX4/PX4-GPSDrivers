@@ -49,6 +49,11 @@
 
 #pragma once
 
+#include "base_station.h"
+#include "gps_helper.h"
+#include "../../definitions.h"
+
+
 #define UBX_CONFIG_TIMEOUT    250 // ms, timeout for waiting ACK
 #define UBX_PACKET_TIMEOUT    2   // ms, if now data during this delay assume that full update received
 

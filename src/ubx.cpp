@@ -52,7 +52,6 @@
 
 #include <string.h>
 
-#include "base_station.h"
 #include "rtcm.h"
 #include "ubx.h"
 
