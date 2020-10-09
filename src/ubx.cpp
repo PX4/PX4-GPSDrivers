@@ -286,7 +286,7 @@ GPSDriverUBX::configure(unsigned &baudrate, OutputMode output_mode)
 		return -1;
 	}
 
-	UBX_DEBUG("Protocol version 27+: %i", (int)_proto_ver_27_or_higher);
+	UBX_DEBUG("Protocol version 27+: %i", static_cast<int>(_proto_ver_27_or_higher));
 
 	/* Request module version information by sending an empty MON-VER message */
 	if (!sendMessage(UBX_MSG_MON_VER, nullptr, 0)) {
@@ -910,7 +910,7 @@ GPSDriverUBX::parseChar(const uint8_t b)
 
 	case UBX_DECODE_RTCM3:
 		if (_rtcm_parsing->addByte(b)) {
-			UBX_DEBUG("got RTCM message with length %i", (int)_rtcm_parsing->messageLength());
+			UBX_DEBUG("got RTCM message with length %i", static_cast<int>(_rtcm_parsing->messageLength()));
 			gotRTCMMessage(_rtcm_parsing->message(), _rtcm_parsing->messageLength());
 			decodeInit();
 		}
@@ -1317,7 +1317,7 @@ GPSDriverUBX::payloadRxAddMonVer(const uint8_t b)
 				UBX_WARN("unknown board hw: %s", _buf.payload_rx_mon_ver_part1.hwVersion);
 			}
 
-			UBX_DEBUG("detected board: %i", (int)_board);
+			UBX_DEBUG("detected board: %i", static_cast<int>(_board));
 		}
 
 		// fill Part 2 buffer
@@ -1397,18 +1397,18 @@ GPSDriverUBX::payloadRxDone()
 		_gps_position->alt		= _buf.payload_rx_nav_pvt.hMSL;
 		_gps_position->alt_ellipsoid	= _buf.payload_rx_nav_pvt.height;
 
-		_gps_position->eph		= (float)_buf.payload_rx_nav_pvt.hAcc * 1e-3f;
-		_gps_position->epv		= (float)_buf.payload_rx_nav_pvt.vAcc * 1e-3f;
-		_gps_position->s_variance_m_s	= (float)_buf.payload_rx_nav_pvt.sAcc * 1e-3f;
+		_gps_position->eph		= static_cast<float>(_buf.payload_rx_nav_pvt.hAcc) * 1e-3f;
+		_gps_position->epv		= static_cast<float>(_buf.payload_rx_nav_pvt.vAcc) * 1e-3f;
+		_gps_position->s_variance_m_s	= static_cast<float>(_buf.payload_rx_nav_pvt.sAcc) * 1e-3f;
 
-		_gps_position->vel_m_s		= (float)_buf.payload_rx_nav_pvt.gSpeed * 1e-3f;
+		_gps_position->vel_m_s		= static_cast<float>(_buf.payload_rx_nav_pvt.gSpeed) * 1e-3f;
 
-		_gps_position->vel_n_m_s	= (float)_buf.payload_rx_nav_pvt.velN * 1e-3f;
-		_gps_position->vel_e_m_s	= (float)_buf.payload_rx_nav_pvt.velE * 1e-3f;
-		_gps_position->vel_d_m_s	= (float)_buf.payload_rx_nav_pvt.velD * 1e-3f;
+		_gps_position->vel_n_m_s	= static_cast<float>(_buf.payload_rx_nav_pvt.velN) * 1e-3f;
+		_gps_position->vel_e_m_s	= static_cast<float>(_buf.payload_rx_nav_pvt.velE) * 1e-3f;
+		_gps_position->vel_d_m_s	= static_cast<float>(_buf.payload_rx_nav_pvt.velD) * 1e-3f;
 
-		_gps_position->cog_rad		= (float)_buf.payload_rx_nav_pvt.headMot * M_DEG_TO_RAD_F * 1e-5f;
-		_gps_position->c_variance_rad	= (float)_buf.payload_rx_nav_pvt.headAcc * M_DEG_TO_RAD_F * 1e-5f;
+		_gps_position->cog_rad		= static_cast<float>(_buf.payload_rx_nav_pvt.headMot) * M_DEG_TO_RAD_F * 1e-5f;
+		_gps_position->c_variance_rad	= static_cast<float>(_buf.payload_rx_nav_pvt.headAcc) * M_DEG_TO_RAD_F * 1e-5f;
 
 		//Check if time and date fix flags are good
 		if ((_buf.payload_rx_nav_pvt.valid & UBX_RX_NAV_PVT_VALID_VALIDDATE)
@@ -1483,8 +1483,8 @@ GPSDriverUBX::payloadRxDone()
 		_gps_position->lat	= _buf.payload_rx_nav_posllh.lat;
 		_gps_position->lon	= _buf.payload_rx_nav_posllh.lon;
 		_gps_position->alt	= _buf.payload_rx_nav_posllh.hMSL;
-		_gps_position->eph	= (float)_buf.payload_rx_nav_posllh.hAcc * 1e-3f; // from mm to m
-		_gps_position->epv	= (float)_buf.payload_rx_nav_posllh.vAcc * 1e-3f; // from mm to m
+		_gps_position->eph	= static_cast<float>(_buf.payload_rx_nav_posllh.hAcc) * 1e-3f; // from mm to m
+		_gps_position->epv	= static_cast<float>(_buf.payload_rx_nav_posllh.vAcc) * 1e-3f; // from mm to m
 		_gps_position->alt_ellipsoid = _buf.payload_rx_nav_posllh.height;
 
 		_gps_position->timestamp = gps_absolute_time();
@@ -1499,7 +1499,7 @@ GPSDriverUBX::payloadRxDone()
 		UBX_TRACE_RXMSG("Rx NAV-SOL");
 
 		_gps_position->fix_type		= _buf.payload_rx_nav_sol.gpsFix;
-		_gps_position->s_variance_m_s	= (float)_buf.payload_rx_nav_sol.sAcc * 1e-2f;	// from cm to m
+		_gps_position->s_variance_m_s	= static_cast<float>(_buf.payload_rx_nav_sol.sAcc) * 1e-2f;	// from cm to m
 		_gps_position->satellites_used	= _buf.payload_rx_nav_sol.numSV;
 
 		ret = 1;
@@ -1576,7 +1576,7 @@ GPSDriverUBX::payloadRxDone()
 			ubx_payload_rx_nav_svin_t &svin = _buf.payload_rx_nav_svin;
 
 			UBX_DEBUG("Survey-in status: %is cur accuracy: %imm nr obs: %i valid: %i active: %i",
-				  svin.dur, svin.meanAcc / 10, svin.obs, (int)svin.valid, (int)svin.active);
+				  svin.dur, svin.meanAcc / 10, svin.obs, static_cast<int>(svin.valid), static_cast<int>(svin.active));
 
 			SurveyInStatus status{};
 			double ecef_x = (static_cast<double>(svin.meanX) + static_cast<double>(svin.meanXHP) * 0.01) * 0.01;
