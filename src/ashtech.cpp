@@ -417,11 +417,11 @@ int GPSDriverAshtech::handleMessage(int len)
 			lon = -lon;
 		}
 
-		_gps_position->lat = static_cast<int>((int(lat * 0.01) + (lat * 0.01 - int(lat * 0.01)) * 100.0 / 60.0) * 10000000);
-		_gps_position->lon = static_cast<int>((int(lon * 0.01) + (lon * 0.01 - int(lon * 0.01)) * 100.0 / 60.0) * 10000000);
+		_gps_position->lat = static_cast<int>((static_cast<int>(lat * 0.01) + static_cast<int>(lat * 0.01 - int(lat * 0.01)) * 100.0 / 60.0) * 10000000);
+		_gps_position->lon = static_cast<int>((static_cast<int>(lon * 0.01) + static_cast<int>(lon * 0.01 - int(lon * 0.01)) * 100.0 / 60.0) * 10000000);
 		_gps_position->alt = static_cast<int>(alt * 1000);
-		_gps_position->hdop = (float)hdop;
-		_gps_position->vdop = (float)vdop;
+		_gps_position->hdop = static_cast<float>(hdop);
+		_gps_position->vdop = static_cast<float>(vdop);
 		_rate_count_lat_lon++;
 
 		if (coordinatesFound < 3) {
@@ -610,12 +610,12 @@ int GPSDriverAshtech::handleMessage(int len)
 
 				if (bufptr && *(++bufptr) != ',') { sat[y].snr = strtol(bufptr, &endp, 10); bufptr = endp; }
 
-				_satellite_info->svid[y      + (this_msg_num - 1) * 4] = sat[y].svid;
-				_satellite_info->used[y      + (this_msg_num - 1) * 4] = (sat[y].snr > 0);
+				_satellite_info->svid[y + (this_msg_num - 1) * 4]      = sat[y].svid;
+				_satellite_info->used[y + (this_msg_num - 1) * 4]      = (sat[y].snr > 0);
 				_satellite_info->elevation[y + (this_msg_num - 1) * 4] = sat[y].elevation;
-				_satellite_info->azimuth[y   + (this_msg_num - 1) * 4] = sat[y].azimuth;
-				_satellite_info->snr[y       + (this_msg_num - 1) * 4] = sat[y].snr;
-				_satellite_info->prn[y       + (this_msg_num - 1) * 4] = sat[y].prn;
+				_satellite_info->azimuth[y + (this_msg_num - 1) * 4]   = sat[y].azimuth;
+				_satellite_info->snr[y + (this_msg_num - 1) * 4]       = sat[y].snr;
+				_satellite_info->prn[y + (this_msg_num - 1) * 4]       = sat[y].prn;
 			}
 		}
 
