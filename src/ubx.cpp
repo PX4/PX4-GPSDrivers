@@ -68,7 +68,7 @@
 #define UBX_DEBUG(...)        {/*GPS_WARN(__VA_ARGS__);*/}
 
 GPSDriverUBX::GPSDriverUBX(Interface gpsInterface, GPSCallbackPtr callback, void *callback_user,
-			   sensor_gps_s* gps_position, satellite_info_s* satellite_info, uint8_t dynamic_model,
+			   sensor_gps_s *gps_position, satellite_info_s *satellite_info, uint8_t dynamic_model,
 			   float heading_offset, UBXMode mode) :
 	GPSBaseStationSupport(callback, callback_user),
 	_interface(gpsInterface),
@@ -1281,11 +1281,12 @@ GPSDriverUBX::payloadRxAddNavSat(const uint8_t b)
 			if (buf_index == sizeof(ubx_payload_rx_nav_sat_part2_t) - 1) {
 				// Part 2 complete: decode Part 2 buffer
 				unsigned sat_index = (_rx_payload_index - sizeof(ubx_payload_rx_nav_sat_part1_t)) /
-																 sizeof(ubx_payload_rx_nav_sat_part2_t);
+						     sizeof(ubx_payload_rx_nav_sat_part2_t);
 				_satellite_info->svid[sat_index]	  = static_cast<uint8_t>(_buf.payload_rx_nav_sat_part2.svId);
 				_satellite_info->used[sat_index]	  = static_cast<uint8_t>(_buf.payload_rx_nav_sat_part2.flags & 0x01);
 				_satellite_info->elevation[sat_index] = static_cast<uint8_t>(_buf.payload_rx_nav_sat_part2.elev);
-				_satellite_info->azimuth[sat_index]	  = static_cast<uint8_t>(static_cast<float>(_buf.payload_rx_nav_sat_part2.azim) * 255.0f / 360.0f);
+				_satellite_info->azimuth[sat_index]	  = static_cast<uint8_t>(static_cast<float>(_buf.payload_rx_nav_sat_part2.azim) *
+						255.0f / 360.0f);
 				_satellite_info->snr[sat_index]		  = static_cast<uint8_t>(_buf.payload_rx_nav_sat_part2.cno);
 				_satellite_info->prn[sat_index]		  = static_cast<uint8_t>(_buf.payload_rx_nav_sat_part2.prn);
 				UBX_TRACE_SVINFO("SAT #%02u  svid %3u  used %u  elevation %3u  azimuth %3u  snr %3u  prn %3u",
@@ -1339,11 +1340,12 @@ GPSDriverUBX::payloadRxAddNavSvinfo(const uint8_t b)
 			if (buf_index == sizeof(ubx_payload_rx_nav_svinfo_part2_t) - 1) {
 				// Part 2 complete: decode Part 2 buffer
 				unsigned sat_index = (_rx_payload_index - sizeof(ubx_payload_rx_nav_svinfo_part1_t)) /
-																 sizeof(ubx_payload_rx_nav_svinfo_part2_t);
+						     sizeof(ubx_payload_rx_nav_svinfo_part2_t);
 				_satellite_info->svid[sat_index]      = static_cast<uint8_t>(_buf.payload_rx_nav_svinfo_part2.svid);
 				_satellite_info->used[sat_index]      = static_cast<uint8_t>(_buf.payload_rx_nav_svinfo_part2.flags & 0x01);
 				_satellite_info->elevation[sat_index] = static_cast<uint8_t>(_buf.payload_rx_nav_svinfo_part2.elev);
-				_satellite_info->azimuth[sat_index]   = static_cast<uint8_t>(static_cast<float>(_buf.payload_rx_nav_svinfo_part2.azim) * 255.0f / 360.0f);
+				_satellite_info->azimuth[sat_index]   = static_cast<uint8_t>(static_cast<float>(_buf.payload_rx_nav_svinfo_part2.azim) *
+									255.0f / 360.0f);
 				_satellite_info->snr[sat_index]       = static_cast<uint8_t>(_buf.payload_rx_nav_svinfo_part2.cno);
 				_satellite_info->prn[sat_index]       = static_cast<uint8_t>(_buf.payload_rx_nav_svinfo_part2.prn);
 

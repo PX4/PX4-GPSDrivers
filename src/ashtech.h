@@ -134,9 +134,9 @@ private:
 
 	gps_abstime _survey_in_start{0};
 
-	sensor_gps_s* _gps_position {nullptr};
+	sensor_gps_s *_gps_position {nullptr};
 
-	satellite_info_s* _satellite_info {nullptr};
+	satellite_info_s *_satellite_info {nullptr};
 
 	AshtechBoard _board{AshtechBoard::other}; /**< board we are connected to */
 
@@ -148,6 +148,6 @@ private:
 
 	OutputMode _output_mode{OutputMode::GPS};
 
-	RTCMParsing* _rtcm_parsing{nullptr};
+	RTCMParsing *_rtcm_parsing{nullptr};
 };
 

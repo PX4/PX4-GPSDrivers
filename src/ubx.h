@@ -974,8 +974,8 @@ private:
 	const Interface _interface{};
 
 	gps_abstime             _disable_cmd_last{0};
-	sensor_gps_s*           _gps_position {nullptr};
-	satellite_info_s*       _satellite_info {nullptr};
+	sensor_gps_s           *_gps_position {nullptr};
+	satellite_info_s       *_satellite_info {nullptr};
 	ubx_ack_state_t         _ack_state{UBX_ACK_IDLE};
 	ubx_buf_t               _buf{};
 	ubx_decode_state_t      _decode_state{};
@@ -1004,7 +1004,7 @@ private:
 
 	OutputMode _output_mode{OutputMode::GPS};
 
-	RTCMParsing* _rtcm_parsing{nullptr};
+	RTCMParsing *_rtcm_parsing{nullptr};
 
 	const UBXMode _mode;
 	const float _heading_offset;
