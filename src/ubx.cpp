@@ -1107,7 +1107,35 @@ GPSDriverUBX::payloadRxInit()
 	case UBX_RXMSG_DISABLE:	// disable unexpected messages
 		UBX_DEBUG("ubx msg 0x%04x len %u unexpected", SWAP16((unsigned)_rx_msg), (unsigned)_rx_payload_length);
 
-		if (!_proto_ver_27_or_higher) { // we cannot infer the config Key ID from _rx_msg for protocol version 27+
+		if (_proto_ver_27_or_higher) {
+			uint32_t key_id = 0;
+
+			switch (_rx_msg) { // we cannot infer the config Key ID from _rx_msg for protocol version 27+
+			case UBX_MSG_RXM_RAWX:
+				key_id = UBX_CFG_KEY_MSGOUT_UBX_RXM_RAWX_I2C;
+				break;
+
+			case UBX_MSG_RXM_SFRBX:
+				key_id = UBX_CFG_KEY_MSGOUT_UBX_RXM_SFRBX_I2C;
+				break;
+			}
+
+			if (key_id != 0) {
+				gps_abstime t = gps_absolute_time();
+
+				if (t > _disable_cmd_last + DISABLE_MSG_INTERVAL && _configured) {
+					/* don't attempt for every message to disable, some might not be disabled */
+					_disable_cmd_last = t;
+					UBX_DEBUG("ubx disabling msg 0x%04x (0x%04x)", SWAP16((unsigned)_rx_msg), key_id);
+
+					// this will overwrite _buf, which is fine, as we'll return -1 and abort further parsing
+					int cfg_valset_msg_size = initCfgValset();
+					cfgValsetPort(key_id, 0, cfg_valset_msg_size);
+					sendMessage(UBX_MSG_CFG_VALSET, (uint8_t *)&_buf, cfg_valset_msg_size);
+				}
+			}
+
+		} else {
 			gps_abstime t = gps_absolute_time();
 
 			if (t > _disable_cmd_last + DISABLE_MSG_INTERVAL) {
@@ -1115,9 +1143,7 @@ GPSDriverUBX::payloadRxInit()
 				_disable_cmd_last = t;
 				UBX_DEBUG("ubx disabling msg 0x%04x", SWAP16((unsigned)_rx_msg));
 
-				if (!configureMessageRate(_rx_msg, 0)) {
-					ret = -1;
-				}
+				configureMessageRate(_rx_msg, 0);
 			}
 		}
 
