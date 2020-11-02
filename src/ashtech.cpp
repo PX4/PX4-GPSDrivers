@@ -286,7 +286,7 @@ int GPSDriverAshtech::handleMessage(int len)
 		Example $GPHDT,121.2,T*35
 
 		f1 Last computed heading value, in degrees (0-359.99)
-        T "T" for "True"
+		T "T" for "True"
 		 */
 
 		float heading = 0.f;
