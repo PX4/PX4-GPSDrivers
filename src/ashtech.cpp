@@ -40,10 +40,6 @@
 #include "ashtech.h"
 #include "rtcm.h"
 
-#ifndef M_PI_F
-# define M_PI_F 3.14159265358979323846f
-#endif
-
 #define MIN(X,Y)	((X) < (Y) ? (X) : (Y))
 #define ASH_UNUSED(x) (void)x;
 

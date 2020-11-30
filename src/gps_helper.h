@@ -46,6 +46,10 @@
 #define GPS_READ_BUFFER_SIZE 150 ///< buffer size for the read() call. Messages can be longer than that.
 #endif
 
+#ifndef M_PI_F
+# define M_PI_F 3.14159265358979323846f
+#endif
+
 enum class GPSCallbackType {
 	/**
 	 * Read data from device. This is a blocking operation with a timeout.
