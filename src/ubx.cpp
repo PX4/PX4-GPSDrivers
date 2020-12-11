@@ -45,9 +45,9 @@
  * @author Hannes Delago
  *   (rework, add ubx7+ compatibility)
  *
- * @see https://www2.u-blox.com/images/downloads/Product_Docs/u-blox6-GPS-GLONASS-QZSS-V14_ReceiverDescriptionProtocolSpec_Public_(GPS.G6-SW-12013).pdf
+ * @see https://www.u-blox.com/sites/default/files/products/documents/u-blox6-GPS-GLONASS-QZSS-V14_ReceiverDescrProtSpec_%28GPS.G6-SW-12013%29_Public.pdf
  * @see https://www.u-blox.com/sites/default/files/products/documents/u-blox8-M8_ReceiverDescrProtSpec_%28UBX-13003221%29_Public.pdf
- * @see https://www.u-blox.com/sites/default/files/u-blox_ZED-F9P_InterfaceDescription_%28UBX-18010854%29.pdf
+ * @see https://www.u-blox.com/sites/default/files/ZED-F9P_InterfaceDescription_%28UBX-18010854%29.pdf
  */
 
 #include <string.h>
@@ -1282,13 +1282,74 @@ GPSDriverUBX::payloadRxAddNavSat(const uint8_t b)
 				// Part 2 complete: decode Part 2 buffer
 				unsigned sat_index = (_rx_payload_index - sizeof(ubx_payload_rx_nav_sat_part1_t)) /
 						     sizeof(ubx_payload_rx_nav_sat_part2_t);
-				_satellite_info->svid[sat_index]	  = static_cast<uint8_t>(_buf.payload_rx_nav_sat_part2.svId);
+
+				// convert gnssId:svId to a 8 bit number (use svId numbering from NAV-SVINFO)
+				uint8_t ubx_sat_gnssId = static_cast<uint8_t>(_buf.payload_rx_nav_sat_part2.gnssId);
+				uint8_t ubx_sat_svId = static_cast<uint8_t>(_buf.payload_rx_nav_sat_part2.svId);
+
+				uint8_t svinfo_svid = 255;
+
+				switch (ubx_sat_gnssId) {
+				case 0:  // GPS: G1-G23 -> 1-32
+					if (svinfo_svid >= 1 && svinfo_svid <= 32) {
+						svinfo_svid = ubx_sat_svId;
+					}
+
+					break;
+
+				case 1:  // SBAS: S120-S158 -> 120-158
+					if (svinfo_svid >= 120 && svinfo_svid <= 158) {
+						svinfo_svid = ubx_sat_svId;
+					}
+
+					break;
+
+				case 2:  // Galileo: E1-E36 -> 211-246
+					if (svinfo_svid >= 1 && svinfo_svid <= 36) {
+						svinfo_svid = ubx_sat_svId + 210;
+					}
+
+					break;
+
+				case 3:  // BeiDou: B1-B37 -> 159-163,33-64
+					if (svinfo_svid >= 1 && svinfo_svid <= 4) {
+						svinfo_svid = ubx_sat_svId + 158;
+
+					} else if (svinfo_svid >= 5 && svinfo_svid <= 37) {
+						svinfo_svid = ubx_sat_svId + 28;
+					}
+
+					break;
+
+				case 4:  // IMES: I1-I10 -> 173-182
+					if (svinfo_svid >= 1 && svinfo_svid <= 10) {
+						svinfo_svid = ubx_sat_svId + 172;
+					}
+
+					break;
+
+				case 5:  // QZSS: Q1-A10 -> 193-202
+					if (svinfo_svid >= 1 && svinfo_svid <= 10) {
+						svinfo_svid = ubx_sat_svId + 192;
+					}
+
+					break;
+
+				case 6:  // GLONASS: R1-R32 -> 65-96, R? -> 255
+					if (svinfo_svid >= 1 && svinfo_svid <= 32) {
+						svinfo_svid = ubx_sat_svId + 64;
+					}
+
+					break;
+				}
+
+				_satellite_info->svid[sat_index]	  = svinfo_svid;
 				_satellite_info->used[sat_index]	  = static_cast<uint8_t>(_buf.payload_rx_nav_sat_part2.flags & 0x01);
 				_satellite_info->elevation[sat_index] = static_cast<uint8_t>(_buf.payload_rx_nav_sat_part2.elev);
 				_satellite_info->azimuth[sat_index]	  = static_cast<uint8_t>(static_cast<float>(_buf.payload_rx_nav_sat_part2.azim) *
 						255.0f / 360.0f);
 				_satellite_info->snr[sat_index]		  = static_cast<uint8_t>(_buf.payload_rx_nav_sat_part2.cno);
-				_satellite_info->prn[sat_index]		  = static_cast<uint8_t>(_buf.payload_rx_nav_sat_part2.prn);
+				_satellite_info->prn[sat_index]		  = svinfo_svid;
 				UBX_TRACE_SVINFO("SAT #%02u  svid %3u  used %u  elevation %3u  azimuth %3u  snr %3u  prn %3u",
 						 static_cast<unsigned>(sat_index + 1),
 						 static_cast<unsigned>(_satellite_info->svid[sat_index]),
@@ -1347,7 +1408,7 @@ GPSDriverUBX::payloadRxAddNavSvinfo(const uint8_t b)
 				_satellite_info->azimuth[sat_index]   = static_cast<uint8_t>(static_cast<float>(_buf.payload_rx_nav_svinfo_part2.azim) *
 									255.0f / 360.0f);
 				_satellite_info->snr[sat_index]       = static_cast<uint8_t>(_buf.payload_rx_nav_svinfo_part2.cno);
-				_satellite_info->prn[sat_index]       = static_cast<uint8_t>(_buf.payload_rx_nav_svinfo_part2.prn);
+				_satellite_info->prn[sat_index]       = static_cast<uint8_t>(_buf.payload_rx_nav_svinfo_part2.svid);
 
 				UBX_TRACE_SVINFO("SVINFO #%02u  svid %3u  used %u  elevation %3u  azimuth %3u  snr %3u  prn %3u",
 						 static_cast<unsigned>(sat_index + 1),
