@@ -501,7 +501,7 @@ int GPSDriverUBX::configureDevice()
 		return -1;
 	}
 
-	int uart2_baudrate = 460800;
+	int uart2_baudrate = 230400;
 
 	if (_mode == UBXMode::RoverWithMovingBase) {
 		UBX_DEBUG("Configuring UART2 for rover");
