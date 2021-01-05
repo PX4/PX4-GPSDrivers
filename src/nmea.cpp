@@ -777,10 +777,10 @@ int GPSDriverNMEA::handleMessage(int len)
 
 		// mavlink_log_info(&mavlink_log_pub, "get GSV data ");
 
-	} else if ((memcmp(_rx_buffer + 3, "VTG,", 4) == 0) && (uiCalcComma >= 9)) {
+	} else if ((memcmp(_rx_buffer + 3, "VTG,", 4) == 0) && (uiCalcComma >= 8)) {
 
-		/*$GNVTG,,T,,M,0.683,N,1.265,K,A*30
-		  $GNVTG,,T,,M,0.780,N,1.445,K,D*33
+		/*$GNVTG,,T,,M,0.683,N,1.265,K*30
+		  $GNVTG,,T,,M,0.780,N,1.445,K*33
 
 		Field	Meaning
 		0	Message ID $GPVTG
