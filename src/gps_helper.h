@@ -161,6 +161,24 @@ public:
 		SPI
 	};
 
+	/**
+	 * Bitmask for GPS_1_GNSS and GPS_2_GNSS
+	 * No bits set should keep the receiver's default config
+	 */
+	enum class GNSSSystemsMask : int32_t {
+		RECEIVER_DEFAULTS = 0,
+		ENABLE_GPS =        1 << 0,
+		ENABLE_SBAS =       1 << 1,
+		ENABLE_GALILEO =    1 << 2,
+		ENABLE_BEIDOU =     1 << 3,
+		ENABLE_GLONASS =    1 << 4
+	};
+
+	struct GPSConfig {
+		OutputMode output_mode;
+		GNSSSystemsMask gnss_systems;
+	};
+
 
 	GPSHelper(GPSCallbackPtr callback, void *callback_user);
 	virtual ~GPSHelper() = default;
@@ -169,9 +187,10 @@ public:
 	 * configure the device
 	 * @param baud Input and output parameter: if set to 0, the baudrate will be automatically detected and set to
 	 *             the detected baudrate. If not 0, a fixed baudrate is used.
+	 * @param config GPS Config
 	 * @return 0 on success, <0 otherwise
 	 */
-	virtual int configure(unsigned &baud, OutputMode output_mode) = 0;
+	virtual int configure(unsigned &baud, const GPSConfig &config) = 0;
 
 	/**
 	 * receive & handle new data from the device
@@ -278,3 +297,8 @@ protected:
 
 	uint64_t _interval_rate_start{0};
 };
+
+inline bool operator&(GPSHelper::GNSSSystemsMask a, GPSHelper::GNSSSystemsMask b)
+{
+	return static_cast<int32_t>(a) & static_cast<int32_t>(b);
+}

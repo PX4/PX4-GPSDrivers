@@ -55,10 +55,10 @@ GPSDriverMTK::GPSDriverMTK(GPSCallbackPtr callback, void *callback_user, sensor_
 }
 
 int
-GPSDriverMTK::configure(unsigned &baudrate, OutputMode output_mode)
+GPSDriverMTK::configure(unsigned &baudrate, const GPSConfig &config)
 {
-	if (output_mode != OutputMode::GPS) {
-		GPS_WARN("MTK: Unsupported Output Mode %i", (int)output_mode);
+	if (config.output_mode != OutputMode::GPS) {
+		GPS_WARN("MTK: Unsupported Output Mode %i", (int)config.output_mode);
 		return -1;
 	}
 

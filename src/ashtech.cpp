@@ -942,9 +942,9 @@ int GPSDriverAshtech::waitForReply(NMEACommand command, const unsigned timeout)
 	return _command_state == NMEACommandState::received ? 0 : -1;
 }
 
-int GPSDriverAshtech::configure(unsigned &baudrate, OutputMode output_mode)
+int GPSDriverAshtech::configure(unsigned &baudrate, const GPSConfig &config)
 {
-	_output_mode = output_mode;
+	_output_mode = config.output_mode;
 	_correction_output_activated = false;
 	_configure_done = false;
 
@@ -1069,7 +1069,7 @@ int GPSDriverAshtech::configure(unsigned &baudrate, OutputMode output_mode)
 	// Enable dual antenna mode (2: both antennas are L1/L2 GNSS capable, flex mode, avoids the need to determine
 	// the baseline length through a prior calibration stage)
 	// Needs to be set before other commands
-	const bool use_dual_mode = output_mode == OutputMode::GPS && _board == AshtechBoard::trimble_mb_two;
+	const bool use_dual_mode = _output_mode == OutputMode::GPS && _board == AshtechBoard::trimble_mb_two;
 
 	if (use_dual_mode) {
 		ASH_DEBUG("Enabling DUO mode");
@@ -1118,7 +1118,7 @@ int GPSDriverAshtech::configure(unsigned &baudrate, OutputMode output_mode)
 	}
 
 
-	if (output_mode == OutputMode::RTCM && _board == AshtechBoard::trimble_mb_two) {
+	if (_output_mode == OutputMode::RTCM && _board == AshtechBoard::trimble_mb_two) {
 		SurveyInStatus status{};
 		status.latitude = status.longitude = (double)NAN;
 		status.altitude = NAN;
