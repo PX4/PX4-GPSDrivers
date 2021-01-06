@@ -78,11 +78,11 @@ GPSDriverEmlidReach::GPSDriverEmlidReach(GPSCallbackPtr callback, void *callback
 
 
 int
-GPSDriverEmlidReach::configure(unsigned &baudrate, OutputMode output_mode)
+GPSDriverEmlidReach::configure(unsigned &baudrate, const GPSConfig &config)
 {
 	// TODO RTK
-	if (output_mode != OutputMode::GPS) {
-		GPS_WARN("EMLIDREACH: Unsupported Output Mode %i", (int)output_mode);
+	if (config.output_mode != OutputMode::GPS) {
+		GPS_WARN("EMLIDREACH: Unsupported Output Mode %i", (int)config.output_mode);
 		return -1;
 	}
 

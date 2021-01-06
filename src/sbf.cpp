@@ -73,16 +73,16 @@ GPSDriverSBF::~GPSDriverSBF()
 }
 
 int
-GPSDriverSBF::configure(unsigned &baudrate, OutputMode output_mode)
+GPSDriverSBF::configure(unsigned &baudrate, const GPSConfig &config)
 {
 	_configured = false;
 
 	setBaudrate(SBF_TX_CFG_PRT_BAUDRATE);
 	baudrate = SBF_TX_CFG_PRT_BAUDRATE;
 
-	_output_mode = output_mode;
+	_output_mode = config.output_mode;
 
-	if (output_mode != OutputMode::RTCM) {
+	if (_output_mode != OutputMode::RTCM) {
 		sendMessage(SBF_CONFIG_FORCE_INPUT);
 	}
 

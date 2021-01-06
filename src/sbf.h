@@ -316,7 +316,7 @@ public:
 	virtual ~GPSDriverSBF() override;
 
 	int receive(unsigned timeout) override;
-	int configure(unsigned &baudrate, OutputMode output_mode) override;
+	int configure(unsigned &baudrate, const GPSConfig &config) override;
 	int reset(GPSRestartType restart_type) override;
 
 private:

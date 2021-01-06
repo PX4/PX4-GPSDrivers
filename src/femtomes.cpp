@@ -322,11 +322,11 @@ int GPSDriverFemto::writeAckedCommandFemto(const char *command, const char *repl
 	return -1;
 }
 
-int GPSDriverFemto::configure(unsigned &baudrate, OutputMode output_mode)
+int GPSDriverFemto::configure(unsigned &baudrate, const GPSConfig &config)
 {
 
-	if (output_mode != OutputMode::GPS) {
-		FEMTO_DEBUG("Femto: Unsupported Output Mode %i", (int)output_mode);
+	if (config.output_mode != OutputMode::GPS) {
+		FEMTO_DEBUG("Femto: Unsupported Output Mode %i", (int)config.output_mode);
 		return -1;
 	}
 
