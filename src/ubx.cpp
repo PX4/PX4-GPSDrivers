@@ -329,10 +329,10 @@ GPSDriverUBX::configure(unsigned &baudrate, const GPSConfig &config)
 	int ret;
 
 	if (_proto_ver_27_or_higher) {
-		ret = configureDevice();
+		ret = configureDevice(config.gnss_systems);
 
 	} else {
-		ret = configureDevicePreV27();
+		ret = configureDevicePreV27(config.gnss_systems);
 	}
 
 	if (ret != 0) {
@@ -350,7 +350,7 @@ GPSDriverUBX::configure(unsigned &baudrate, const GPSConfig &config)
 }
 
 
-int GPSDriverUBX::configureDevicePreV27()
+int GPSDriverUBX::configureDevicePreV27(const GNSSSystemsMask &gnssSystems)
 {
 	/* Send a CFG-RATE message to define update rate */
 	memset(&_buf.payload_tx_cfg_rate, 0, sizeof(_buf.payload_tx_cfg_rate));
@@ -378,6 +378,80 @@ int GPSDriverUBX::configureDevicePreV27()
 
 	if (waitForAck(UBX_MSG_CFG_NAV5, UBX_CONFIG_TIMEOUT, true) < 0) {
 		return -1;
+	}
+
+	/* configure active GNSS systems (number of channels and used signals taken from U-Center default) */
+	if (static_cast<int32_t>(gnssSystems) != 0) {
+		memset(&_buf.payload_tx_cfg_gnss, 0, sizeof(_buf.payload_tx_cfg_gnss));
+		_buf.payload_tx_cfg_gnss.msgVer = 0x00;
+		_buf.payload_tx_cfg_gnss.numTrkChHw = 0x00;  // read only
+		_buf.payload_tx_cfg_gnss.numTrkChUse = 0xFF;  // use max number of HW channels
+		_buf.payload_tx_cfg_gnss.numConfigBlocks = 7;  // always configure all systems
+
+		// GPS and QZSS should always be enabled and disabled together, according to uBlox
+		_buf.payload_tx_cfg_gnss.block[0].gnssId = UBX_TX_CFG_GNSS_GNSSID_GPS;
+		_buf.payload_tx_cfg_gnss.block[1].gnssId = UBX_TX_CFG_GNSS_GNSSID_QZSS;
+
+		if (gnssSystems & GNSSSystemsMask::ENABLE_GPS) {
+			UBX_DEBUG("GNSS Systems: Use GPS + QZSS");
+			_buf.payload_tx_cfg_gnss.block[0].resTrkCh = 8;
+			_buf.payload_tx_cfg_gnss.block[0].maxTrkCh = 16;
+			_buf.payload_tx_cfg_gnss.block[0].flags = UBX_TX_CFG_GNSS_FLAGS_GPS_L1CA | UBX_TX_CFG_GNSS_FLAGS_ENABLE;
+			_buf.payload_tx_cfg_gnss.block[1].resTrkCh = 0;
+			_buf.payload_tx_cfg_gnss.block[1].maxTrkCh = 3;
+			_buf.payload_tx_cfg_gnss.block[1].flags = UBX_TX_CFG_GNSS_FLAGS_QZSS_L1CA | UBX_TX_CFG_GNSS_FLAGS_ENABLE;
+		}
+
+		_buf.payload_tx_cfg_gnss.block[2].gnssId = UBX_TX_CFG_GNSS_GNSSID_SBAS;
+
+		if (gnssSystems & GNSSSystemsMask::ENABLE_SBAS) {
+			UBX_DEBUG("GNSS Systems: Use SBAS");
+			_buf.payload_tx_cfg_gnss.block[2].resTrkCh = 1;
+			_buf.payload_tx_cfg_gnss.block[2].maxTrkCh = 3;
+			_buf.payload_tx_cfg_gnss.block[2].flags = UBX_TX_CFG_GNSS_FLAGS_SBAS_L1CA | UBX_TX_CFG_GNSS_FLAGS_ENABLE;
+		}
+
+		_buf.payload_tx_cfg_gnss.block[3].gnssId = UBX_TX_CFG_GNSS_GNSSID_GALILEO;
+
+		if (gnssSystems & GNSSSystemsMask::ENABLE_GALILEO) {
+			UBX_DEBUG("GNSS Systems: Use Galileo");
+			_buf.payload_tx_cfg_gnss.block[3].resTrkCh = 4;
+			_buf.payload_tx_cfg_gnss.block[3].maxTrkCh = 8;
+			_buf.payload_tx_cfg_gnss.block[3].flags = UBX_TX_CFG_GNSS_FLAGS_GALILEO_E1 | UBX_TX_CFG_GNSS_FLAGS_ENABLE;
+		}
+
+		_buf.payload_tx_cfg_gnss.block[4].gnssId = UBX_TX_CFG_GNSS_GNSSID_BEIDOU;
+
+		if (gnssSystems & GNSSSystemsMask::ENABLE_BEIDOU) {
+			UBX_DEBUG("GNSS Systems: Use BeiDou");
+			_buf.payload_tx_cfg_gnss.block[4].resTrkCh = 8;
+			_buf.payload_tx_cfg_gnss.block[4].maxTrkCh = 16;
+			_buf.payload_tx_cfg_gnss.block[4].flags = UBX_TX_CFG_GNSS_FLAGS_BEIDOU_B1I | UBX_TX_CFG_GNSS_FLAGS_ENABLE;
+		}
+
+		_buf.payload_tx_cfg_gnss.block[5].gnssId = UBX_TX_CFG_GNSS_GNSSID_GLONASS;
+
+		if (gnssSystems & GNSSSystemsMask::ENABLE_GLONASS) {
+			UBX_DEBUG("GNSS Systems: Use GLONASS");
+			_buf.payload_tx_cfg_gnss.block[5].resTrkCh = 8;
+			_buf.payload_tx_cfg_gnss.block[5].maxTrkCh = 14;
+			_buf.payload_tx_cfg_gnss.block[5].flags = UBX_TX_CFG_GNSS_FLAGS_GLONASS_L1 | UBX_TX_CFG_GNSS_FLAGS_ENABLE;
+		}
+
+		// IMES always disabled
+		_buf.payload_tx_cfg_gnss.block[6].gnssId = UBX_TX_CFG_GNSS_GNSSID_IMES;
+		_buf.payload_tx_cfg_gnss.block[6].flags = 0;
+
+		// send message
+		if (!sendMessage(UBX_MSG_CFG_GNSS, (uint8_t *)&_buf, sizeof(_buf.payload_tx_cfg_gnss))) {
+			GPS_ERR("UBX CFG-GNSS message send failed");
+			return -1;
+		}
+
+		if (waitForAck(UBX_MSG_CFG_GNSS, UBX_CONFIG_TIMEOUT, true) < 0) {
+			GPS_ERR("UBX CFG-GNSS message ACK failed");
+			return -1;
+		}
 	}
 
 	/* configure message rates */
@@ -431,7 +505,7 @@ int GPSDriverUBX::configureDevicePreV27()
 	return 0;
 }
 
-int GPSDriverUBX::configureDevice()
+int GPSDriverUBX::configureDevice(const GNSSSystemsMask &gnssSystems)
 {
 	/* set configuration parameters */
 	int cfg_valset_msg_size = initCfgValset();
@@ -471,6 +545,62 @@ int GPSDriverUBX::configureDevice()
 	}
 
 	waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, false);
+
+	// configure active GNSS systems (leave signal bands as is)
+	if (static_cast<int32_t>(gnssSystems) != 0) {
+		cfg_valset_msg_size = initCfgValset();
+
+		// GPS and QZSS should always be enabled and disabled together, according to uBlox
+		if (gnssSystems & GNSSSystemsMask::ENABLE_GPS) {
+			UBX_DEBUG("GNSS Systems: Use GPS + QZSS");
+			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GPS_ENA, 1, cfg_valset_msg_size);
+			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_QZSS_ENA, 1, cfg_valset_msg_size);
+
+		} else {
+			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GPS_ENA, 0, cfg_valset_msg_size);
+			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_QZSS_ENA, 0, cfg_valset_msg_size);
+		}
+
+
+		if (gnssSystems & GNSSSystemsMask::ENABLE_SBAS) {
+			UBX_DEBUG("GNSS Systems: Use SBAS");
+			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_SBAS_ENA, 1, cfg_valset_msg_size);
+
+		} else {
+			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_SBAS_ENA, 0, cfg_valset_msg_size);
+		}
+
+
+		if (gnssSystems & GNSSSystemsMask::ENABLE_GALILEO) {
+			UBX_DEBUG("GNSS Systems: Use Galileo");
+			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GAL_ENA, 1, cfg_valset_msg_size);
+
+		} else {
+			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GAL_ENA, 0, cfg_valset_msg_size);
+		}
+
+
+		if (gnssSystems & GNSSSystemsMask::ENABLE_BEIDOU) {
+			UBX_DEBUG("GNSS Systems: Use BeiDou");
+			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_BDS_ENA, 1, cfg_valset_msg_size);
+
+		} else {
+			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_BDS_ENA, 0, cfg_valset_msg_size);
+		}
+
+		if (gnssSystems & GNSSSystemsMask::ENABLE_GLONASS) {
+			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GLO_ENA, 1, cfg_valset_msg_size);
+
+		} else {
+			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GLO_ENA, 0, cfg_valset_msg_size);
+		}
+
+		if (!sendMessage(UBX_MSG_CFG_VALSET, (uint8_t *)&_buf, cfg_valset_msg_size)) {
+			return -1;
+		}
+
+		waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true);
+	}
 
 	// Configure message rates
 	// Send a new CFG-VALSET message to make sure it does not get too large
