@@ -561,16 +561,6 @@ int GPSDriverUBX::configureDevice(const GNSSSystemsMask &gnssSystems)
 			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_QZSS_ENA, 0, cfg_valset_msg_size);
 		}
 
-
-		if (gnssSystems & GNSSSystemsMask::ENABLE_SBAS) {
-			UBX_DEBUG("GNSS Systems: Use SBAS");
-			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_SBAS_ENA, 1, cfg_valset_msg_size);
-
-		} else {
-			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_SBAS_ENA, 0, cfg_valset_msg_size);
-		}
-
-
 		if (gnssSystems & GNSSSystemsMask::ENABLE_GALILEO) {
 			UBX_DEBUG("GNSS Systems: Use Galileo");
 			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GAL_ENA, 1, cfg_valset_msg_size);
@@ -593,6 +583,27 @@ int GPSDriverUBX::configureDevice(const GNSSSystemsMask &gnssSystems)
 
 		} else {
 			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GLO_ENA, 0, cfg_valset_msg_size);
+		}
+
+		if (!sendMessage(UBX_MSG_CFG_VALSET, (uint8_t *)&_buf, cfg_valset_msg_size)) {
+			GPS_ERR("UBX GNSS config send failed");
+			return -1;
+		}
+
+		if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true) < 0) {
+			return -1;
+		}
+
+		// send SBAS config separately, because it seems to be buggy (with u-center, too)
+		cfg_valset_msg_size = initCfgValset();
+
+		if (gnssSystems & GNSSSystemsMask::ENABLE_SBAS) {
+			UBX_DEBUG("GNSS Systems: Use SBAS");
+			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_SBAS_ENA, 1, cfg_valset_msg_size);
+			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_SBAS_L1CA_ENA, 1, cfg_valset_msg_size);
+
+		} else {
+			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_SBAS_ENA, 0, cfg_valset_msg_size);
 		}
 
 		if (!sendMessage(UBX_MSG_CFG_VALSET, (uint8_t *)&_buf, cfg_valset_msg_size)) {
