@@ -1291,52 +1291,52 @@ GPSDriverUBX::payloadRxAddNavSat(const uint8_t b)
 
 				switch (ubx_sat_gnssId) {
 				case 0:  // GPS: G1-G23 -> 1-32
-					if (svinfo_svid >= 1 && svinfo_svid <= 32) {
+					if (ubx_sat_svId >= 1 && ubx_sat_svId <= 32) {
 						svinfo_svid = ubx_sat_svId;
 					}
 
 					break;
 
 				case 1:  // SBAS: S120-S158 -> 120-158
-					if (svinfo_svid >= 120 && svinfo_svid <= 158) {
+					if (ubx_sat_svId >= 120 && ubx_sat_svId <= 158) {
 						svinfo_svid = ubx_sat_svId;
 					}
 
 					break;
 
 				case 2:  // Galileo: E1-E36 -> 211-246
-					if (svinfo_svid >= 1 && svinfo_svid <= 36) {
+					if (ubx_sat_svId >= 1 && ubx_sat_svId <= 36) {
 						svinfo_svid = ubx_sat_svId + 210;
 					}
 
 					break;
 
 				case 3:  // BeiDou: B1-B37 -> 159-163,33-64
-					if (svinfo_svid >= 1 && svinfo_svid <= 4) {
+					if (ubx_sat_svId >= 1 && ubx_sat_svId <= 4) {
 						svinfo_svid = ubx_sat_svId + 158;
 
-					} else if (svinfo_svid >= 5 && svinfo_svid <= 37) {
+					} else if (ubx_sat_svId >= 5 && ubx_sat_svId <= 37) {
 						svinfo_svid = ubx_sat_svId + 28;
 					}
 
 					break;
 
 				case 4:  // IMES: I1-I10 -> 173-182
-					if (svinfo_svid >= 1 && svinfo_svid <= 10) {
+					if (ubx_sat_svId >= 1 && ubx_sat_svId <= 10) {
 						svinfo_svid = ubx_sat_svId + 172;
 					}
 
 					break;
 
 				case 5:  // QZSS: Q1-A10 -> 193-202
-					if (svinfo_svid >= 1 && svinfo_svid <= 10) {
+					if (ubx_sat_svId >= 1 && ubx_sat_svId <= 10) {
 						svinfo_svid = ubx_sat_svId + 192;
 					}
 
 					break;
 
 				case 6:  // GLONASS: R1-R32 -> 65-96, R? -> 255
-					if (svinfo_svid >= 1 && svinfo_svid <= 32) {
+					if (ubx_sat_svId >= 1 && ubx_sat_svId <= 32) {
 						svinfo_svid = ubx_sat_svId + 64;
 					}
 
