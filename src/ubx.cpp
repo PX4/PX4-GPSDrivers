@@ -1992,6 +1992,7 @@ GPSDriverUBX::payloadRxDone()
 
 		_gps_position->noise_per_ms		= _buf.payload_rx_mon_rf.block[0].noisePerMS;
 		_gps_position->jamming_indicator	= _buf.payload_rx_mon_rf.block[0].jamInd;
+		_gps_position->jamming_state		= _buf.payload_rx_mon_rf.block[0].flags;
 
 		ret = 1;
 		break;
