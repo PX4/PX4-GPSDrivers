@@ -520,6 +520,9 @@ int GPSDriverUBX::configureDevice(const GNSSSystemsMask &gnssSystems)
 	cfgValset<uint8_t>(UBX_CFG_KEY_ODO_OUTLPVEL, 0, cfg_valset_msg_size);
 	cfgValset<uint8_t>(UBX_CFG_KEY_ODO_OUTLPCOG, 0, cfg_valset_msg_size);
 
+	// enable jamming monitor
+	cfgValset<uint8_t>(UBX_CFG_KEY_ITFM_ENABLE, 1, cfg_valset_msg_size);
+
 	// measurement rate
 	// In case of F9P we use 10Hz, otherwise 5Hz (receivers such as M9N can go higher as well, but
 	// the number of used satellites will be restricted to 16. Not mentioned in datasheet)
@@ -1989,6 +1992,7 @@ GPSDriverUBX::payloadRxDone()
 
 		_gps_position->noise_per_ms		= _buf.payload_rx_mon_rf.block[0].noisePerMS;
 		_gps_position->jamming_indicator	= _buf.payload_rx_mon_rf.block[0].jamInd;
+		_gps_position->jamming_state		= _buf.payload_rx_mon_rf.block[0].flags;
 
 		ret = 1;
 		break;

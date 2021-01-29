@@ -309,6 +309,8 @@
 #define UBX_CFG_KEY_ODO_OUTLPVEL                0x10220003
 #define UBX_CFG_KEY_ODO_OUTLPCOG                0x10220004
 
+#define UBX_CFG_KEY_ITFM_ENABLE                 0x1041000d
+
 #define UBX_CFG_KEY_RATE_MEAS                   0x30210001
 #define UBX_CFG_KEY_RATE_NAV                    0x30210002
 #define UBX_CFG_KEY_RATE_TIMEREF                0x20210003
