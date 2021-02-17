@@ -524,9 +524,9 @@ int GPSDriverUBX::configureDevice(const GNSSSystemsMask &gnssSystems)
 	cfgValset<uint8_t>(UBX_CFG_KEY_ITFM_ENABLE, 1, cfg_valset_msg_size);
 
 	// measurement rate
-	// In case of F9P we use 10Hz, otherwise 5Hz (receivers such as M9N can go higher as well, but
+	// In case of F9P we use 10Hz, otherwise 8Hz (receivers such as M9N can go higher as well, but
 	// the number of used satellites will be restricted to 16. Not mentioned in datasheet)
-	const int rate_meas = (_board == Board::u_blox9_F9P) ? 100 : 200;
+	const int rate_meas = (_board == Board::u_blox9_F9P) ? 100 : 125;
 	cfgValset<uint16_t>(UBX_CFG_KEY_RATE_MEAS, rate_meas, cfg_valset_msg_size);
 	cfgValset<uint16_t>(UBX_CFG_KEY_RATE_NAV, 1, cfg_valset_msg_size);
 	cfgValset<uint8_t>(UBX_CFG_KEY_RATE_TIMEREF, 0, cfg_valset_msg_size);
