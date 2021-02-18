@@ -97,6 +97,7 @@ private:
 	uint32_t _last_POS_timeUTC{0};
 	uint32_t _last_VEL_timeUTC{0};
 	uint32_t _last_FIX_timeUTC{0};
+	uint64_t _last_timestamp_time{0};
 
 	uint8_t sat_num_gga{0};
 	uint8_t sat_num_gns{0};

@@ -290,6 +290,8 @@ int GPSDriverNMEA::handleMessage(int len)
 
 		_gps_position->c_variance_rad = 0.1f;
 		_gps_position->timestamp = gps_absolute_time();
+		_rate_count_lat_lon++;
+		ret = 1;
 
 		// mavlink_log_info(&mavlink_log_pub, "GGA time->>> %d ",(int)(utc_time));
 
@@ -490,9 +492,9 @@ int GPSDriverNMEA::handleMessage(int len)
 		int utc_hour = static_cast<int>(utc_time / 10000);
 		int utc_minute = static_cast<int>((utc_time - utc_hour * 10000) / 100);
 		double utc_sec = static_cast<double>(utc_time - utc_hour * 10000 - utc_minute * 100);
-		int nema_day = static_cast<int>(nmea_date / 10000);
-		int nmea_mth = static_cast<int>((nmea_date - nema_day * 10000) / 100);
-		int nmea_year = static_cast<int>(nmea_date - nema_day * 10000 - nmea_mth * 100);
+		int nmea_day = static_cast<int>(nmea_date / 10000);
+		int nmea_mth = static_cast<int>((nmea_date - nmea_day * 10000) / 100);
+		int nmea_year = static_cast<int>(nmea_date - nmea_day * 10000 - nmea_mth * 100);
 		/* convert from degrees, minutes and seconds to degrees */
 		_gps_position->lat = static_cast<int>((int(lat * 0.01) + (lat * 0.01 - int(lat * 0.01)) * 100.0 / 60.0) * 10000000);
 		_gps_position->lon = static_cast<int>((int(lon * 0.01) + (lon * 0.01 - int(lon * 0.01)) * 100.0 / 60.0) * 10000000);
@@ -504,7 +506,9 @@ int GPSDriverNMEA::handleMessage(int len)
 		_gps_position->vel_ned_valid = true; /**< Flag to indicate if NED speed is valid */
 		_gps_position->c_variance_rad = 0.1f;
 		_gps_position->s_variance_m_s = 0;
+		_gps_position->timestamp = gps_absolute_time();
 		_last_VEL_timeUTC = utc_time;
+		_last_timestamp_time = gps_absolute_time();
 
 		/*
 		 * convert to unix timestamp
@@ -512,7 +516,7 @@ int GPSDriverNMEA::handleMessage(int len)
 		struct tm timeinfo = {};
 		timeinfo.tm_year = nmea_year + 100;
 		timeinfo.tm_mon = nmea_mth - 1;
-		timeinfo.tm_mday = nema_day;
+		timeinfo.tm_mday = nmea_day;
 		timeinfo.tm_hour = utc_hour;
 		timeinfo.tm_min = utc_minute;
 		timeinfo.tm_sec = int(utc_sec);
@@ -550,6 +554,8 @@ int GPSDriverNMEA::handleMessage(int len)
 		_POS_received = true;
 		_TIME_received = true;
 		_VEL_received = true;
+		_rate_count_vel++;
+		ret = 1;
 
 		// mavlink_log_info(&mavlink_log_pub, "RMC time->>> %d ",(int)(utc_time));
 
@@ -847,48 +853,26 @@ int GPSDriverNMEA::handleMessage(int len)
 		_gps_position->s_variance_m_s = 0;
 
 		_VEL_received = true;
+		_rate_count_vel++;
+		ret = 1;
 		// mavlink_log_info(&mavlink_log_pub, "get VTG data ");
 	}
 
-	if (_POS_received &&
-	    _ALT_received &&
-	    _SVNUM_received &&
+	if (_SVNUM_received &&
 	    _SVINFO_received &&
-	    _FIX_received &&
-	    (_DOP_received ||
-	     _EPH_received) &&
-	    _VEL_received &&
-	    _TIME_received &&
-	    ((_decode_flags & (int)NMEADecodeFlags::got_hdt) ? _HEAD_received : true)) {
+	    _FIX_received
+	    ) {
 
 		sat_num_gsv = sat_num_gpgsv + sat_num_glgsv + sat_num_gagsv
 			      + sat_num_gbgsv + sat_num_bdgsv;
 
-		_rate_count_lat_lon++;
-		_rate_count_vel++;
-
 		_gps_position->satellites_used = MAX(sat_num_gns, sat_num_gsv);
 		_gps_position->satellites_used = MAX(_gps_position->satellites_used, sat_num_gga);
+	}
 
+	if (ret == 1) {
+		_gps_position->timestamp_time_relative = (int32_t)(_last_timestamp_time - _gps_position->timestamp);
 		clock_set = false;
-
-		_TIME_received = false;
-		_POS_received = false;
-		_ALT_received = false;
-		_SVNUM_received = false;
-		_SVINFO_received = false;
-		_FIX_received = false;
-		_DOP_received = false;
-		_VEL_received = false;
-		_EPH_received = false;
-		_HEAD_received = false;
-		sat_num_gpgsv = 0;
-		sat_num_glgsv = 0;
-		sat_num_gagsv = 0;
-		sat_num_gbgsv = 0;
-		sat_num_bdgsv = 0;
-
-		ret = 1;
 	}
 
 	return ret;
