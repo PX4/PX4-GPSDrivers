@@ -96,7 +96,7 @@ private:
 	 */
 	void activateCorrectionOutput();
 
-	void activateRTCMOutput();
+	void activateRTCMOutput(bool reduce_update_rate);
 
 	void decodeInit(void);
 

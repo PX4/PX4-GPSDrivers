@@ -41,9 +41,7 @@ RTCMParsing::RTCMParsing()
 
 RTCMParsing::~RTCMParsing()
 {
-	if (_buffer) {
-		delete[](_buffer);
-	}
+	delete[] _buffer;
 }
 
 void RTCMParsing::reset()
@@ -59,6 +57,10 @@ void RTCMParsing::reset()
 
 bool RTCMParsing::addByte(uint8_t b)
 {
+	if (!_buffer) {
+		return false;
+	}
+
 	_buffer[_pos++] = b;
 
 	if (_pos == 3) {
@@ -67,6 +69,13 @@ bool RTCMParsing::addByte(uint8_t b)
 		if (_message_length + 6 > _buffer_len) {
 			uint16_t new_buffer_len = _message_length + 6;
 			uint8_t *new_buffer = new uint8_t[new_buffer_len];
+
+			if (!new_buffer) {
+				delete[](_buffer);
+				_buffer = nullptr;
+				return false;
+			}
+
 			memcpy(new_buffer, _buffer, 3);
 			delete[](_buffer);
 			_buffer = new_buffer;

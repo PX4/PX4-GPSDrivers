@@ -83,9 +83,7 @@ GPSDriverUBX::GPSDriverUBX(Interface gpsInterface, GPSCallbackPtr callback, void
 
 GPSDriverUBX::~GPSDriverUBX()
 {
-	if (_rtcm_parsing) {
-		delete (_rtcm_parsing);
-	}
+	delete _rtcm_parsing;
 }
 
 int
@@ -97,12 +95,12 @@ GPSDriverUBX::configure(unsigned &baudrate, const GPSConfig &config)
 	ubx_payload_tx_cfg_prt_t cfg_prt[2];
 
 	uint16_t out_proto_mask = _output_mode == OutputMode::GPS ?
-				  UBX_TX_CFG_PRT_OUTPROTOMASK_GPS :
-				  UBX_TX_CFG_PRT_OUTPROTOMASK_RTCM;
+				  UBX_TX_CFG_PRT_PROTO_UBX :
+				  (UBX_TX_CFG_PRT_PROTO_UBX | UBX_TX_CFG_PRT_PROTO_RTCM);
 
-	uint16_t in_proto_mask = _output_mode == OutputMode::GPS ?
-				 UBX_TX_CFG_PRT_INPROTOMASK_GPS :
-				 UBX_TX_CFG_PRT_INPROTOMASK_RTCM;
+	uint16_t in_proto_mask = (_output_mode == OutputMode::GPS || _output_mode == OutputMode::GPSAndRTCM) ?
+				 (UBX_TX_CFG_PRT_PROTO_UBX | UBX_TX_CFG_PRT_PROTO_RTCM) :
+				 UBX_TX_CFG_PRT_PROTO_UBX;
 
 	const bool auto_baudrate = baudrate == 0;
 
@@ -137,12 +135,12 @@ GPSDriverUBX::configure(unsigned &baudrate, const GPSConfig &config)
 			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1_DATABITS, 0, cfg_valset_msg_size);
 			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1_PARITY, 0, cfg_valset_msg_size);
 			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1INPROT_UBX, 1, cfg_valset_msg_size);
-			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1INPROT_RTCM3X, _output_mode == OutputMode::GPS ? 1 : 0,
+			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1INPROT_RTCM3X, _output_mode == OutputMode::RTCM ? 0 : 1,
 					   cfg_valset_msg_size);
 			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1INPROT_NMEA, 0, cfg_valset_msg_size);
 			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1OUTPROT_UBX, 1, cfg_valset_msg_size);
 
-			if (_output_mode == OutputMode::RTCM) {
+			if (_output_mode != OutputMode::GPS) {
 				cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1OUTPROT_RTCM3X, 1, cfg_valset_msg_size);
 			}
 
@@ -151,12 +149,12 @@ GPSDriverUBX::configure(unsigned &baudrate, const GPSConfig &config)
 
 			// USB
 			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_USBINPROT_UBX, 1, cfg_valset_msg_size);
-			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_USBINPROT_RTCM3X, _output_mode == OutputMode::GPS ? 1 : 0,
+			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_USBINPROT_RTCM3X, _output_mode == OutputMode::RTCM ? 0 : 1,
 					   cfg_valset_msg_size);
 			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_USBINPROT_NMEA, 0, cfg_valset_msg_size);
 			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_USBOUTPROT_UBX, 1, cfg_valset_msg_size);
 
-			if (_output_mode == OutputMode::RTCM) {
+			if (_output_mode != OutputMode::GPS) {
 				cfgValset<uint8_t>(UBX_CFG_KEY_CFG_USBOUTPROT_RTCM3X, 1, cfg_valset_msg_size);
 			}
 
@@ -252,7 +250,7 @@ GPSDriverUBX::configure(unsigned &baudrate, const GPSConfig &config)
 		cfgValset<uint8_t>(UBX_CFG_KEY_SPI_ENABLED, 1, cfg_valset_msg_size);
 		cfgValset<uint8_t>(UBX_CFG_KEY_SPI_MAXFF, 1, cfg_valset_msg_size);
 		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_SPIINPROT_UBX, 1, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_SPIINPROT_RTCM3X, _output_mode == OutputMode::GPS ? 1 : 0, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_SPIINPROT_RTCM3X, _output_mode == OutputMode::RTCM ? 0 : 1, cfg_valset_msg_size);
 		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_SPIINPROT_NMEA, 0, cfg_valset_msg_size);
 		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_SPIOUTPROT_UBX, 1, cfg_valset_msg_size);
 		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_SPIOUTPROT_RTCM3X, _output_mode == OutputMode::GPS ? 0 : 1, cfg_valset_msg_size);
@@ -321,7 +319,7 @@ GPSDriverUBX::configure(unsigned &baudrate, const GPSConfig &config)
 	}
 
 
-	if (_output_mode != OutputMode::GPS) {
+	if (_output_mode == OutputMode::RTCM) {
 		// RTCM mode force stationary dynamic model
 		_dyn_model = 2;
 	}
@@ -341,6 +339,11 @@ GPSDriverUBX::configure(unsigned &baudrate, const GPSConfig &config)
 
 	if (_output_mode == OutputMode::RTCM) {
 		if (restartSurveyIn() < 0) {
+			return -1;
+		}
+
+	} else if (_output_mode == OutputMode::GPSAndRTCM) {
+		if (activateRTCMOutput(false) < 0) {
 			return -1;
 		}
 	}
@@ -811,7 +814,7 @@ int GPSDriverUBX::restartSurveyInPreV27()
 		}
 
 		// directly enable RTCM3 output
-		return activateRTCMOutput();
+		return activateRTCMOutput(true);
 	}
 
 	return 0;
@@ -883,7 +886,7 @@ int GPSDriverUBX::restartSurveyIn()
 		}
 
 		// directly enable RTCM3 output
-		return activateRTCMOutput();
+		return activateRTCMOutput(true);
 
 	}
 
@@ -1893,7 +1896,7 @@ GPSDriverUBX::payloadRxDone()
 			surveyInStatus(status);
 
 			if (svin.valid == 1 && svin.active == 0) {
-				if (activateRTCMOutput() != 0) {
+				if (activateRTCMOutput(true) != 0) {
 					return -1;
 				}
 			}
@@ -2029,15 +2032,18 @@ GPSDriverUBX::payloadRxDone()
 }
 
 int
-GPSDriverUBX::activateRTCMOutput()
+GPSDriverUBX::activateRTCMOutput(bool reduce_update_rate)
 {
-	/* We now switch to 1 Hz update rate, which is enough for RTCM output.
+	/* For base stations we switch to 1 Hz update rate, which is enough for RTCM output.
 	 * For the survey-in, we still want 5/10 Hz, because this speeds up the process */
 
 	if (_proto_ver_27_or_higher) {
 		int cfg_valset_msg_size = initCfgValset();
 
-		cfgValset<uint16_t>(UBX_CFG_KEY_RATE_MEAS, 1000, cfg_valset_msg_size);
+		if (reduce_update_rate) {
+			cfgValset<uint16_t>(UBX_CFG_KEY_RATE_MEAS, 1000, cfg_valset_msg_size);
+		}
+
 		cfgValsetPort(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1005_I2C, 5, cfg_valset_msg_size);
 		cfgValsetPort(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1077_I2C, 1, cfg_valset_msg_size);
 		cfgValsetPort(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1087_I2C, 1, cfg_valset_msg_size);
@@ -2056,18 +2062,16 @@ GPSDriverUBX::activateRTCMOutput()
 
 	} else {
 
-		memset(&_buf.payload_tx_cfg_rate, 0, sizeof(_buf.payload_tx_cfg_rate));
-		_buf.payload_tx_cfg_rate.measRate	= 1000;
-		_buf.payload_tx_cfg_rate.navRate	= UBX_TX_CFG_RATE_NAVRATE;
-		_buf.payload_tx_cfg_rate.timeRef	= UBX_TX_CFG_RATE_TIMEREF;
+		if (reduce_update_rate) {
+			memset(&_buf.payload_tx_cfg_rate, 0, sizeof(_buf.payload_tx_cfg_rate));
+			_buf.payload_tx_cfg_rate.measRate	= 1000;
+			_buf.payload_tx_cfg_rate.navRate	= UBX_TX_CFG_RATE_NAVRATE;
+			_buf.payload_tx_cfg_rate.timeRef	= UBX_TX_CFG_RATE_TIMEREF;
 
-		if (!sendMessage(UBX_MSG_CFG_RATE, (uint8_t *)&_buf, sizeof(_buf.payload_tx_cfg_rate))) { return -1; }
+			if (!sendMessage(UBX_MSG_CFG_RATE, (uint8_t *)&_buf, sizeof(_buf.payload_tx_cfg_rate))) { return -1; }
 
-		// according to the spec we should receive an (N)ACK here, but we don't
-//		decodeInit();
-//		if (waitForAck(UBX_MSG_CFG_RATE, UBX_CONFIG_TIMEOUT, true) < 0) {
-//			return -1;
-//		}
+			// according to the spec we should receive an (N)ACK here, but we don't
+		}
 
 		configureMessageRate(UBX_MSG_NAV_SVIN, 0);
 
@@ -2102,12 +2106,14 @@ GPSDriverUBX::decodeInit()
 	_rx_payload_length = 0;
 	_rx_payload_index = 0;
 
-	if (_output_mode == OutputMode::RTCM) {
+	if (_output_mode == OutputMode::GPSAndRTCM || _output_mode == OutputMode::RTCM) {
 		if (!_rtcm_parsing) {
 			_rtcm_parsing = new RTCMParsing();
 		}
 
-		_rtcm_parsing->reset();
+		if (_rtcm_parsing) {
+			_rtcm_parsing->reset();
+		}
 	}
 }
 
