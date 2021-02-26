@@ -200,10 +200,8 @@
 #define UBX_TX_CFG_PRT_MODE                     0x000008D0      /**< 0b0000100011010000: 8N1 */
 #define UBX_TX_CFG_PRT_MODE_SPI                 0x00000100
 #define UBX_TX_CFG_PRT_BAUDRATE                 38400           /**< choose 38400 as GPS baudrate (pre M8* boards only) */
-#define UBX_TX_CFG_PRT_INPROTOMASK_GPS          ((1<<5) | 0x01) /**< RTCM3 in and UBX in */
-#define UBX_TX_CFG_PRT_INPROTOMASK_RTCM         (0x01)          /**< UBX in */
-#define UBX_TX_CFG_PRT_OUTPROTOMASK_GPS         (0x01)          /**< UBX out */
-#define UBX_TX_CFG_PRT_OUTPROTOMASK_RTCM        ((1<<5) | 0x01) /**< RTCM3 out and UBX out */
+#define UBX_TX_CFG_PRT_PROTO_UBX                (1<<0)
+#define UBX_TX_CFG_PRT_PROTO_RTCM               (1<<5)
 
 #define UBX_BAUDRATE_M8_AND_NEWER               115200 /**< baudrate for M8+ boards */
 
@@ -905,7 +903,7 @@ private:
 
 private:
 
-	int activateRTCMOutput();
+	int activateRTCMOutput(bool reduce_update_rate);
 
 	/**
 	 * While parsing add every byte (except the sync bytes) to the checksum

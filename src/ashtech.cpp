@@ -701,7 +701,7 @@ int GPSDriverAshtech::handleMessage(int len)
 
 				sendSurveyInStatusUpdate(false, true, lat, lon, alt);
 
-				activateRTCMOutput();
+				activateRTCMOutput(true);
 			}
 		}
 
@@ -726,7 +726,7 @@ int GPSDriverAshtech::handleMessage(int len)
 	return ret;
 }
 
-void GPSDriverAshtech::activateRTCMOutput()
+void GPSDriverAshtech::activateRTCMOutput(bool reduce_update_rate)
 {
 	char buffer[40];
 	const char *rtcm_options[] = {
@@ -750,7 +750,9 @@ void GPSDriverAshtech::activateRTCMOutput()
 		"$PASHS,RT3,1087,%c,ON,1\r\n",
 	};
 
-	for (unsigned int conf_i = 0; conf_i < sizeof(rtcm_options) / sizeof(rtcm_options[0]); conf_i++) {
+	unsigned first_index = reduce_update_rate ? 0 : 1;
+
+	for (unsigned int conf_i = first_index; conf_i < sizeof(rtcm_options) / sizeof(rtcm_options[0]); conf_i++) {
 		int str_len = snprintf(buffer, sizeof(buffer), rtcm_options[conf_i], _port);
 
 		if (writeAckedCommand(buffer, str_len, ASH_RESPONSE_TIMEOUT) != 0) {
@@ -908,12 +910,14 @@ void GPSDriverAshtech::decodeInit()
 	_rx_buffer_bytes = 0;
 	_decode_state = NMEADecodeState::uninit;
 
-	if (_output_mode == OutputMode::RTCM) {
+	if (_output_mode == OutputMode::GPSAndRTCM || _output_mode == OutputMode::RTCM) {
 		if (!_rtcm_parsing) {
 			_rtcm_parsing = new RTCMParsing();
 		}
 
-		_rtcm_parsing->reset();
+		if (_rtcm_parsing) {
+			_rtcm_parsing->reset();
+		}
 	}
 }
 
@@ -1069,7 +1073,7 @@ int GPSDriverAshtech::configure(unsigned &baudrate, const GPSConfig &config)
 	// Enable dual antenna mode (2: both antennas are L1/L2 GNSS capable, flex mode, avoids the need to determine
 	// the baseline length through a prior calibration stage)
 	// Needs to be set before other commands
-	const bool use_dual_mode = _output_mode == OutputMode::GPS && _board == AshtechBoard::trimble_mb_two;
+	const bool use_dual_mode = _output_mode != OutputMode::RTCM && _board == AshtechBoard::trimble_mb_two;
 
 	if (use_dual_mode) {
 		ASH_DEBUG("Enabling DUO mode");
@@ -1128,6 +1132,10 @@ int GPSDriverAshtech::configure(unsigned &baudrate, const GPSConfig &config)
 		const bool active = true;
 		status.flags = (int)valid | ((int)active << 1);
 		surveyInStatus(status);
+	}
+
+	if (_output_mode == OutputMode::GPSAndRTCM && _board == AshtechBoard::trimble_mb_two) {
+		activateRTCMOutput(false);
 	}
 
 	_configure_done = true;
@@ -1217,7 +1225,7 @@ void GPSDriverAshtech::activateCorrectionOutput()
 			ASH_DEBUG("snprintf failed (buffer too short)");
 		}
 
-		activateRTCMOutput();
+		activateRTCMOutput(true);
 		sendSurveyInStatusUpdate(false, true, settings.latitude, settings.longitude, settings.altitude);
 	}
 }

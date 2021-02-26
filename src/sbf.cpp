@@ -552,12 +552,14 @@ GPSDriverSBF::decodeInit()
 	_decode_state = SBF_DECODE_SYNC1;
 	_rx_payload_index = 0;
 
-	if (_output_mode == OutputMode::RTCM) {
+	if (_output_mode == OutputMode::GPSAndRTCM || _output_mode == OutputMode::RTCM) {
 		if (!_rtcm_parsing) {
 			_rtcm_parsing = new RTCMParsing();
 		}
 
-		_rtcm_parsing->reset();
+		if (_rtcm_parsing) {
+			_rtcm_parsing->reset();
+		}
 	}
 }
 
