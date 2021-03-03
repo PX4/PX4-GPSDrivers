@@ -38,6 +38,7 @@
  *
  * @author WeiPeng Guo <guoweipeng1990@sina.com>
  * @author Stone White <stone@thone.io>
+ * @author Jose Jimenez-Berni <berni@ias.csic.es>
  *
  */
 

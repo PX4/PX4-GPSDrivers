@@ -38,6 +38,7 @@
  *
  * @author WeiPeng Guo <guoweipeng1990@sina.com>
  * @author Stone White <stone@thone.io>
+ * @author Jose Jimenez-Berni <berni@ias.csic.es>
  *
  */
 
@@ -265,7 +266,7 @@ int GPSDriverNMEA::handleMessage(int len)
 		_gps_position->alt = static_cast<int>(alt * 1000);
 		_gps_position->alt_ellipsoid = _gps_position->alt + static_cast<int>(geoid_h * 1000);
 		sat_num_gga = static_cast<int>(num_of_sv);
-		_last_POS_timeUTC = utc_time;
+
 
 		if (fix_quality <= 0) {
 			_gps_position->fix_type = 0;
@@ -282,16 +283,17 @@ int GPSDriverNMEA::handleMessage(int len)
 			 */
 			_gps_position->fix_type = 3 + fix_quality - 1;
 		}
+		if (!_POS_received && (_last_POS_timeUTC < utc_time)) {
+			_last_POS_timeUTC = utc_time;
+			_POS_received = true;
+		}
 
-		_POS_received = true;
 		_ALT_received = true;
 		_SVNUM_received = true;
 		_FIX_received = true;
 
 		_gps_position->c_variance_rad = 0.1f;
 		_gps_position->timestamp = gps_absolute_time();
-		_rate_count_lat_lon++;
-		ret = 1;
 
 		// mavlink_log_info(&mavlink_log_pub, "GGA time->>> %d ",(int)(utc_time));
 
@@ -301,7 +303,7 @@ int GPSDriverNMEA::handleMessage(int len)
 		Example $GPHDT,121.2,T*35
 
 		f1 Last computed heading value, in degrees (0-359.99)
-		T “T” for “True”
+		T "T" for "True"
 		 */
 
 		float heading = 0.f;
@@ -402,9 +404,11 @@ int GPSDriverNMEA::handleMessage(int len)
 		_gps_position->hdop = hdop;
 		_gps_position->alt = static_cast<int>(alt * 1000);
 		sat_num_gns = static_cast<int>(num_of_sv);
-		_last_POS_timeUTC = utc_time;
 
-		_POS_received = true;
+		if (!_POS_received && (_last_POS_timeUTC < utc_time)) {
+			_last_POS_timeUTC = utc_time;
+			_POS_received = true;
+		}
 		_ALT_received = true;
 		_SVNUM_received = true;
 
@@ -507,7 +511,6 @@ int GPSDriverNMEA::handleMessage(int len)
 		_gps_position->c_variance_rad = 0.1f;
 		_gps_position->s_variance_m_s = 0;
 		_gps_position->timestamp = gps_absolute_time();
-		_last_VEL_timeUTC = utc_time;
 		_last_timestamp_time = gps_absolute_time();
 
 		/*
@@ -551,11 +554,15 @@ int GPSDriverNMEA::handleMessage(int len)
 		_gps_position->time_utc_usec = 0;
 #endif
 
-		_POS_received = true;
+		if (!_POS_received && (_last_POS_timeUTC < utc_time)) {
+			_last_POS_timeUTC = utc_time;
+			_POS_received = true;
+		}
+		if (!_VEL_received && (_last_VEL_timeUTC < utc_time)) {
+			_last_VEL_timeUTC = utc_time;
+			_VEL_received = true;
+		}
 		_TIME_received = true;
-		_VEL_received = true;
-		_rate_count_vel++;
-		ret = 1;
 
 		// mavlink_log_info(&mavlink_log_pub, "RMC time->>> %d ",(int)(utc_time));
 
@@ -852,9 +859,10 @@ int GPSDriverNMEA::handleMessage(int len)
 		_gps_position->c_variance_rad = 0.1f;
 		_gps_position->s_variance_m_s = 0;
 
-		_VEL_received = true;
-		_rate_count_vel++;
-		ret = 1;
+		if (!_VEL_received) {
+			_VEL_received = true;
+			_rate_count_vel++;
+		}
 		// mavlink_log_info(&mavlink_log_pub, "get VTG data ");
 	}
 
@@ -870,9 +878,14 @@ int GPSDriverNMEA::handleMessage(int len)
 		_gps_position->satellites_used = MAX(_gps_position->satellites_used, sat_num_gga);
 	}
 
-	if (ret == 1) {
+	if (_VEL_received && _POS_received) {
+		ret = 1;
 		_gps_position->timestamp_time_relative = (int32_t)(_last_timestamp_time - _gps_position->timestamp);
 		clock_set = false;
+		_VEL_received = false;
+		_POS_received = false;
+		_rate_count_vel++;
+		_rate_count_lat_lon++;
 	}
 
 	return ret;
