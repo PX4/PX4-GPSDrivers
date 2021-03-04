@@ -100,19 +100,16 @@ private:
 	uint32_t _last_FIX_timeUTC{0};
 	uint64_t _last_timestamp_time{0};
 
-	uint8_t sat_num_gga{0};
-	uint8_t sat_num_gns{0};
-	uint8_t sat_num_gsv{0};
-	uint8_t sat_num_gpgsv{0};
-	uint8_t sat_num_glgsv{0};
-	uint8_t sat_num_gagsv{0};
-	uint8_t sat_num_gbgsv{0};
-	uint8_t sat_num_bdgsv{0};
+	uint8_t _sat_num_gga{0};
+	uint8_t _sat_num_gns{0};
+	uint8_t _sat_num_gsv{0};
+	uint8_t _sat_num_gpgsv{0};
+	uint8_t _sat_num_glgsv{0};
+	uint8_t _sat_num_gagsv{0};
+	uint8_t _sat_num_gbgsv{0};
+	uint8_t _sat_num_bdgsv{0};
 
-	//nmea protocol decode flags NMEADecodeFlags
-	uint32_t _decode_flags{0};
-
-	bool clock_set {false};
+	bool _clock_set {false};
 
 //  check if we got all basic essential packages we need
 	bool _TIME_received{false};
@@ -129,10 +126,6 @@ private:
 	NMEADecodeState _decode_state{NMEADecodeState::uninit};
 	uint8_t _rx_buffer[NMEA_RECV_BUFFER_SIZE] {};
 	uint16_t _rx_buffer_bytes{0};
-
-	uint8_t _read_buf[GPS_READ_BUFFER_SIZE] {};
-	ssize_t _bytes_parsed{0};
-	ssize_t _bytes_readed{0};
 
 	float _heading_offset;
 };

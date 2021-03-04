@@ -116,8 +116,6 @@ int GPSDriverNMEA::handleMessage(int len)
 		NMEA_UNUSED(local_time_off_hour);
 		NMEA_UNUSED(local_time_off_min);
 
-		_decode_flags |= (int)NMEADecodeFlags::got_zda;
-
 		if (bufptr && *(++bufptr) != ',') { utc_time = strtod(bufptr, &endp); bufptr = endp; }
 
 		if (bufptr && *(++bufptr) != ',') { day = strtol(bufptr, &endp, 10); bufptr = endp; }
@@ -156,12 +154,12 @@ int GPSDriverNMEA::handleMessage(int len)
 			// and control its drift. Since we rely on the HRT for our monotonic
 			// clock, updating it from time to time is safe.
 
-			if (!clock_set) {
+			if (!_clock_set) {
 				timespec ts{};
 				ts.tv_sec = epoch;
 				ts.tv_nsec = usecs * 1000;
 				setClock(ts);
-				clock_set = true;
+				_clock_set = true;
 			}
 
 			_gps_position->time_utc_usec = static_cast<uint64_t>(epoch) * 1000000ULL;
@@ -223,8 +221,6 @@ int GPSDriverNMEA::handleMessage(int len)
 
 		NMEA_UNUSED(dgps_age);
 
-		_decode_flags |= (int)NMEADecodeFlags::got_gga;
-
 		if (bufptr && *(++bufptr) != ',') { utc_time = strtod(bufptr, &endp); bufptr = endp; }
 
 		if (bufptr && *(++bufptr) != ',') { lat = strtod(bufptr, &endp); bufptr = endp; }
@@ -265,7 +261,7 @@ int GPSDriverNMEA::handleMessage(int len)
 		_gps_position->hdop = hdop;
 		_gps_position->alt = static_cast<int>(alt * 1000);
 		_gps_position->alt_ellipsoid = _gps_position->alt + static_cast<int>(geoid_h * 1000);
-		sat_num_gga = static_cast<int>(num_of_sv);
+		_sat_num_gga = static_cast<int>(num_of_sv);
 
 
 		if (fix_quality <= 0) {
@@ -307,8 +303,6 @@ int GPSDriverNMEA::handleMessage(int len)
 		 */
 
 		float heading = 0.f;
-
-		_decode_flags |= (int)NMEADecodeFlags::got_hdt;
 
 		if (bufptr && *(++bufptr) != ',') {
 			heading = strtof(bufptr, &endp); bufptr = endp;
@@ -366,8 +360,6 @@ int GPSDriverNMEA::handleMessage(int len)
 		int i = 0;
 		NMEA_UNUSED(pos_Mode);
 
-		_decode_flags |= (int)NMEADecodeFlags::got_gns;
-
 		if (bufptr && *(++bufptr) != ',') { utc_time = strtod(bufptr, &endp); bufptr = endp; }
 
 		if (bufptr && *(++bufptr) != ',') { lat = strtod(bufptr, &endp); bufptr = endp; }
@@ -403,7 +395,7 @@ int GPSDriverNMEA::handleMessage(int len)
 		_gps_position->lon = static_cast<int>((int(lon * 0.01) + (lon * 0.01 - int(lon * 0.01)) * 100.0 / 60.0) * 10000000);
 		_gps_position->hdop = hdop;
 		_gps_position->alt = static_cast<int>(alt * 1000);
-		sat_num_gns = static_cast<int>(num_of_sv);
+		_sat_num_gns = static_cast<int>(num_of_sv);
 
 		if (!_POS_received && (_last_POS_timeUTC < utc_time)) {
 			_last_POS_timeUTC = utc_time;
@@ -450,8 +442,6 @@ int GPSDriverNMEA::handleMessage(int len)
 		char ns = '?', ew = '?';
 		NMEA_UNUSED(Mag_var);
 
-		_decode_flags |= (int)NMEADecodeFlags::got_rmc;
-
 		if (bufptr && *(++bufptr) != ',') { utc_time = strtod(bufptr, &endp); bufptr = endp; }
 
 		if (bufptr && *(++bufptr) != ',') { Status = *(bufptr++); }
@@ -481,7 +471,7 @@ int GPSDriverNMEA::handleMessage(int len)
 		}
 
 		if (Status == 'V') {
-			return 0;
+			_gps_position->fix_type = 0;
 		}
 
 		float track_rad = track_true * M_PI_F / 180.0f; // rad in range [0, 2pi]
@@ -534,13 +524,13 @@ int GPSDriverNMEA::handleMessage(int len)
 			// FMUv2+ boards have a hardware RTC, but GPS helps us to configure it
 			// and control its drift. Since we rely on the HRT for our monotonic
 			// clock, updating it from time to time is safe.
-			if (!clock_set) {
+			if (!_clock_set) {
 				timespec ts{};
 				ts.tv_sec = epoch;
 				ts.tv_nsec = usecs * 1000;
 
 				setClock(ts);
-				clock_set = true;
+				_clock_set = true;
 			}
 
 			_gps_position->time_utc_usec = static_cast<uint64_t>(epoch) * 1000000ULL;
@@ -603,8 +593,6 @@ int GPSDriverNMEA::handleMessage(int len)
 		NMEA_UNUSED(deg_from_north);
 		NMEA_UNUSED(rms_err);
 
-		_decode_flags |= (int)NMEADecodeFlags::got_gst;
-
 		if (bufptr && *(++bufptr) != ',') { utc_time = strtod(bufptr, &endp); bufptr = endp; }
 
 		if (bufptr && *(++bufptr) != ',') { rms_err = strtof(bufptr, &endp); bufptr = endp; }
@@ -659,8 +647,6 @@ int GPSDriverNMEA::handleMessage(int len)
 		NMEA_UNUSED(M_pos);
 		NMEA_UNUSED(sat_id);
 		NMEA_UNUSED(pdop);
-
-		_decode_flags |= (int)NMEADecodeFlags::got_gsa;
 
 		if (bufptr && *(++bufptr) != ',') { M_pos = *(bufptr++); }
 
@@ -719,8 +705,6 @@ int GPSDriverNMEA::handleMessage(int len)
 		} sat[4];
 		memset(sat, 0, sizeof(sat));
 
-		_decode_flags |= (int)NMEADecodeFlags::got_gsv;
-
 		if (bufptr && *(++bufptr) != ',') { all_page_num = strtol(bufptr, &endp, 10); bufptr = endp; }
 
 		if (bufptr && *(++bufptr) != ',') { this_page_num = strtol(bufptr, &endp, 10); bufptr = endp; }
@@ -732,19 +716,19 @@ int GPSDriverNMEA::handleMessage(int len)
 		}
 
 		if (memcmp(_rx_buffer, "$GP", 3) == 0) {
-			sat_num_gpgsv = tot_sv_visible;
+			_sat_num_gpgsv = tot_sv_visible;
 
 		} else if (memcmp(_rx_buffer, "$GL", 3) == 0) {
-			sat_num_glgsv = tot_sv_visible;
+			_sat_num_glgsv = tot_sv_visible;
 
 		} else if (memcmp(_rx_buffer, "$GA", 3) == 0) {
-			sat_num_gagsv = tot_sv_visible;
+			_sat_num_gagsv = tot_sv_visible;
 
 		} else if (memcmp(_rx_buffer, "$GB", 3) == 0) {
-			sat_num_gbgsv = tot_sv_visible;
+			_sat_num_gbgsv = tot_sv_visible;
 
 		} else if (memcmp(_rx_buffer, "$BD", 3) == 0) {
-			sat_num_bdgsv = tot_sv_visible;
+			_sat_num_bdgsv = tot_sv_visible;
 
 		}
 
@@ -823,8 +807,6 @@ int GPSDriverNMEA::handleMessage(int len)
 		NMEA_UNUSED(ground_speed_K);
 		NMEA_UNUSED(K);
 
-		_decode_flags |= (int)NMEADecodeFlags::got_vtg;
-
 		if (bufptr && *(++bufptr) != ',') {track_true = strtof(bufptr, &endp); bufptr = endp; }
 
 		if (bufptr && *(++bufptr) != ',') { T = *(bufptr++); }
@@ -861,7 +843,6 @@ int GPSDriverNMEA::handleMessage(int len)
 
 		if (!_VEL_received) {
 			_VEL_received = true;
-			_rate_count_vel++;
 		}
 		// mavlink_log_info(&mavlink_log_pub, "get VTG data ");
 	}
@@ -871,17 +852,17 @@ int GPSDriverNMEA::handleMessage(int len)
 	    _FIX_received
 	    ) {
 
-		sat_num_gsv = sat_num_gpgsv + sat_num_glgsv + sat_num_gagsv
-			      + sat_num_gbgsv + sat_num_bdgsv;
+		_sat_num_gsv = _sat_num_gpgsv + _sat_num_glgsv + _sat_num_gagsv
+			      + _sat_num_gbgsv + _sat_num_bdgsv;
 
-		_gps_position->satellites_used = MAX(sat_num_gns, sat_num_gsv);
-		_gps_position->satellites_used = MAX(_gps_position->satellites_used, sat_num_gga);
+		_gps_position->satellites_used = MAX(_sat_num_gns, _sat_num_gsv);
+		_gps_position->satellites_used = MAX(_gps_position->satellites_used, _sat_num_gga);
 	}
 
 	if (_VEL_received && _POS_received) {
 		ret = 1;
 		_gps_position->timestamp_time_relative = (int32_t)(_last_timestamp_time - _gps_position->timestamp);
-		clock_set = false;
+		_clock_set = false;
 		_VEL_received = false;
 		_POS_received = false;
 		_rate_count_vel++;
@@ -893,15 +874,21 @@ int GPSDriverNMEA::handleMessage(int len)
 
 int GPSDriverNMEA::receive(unsigned timeout)
 {
+	uint8_t buf[GPS_READ_BUFFER_SIZE];
+
 	/* timeout additional to poll */
 	uint64_t time_started = gps_absolute_time();
 
+	int j = 0;
+	int bytes_count = 0;
+
 	while (true) {
+
 		/* pass received bytes to the packet decoder */
-		while (_bytes_parsed < _bytes_readed) {
+		while (j < bytes_count) {
 			int l = 0;
 
-			if ((l = parseChar(_read_buf[_bytes_parsed])) > 0) {
+			if ((l = parseChar(buf[j])) > 0) {
 				/* return to configure during configuration or to the gps driver during normal work
 				 * if a packet has arrived */
 				int ret = handleMessage(l);
@@ -911,14 +898,14 @@ int GPSDriverNMEA::receive(unsigned timeout)
 				}
 			}
 
-			_bytes_parsed++;
+			j++;
 		}
 
 		/* everything is read */
-		_bytes_parsed = _bytes_readed = 0;
+		j = bytes_count = 0;
 
 		/* then poll or read for new data */
-		int ret = read(_read_buf, sizeof(_read_buf), timeout);
+		int ret = read(buf, sizeof(buf), timeout * 2);
 
 		if (ret < 0) {
 			/* something went wrong when polling */
@@ -930,7 +917,7 @@ int GPSDriverNMEA::receive(unsigned timeout)
 
 		} else if (ret > 0) {
 			/* if we have new data from GPS, go handle it */
-			_bytes_readed = ret;
+			bytes_count = ret;
 		}
 
 		/* in case we get crap from GPS or time out */
@@ -1013,31 +1000,42 @@ int GPSDriverNMEA::configure(unsigned &baudrate, const GPSConfig &config)
 		GPS_WARN("NMEA: Unsupported Output Mode %i", (int)config.output_mode);
 		return -1;
 	}
-	setBaudrate(baudrate);
-	decodeInit();
-	receive(400);
-	gps_usleep(2000);
-
-	if (_decode_flags) {
-		return 0;
-	}
-	/*
-
-	const unsigned baudrates_to_try[] = {9600, 19200, 38400, 57600, 115200};
-
-	for (unsigned int baud_i = 0; baud_i < sizeof(baudrates_to_try) / sizeof(baudrates_to_try[0]); baud_i++) {
-
-		baudrate = baudrates_to_try[baud_i];
+	// If a baudrate is defined, we test this first
+	if (baudrate > 0) {
 		setBaudrate(baudrate);
 		decodeInit();
 		receive(400);
 		gps_usleep(2000);
 
-		if (_decode_flags) {
+		// If a valid POS message is recived we have GPS
+		if (_POS_received) {
 			return 0;
 		}
 	}
 
-	return setBaudrate(NMEA_DEFAULT_BAUDRATE);*/
-	return 0;
+	// If we haven't found the GPS with the defined baudrate, we try other rates
+	const unsigned baudrates_to_try[] = {9600, 19200, 38400, 57600, 115200};
+	unsigned test_baudrate;
+
+	for (unsigned int baud_i = 0; !_POS_received && baud_i < sizeof(baudrates_to_try) / sizeof(baudrates_to_try[0]); baud_i++) {
+
+		test_baudrate = baudrates_to_try[baud_i];
+		setBaudrate(test_baudrate);
+		decodeInit();
+		receive(400);
+		gps_usleep(2000);
+
+		// If a valid POS message is recived we have GPS
+		if (_POS_received) {
+			return 0;
+		}
+	}
+
+	// If nothing is found we leave the specified or default
+	if (baudrate > 0) {
+		return setBaudrate(baudrate);
+	}
+	else {
+		return setBaudrate(NMEA_DEFAULT_BAUDRATE);
+	}
 }
