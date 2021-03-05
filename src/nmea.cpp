@@ -767,7 +767,6 @@ int GPSDriverNMEA::handleMessage(int len)
 			}
 		}
 
-		// mavlink_log_info(&mavlink_log_pub, "get GSV data ");
 
 	} else if ((memcmp(_rx_buffer + 3, "VTG,", 4) == 0) && (uiCalcComma >= 8)) {
 
