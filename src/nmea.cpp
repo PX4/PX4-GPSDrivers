@@ -405,7 +405,7 @@ int GPSDriverNMEA::handleMessage(int len)
 		_SVNUM_received = true;
 
 
-	}	else if ((memcmp(_rx_buffer + 3, "RMC,", 4) == 0) && (uiCalcComma >= 11)) {
+	} else if ((memcmp(_rx_buffer + 3, "RMC,", 4) == 0) && (uiCalcComma >= 11)) {
 
 		/*
 		Position, velocity, and time
