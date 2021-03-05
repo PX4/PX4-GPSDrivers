@@ -404,10 +404,6 @@ int GPSDriverNMEA::handleMessage(int len)
 		_ALT_received = true;
 		_SVNUM_received = true;
 
-		// mavlink_log_info(&mavlink_log_pub, "GNS> posMode %s/sv_num %d/ hdop %.2f",
-		// (char*)(pos_Mode),
-		// (int)(sat_num_gns),
-		// (double)(hdop));
 
 	}	else if ((memcmp(_rx_buffer + 3, "RMC,", 4) == 0) && (uiCalcComma >= 11)) {
 
