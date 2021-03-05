@@ -374,7 +374,7 @@ int GPSDriverNMEA::handleMessage(int len)
 			pos_Mode[i] =  *(bufptr);
 			i++;
 
-		} while (*(++bufptr) != ',');
+		} while (*(++bufptr) != ',' && i < 5);
 
 		if (bufptr && *(++bufptr) != ',') { num_of_sv = strtol(bufptr, &endp, 10); bufptr = endp; }
 
