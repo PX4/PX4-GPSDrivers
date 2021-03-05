@@ -668,7 +668,6 @@ int GPSDriverNMEA::handleMessage(int len)
 
 		}
 
-		// mavlink_log_info(&mavlink_log_pub, "gsa data->>>hdop %.2f---vdop %.2f ",(double)(_gps_position->hdop),(double)(_gps_position->vdop));
 
 	} else if ((memcmp(_rx_buffer + 3, "GSV,", 4) == 0)) {
 		/*
