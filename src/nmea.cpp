@@ -697,8 +697,7 @@ int GPSDriverNMEA::handleMessage(int len)
 			int elevation;
 			int azimuth;
 			int snr;
-		} sat[4];
-		memset(sat, 0, sizeof(sat));
+		} sat[4] {};
 
 		if (bufptr && *(++bufptr) != ',') { all_page_num = strtol(bufptr, &endp, 10); bufptr = endp; }
 
