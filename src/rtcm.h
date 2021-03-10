@@ -60,6 +60,7 @@ public:
 
 	uint8_t *message() const { return _buffer; }
 	uint16_t messageLength() const { return _pos; }
+	uint16_t messageId() const { return (_buffer[3]<<4)|(_buffer[4]>>4); }
 
 private:
 	uint8_t			*_buffer{nullptr};
