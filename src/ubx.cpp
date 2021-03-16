@@ -1971,6 +1971,7 @@ GPSDriverUBX::payloadRxDone()
 
 		case sizeof(ubx_payload_rx_mon_hw_ubx6_t):	/* u-blox 6 msg format */
 			_gps_position->noise_per_ms		= _buf.payload_rx_mon_hw_ubx6.noisePerMS;
+			_gps_position->automatic_gain_control   = _buf.payload_rx_mon_hw_ubx6.agcCnt;
 			_gps_position->jamming_indicator	= _buf.payload_rx_mon_hw_ubx6.jamInd;
 
 			ret = 1;
@@ -1978,6 +1979,7 @@ GPSDriverUBX::payloadRxDone()
 
 		case sizeof(ubx_payload_rx_mon_hw_ubx7_t):	/* u-blox 7+ msg format */
 			_gps_position->noise_per_ms		= _buf.payload_rx_mon_hw_ubx7.noisePerMS;
+			_gps_position->automatic_gain_control   = _buf.payload_rx_mon_hw_ubx7.agcCnt;
 			_gps_position->jamming_indicator	= _buf.payload_rx_mon_hw_ubx7.jamInd;
 
 			ret = 1;
