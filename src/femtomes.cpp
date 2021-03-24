@@ -313,7 +313,7 @@ int GPSDriverFemto::writeAckedCommandFemto(const char *command, const char *repl
 		int ret = read(buf, sizeof(buf), timeout);
 		buf[sizeof(buf) - 1] = 0;
 
-		if (ret > 0 && strstr((char *)buf, reply) != NULL) {
+		if (ret > 0 && strstr((char *)buf, reply) != nullptr) {
 			FEMTO_DEBUG("Femto: command reply success: %s", command);
 			return 0;
 		}
