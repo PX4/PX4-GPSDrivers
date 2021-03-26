@@ -279,6 +279,7 @@ int GPSDriverNMEA::handleMessage(int len)
 			 */
 			_gps_position->fix_type = 3 + fix_quality - 1;
 		}
+
 		if (!_POS_received && (_last_POS_timeUTC < utc_time)) {
 			_last_POS_timeUTC = utc_time;
 			_POS_received = true;
@@ -290,8 +291,6 @@ int GPSDriverNMEA::handleMessage(int len)
 
 		_gps_position->c_variance_rad = 0.1f;
 		_gps_position->timestamp = gps_absolute_time();
-
-		// mavlink_log_info(&mavlink_log_pub, "GGA time->>> %d ",(int)(utc_time));
 
 	} else if (memcmp(_rx_buffer + 3, "HDT,", 4) == 0 && uiCalcComma == 2) {
 		/*
@@ -401,6 +400,7 @@ int GPSDriverNMEA::handleMessage(int len)
 			_last_POS_timeUTC = utc_time;
 			_POS_received = true;
 		}
+
 		_ALT_received = true;
 		_SVNUM_received = true;
 
@@ -544,13 +544,13 @@ int GPSDriverNMEA::handleMessage(int len)
 			_last_POS_timeUTC = utc_time;
 			_POS_received = true;
 		}
+
 		if (!_VEL_received && (_last_VEL_timeUTC < utc_time)) {
 			_last_VEL_timeUTC = utc_time;
 			_VEL_received = true;
 		}
-		_TIME_received = true;
 
-		// mavlink_log_info(&mavlink_log_pub, "RMC time->>> %d ",(int)(utc_time));
+		_TIME_received = true;
 
 	}	else if ((memcmp(_rx_buffer + 3, "GST,", 4) == 0) && (uiCalcComma == 8)) {
 
@@ -611,8 +611,6 @@ int GPSDriverNMEA::handleMessage(int len)
 
 		_EPH_received = true;
 		_last_FIX_timeUTC = utc_time;
-
-		// mavlink_log_info(&mavlink_log_pub, "gst data->>>eph %.2f---epv %.2f ",(double)(_gps_position->eph),(double)(_gps_position->epv));
 
 	} else if ((memcmp(_rx_buffer + 3, "GSA,", 4) == 0) && (uiCalcComma >= 17)) {
 
@@ -837,19 +835,16 @@ int GPSDriverNMEA::handleMessage(int len)
 		if (!_VEL_received) {
 			_VEL_received = true;
 		}
-		// mavlink_log_info(&mavlink_log_pub, "get VTG data ");
 	}
 
-	if (_SVNUM_received &&
-	    _SVINFO_received &&
-	    _FIX_received
-	    ) {
+	if (_sat_num_gga > 0) {
+		_gps_position->satellites_used = _sat_num_gga;
+
+	} else if (_SVNUM_received && _SVINFO_received && _FIX_received) {
 
 		_sat_num_gsv = _sat_num_gpgsv + _sat_num_glgsv + _sat_num_gagsv
-			      + _sat_num_gbgsv + _sat_num_bdgsv;
-
+			       + _sat_num_gbgsv + _sat_num_bdgsv;
 		_gps_position->satellites_used = MAX(_sat_num_gns, _sat_num_gsv);
-		_gps_position->satellites_used = MAX(_gps_position->satellites_used, _sat_num_gga);
 	}
 
 	if (_VEL_received && _POS_received) {
@@ -870,51 +865,36 @@ int GPSDriverNMEA::receive(unsigned timeout)
 	uint8_t buf[GPS_READ_BUFFER_SIZE];
 
 	/* timeout additional to poll */
-	uint64_t time_started = gps_absolute_time();
+	gps_abstime time_started = gps_absolute_time();
 
-	int j = 0;
-	int bytes_count = 0;
+	int handled = 0;
 
 	while (true) {
+		int ret = read(buf, sizeof(buf), timeout);
 
-		/* pass received bytes to the packet decoder */
-		while (j < bytes_count) {
-			int l = 0;
+		if (ret < 0) {
+			/* something went wrong when polling or reading */
+			GPS_WARN("poll_or_read err");
+			return -1;
 
-			if ((l = parseChar(buf[j])) > 0) {
-				/* return to configure during configuration or to the gps driver during normal work
-				 * if a packet has arrived */
-				int ret = handleMessage(l);
+		} else if (ret != 0) {
 
-				if (ret > 0) {
-					return ret;
+			/* pass received bytes to the packet decoder */
+			for (int i = 0; i < ret; i++) {
+				int l = parseChar(buf[i]);
+
+				if (l > 0) {
+					handled |= handleMessage(l);
 				}
 			}
 
-			j++;
+			if (handled > 0) {
+				return handled;
+			}
 		}
 
-		/* everything is read */
-		j = bytes_count = 0;
-
-		/* then poll or read for new data */
-		int ret = read(buf, sizeof(buf), timeout * 2);
-
-		if (ret < 0) {
-			/* something went wrong when polling */
-			return -1;
-
-		} else if (ret == 0) {
-			/* Timeout while polling or just nothing read if reading, let's
-			 * stay here, and use timeout below. */
-
-		} else if (ret > 0) {
-			/* if we have new data from GPS, go handle it */
-			bytes_count = ret;
-		}
-
-		/* in case we get crap from GPS or time out */
-		if (time_started + timeout * 1000 * 2 < gps_absolute_time()) {
+		/* abort after timeout if no useful packets received */
+		if (time_started + timeout * 1000 < gps_absolute_time()) {
 			return -1;
 		}
 	}
@@ -993,15 +973,16 @@ int GPSDriverNMEA::configure(unsigned &baudrate, const GPSConfig &config)
 		GPS_WARN("NMEA: Unsupported Output Mode %i", (int)config.output_mode);
 		return -1;
 	}
+
 	// If a baudrate is defined, we test this first
 	if (baudrate > 0) {
 		setBaudrate(baudrate);
 		decodeInit();
-		receive(400);
+		int ret = receive(400);
 		gps_usleep(2000);
 
-		// If a valid POS message is recived we have GPS
-		if (_POS_received) {
+		// If a valid POS message is received we have GPS
+		if (_POS_received || ret > 0) {
 			return 0;
 		}
 	}
@@ -1010,16 +991,17 @@ int GPSDriverNMEA::configure(unsigned &baudrate, const GPSConfig &config)
 	const unsigned baudrates_to_try[] = {9600, 19200, 38400, 57600, 115200};
 	unsigned test_baudrate;
 
-	for (unsigned int baud_i = 0; !_POS_received && baud_i < sizeof(baudrates_to_try) / sizeof(baudrates_to_try[0]); baud_i++) {
+	for (unsigned int baud_i = 0; !_POS_received
+	     && baud_i < sizeof(baudrates_to_try) / sizeof(baudrates_to_try[0]); baud_i++) {
 
 		test_baudrate = baudrates_to_try[baud_i];
 		setBaudrate(test_baudrate);
 		decodeInit();
-		receive(400);
+		int ret = receive(400);
 		gps_usleep(2000);
 
-		// If a valid POS message is recived we have GPS
-		if (_POS_received) {
+		// If a valid POS message is received we have GPS
+		if (_POS_received || ret > 0) {
 			return 0;
 		}
 	}
@@ -1028,7 +1010,6 @@ int GPSDriverNMEA::configure(unsigned &baudrate, const GPSConfig &config)
 	if (baudrate > 0) {
 		return setBaudrate(baudrate);
 	}
-	else {
-		return setBaudrate(NMEA_DEFAULT_BAUDRATE);
-	}
+
+	return setBaudrate(NMEA_DEFAULT_BAUDRATE);
 }

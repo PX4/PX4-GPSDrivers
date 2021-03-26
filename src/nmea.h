@@ -66,18 +66,6 @@ public:
 	int configure(unsigned &baudrate, const GPSConfig &config) override;
 
 private:
-	enum class NMEADecodeFlags : int {
-		got_zda = (1 << 0),
-		got_gga = (1 << 1),
-		got_hdt = (1 << 2),
-		got_gns = (1 << 3),
-		got_rmc = (1 << 4),
-		got_gst = (1 << 5),
-		got_gsa = (1 << 6),
-		got_gsv = (1 << 7),
-		got_vtg = (1 << 8)
-	};
-
 	enum class NMEADecodeState {
 		uninit,
 		got_sync1,
@@ -95,9 +83,9 @@ private:
 
 	sensor_gps_s *_gps_position {nullptr};
 	satellite_info_s *_satellite_info {nullptr};
-	uint32_t _last_POS_timeUTC{0};
-	uint32_t _last_VEL_timeUTC{0};
-	uint32_t _last_FIX_timeUTC{0};
+	double _last_POS_timeUTC{0};
+	double _last_VEL_timeUTC{0};
+	double _last_FIX_timeUTC{0};
 	uint64_t _last_timestamp_time{0};
 
 	uint8_t _sat_num_gga{0};
