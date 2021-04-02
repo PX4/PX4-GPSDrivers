@@ -110,7 +110,7 @@ int GPSDriverFemto::handleMessage(int len)
 		}
 
 		_gps_position->heading = heading;
-		_gps_position->timestamp = gps_absolute_time();
+		_gps_position->timestamp_sample = gps_absolute_time();
 
 		ret = 1;
 	}

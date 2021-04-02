@@ -264,7 +264,7 @@ int GPSDriverAshtech::handleMessage(int len)
 			_gps_position->fix_type = 3 + fix_quality - 1;
 		}
 
-		_gps_position->timestamp = gps_absolute_time();
+		_gps_position->timestamp_sample = gps_absolute_time();
 
 		_gps_position->vel_m_s = 0;                                  /**< GPS ground speed (m/s) */
 		_gps_position->vel_n_m_s = 0;                                /**< GPS ground speed in m/s */
@@ -446,7 +446,7 @@ int GPSDriverAshtech::handleMessage(int len)
 			}
 		}
 
-		_gps_position->timestamp = gps_absolute_time();
+		_gps_position->timestamp_sample = gps_absolute_time();
 
 		float track_rad = static_cast<float>(track_true) * M_PI_F / 180.0f;
 
@@ -593,7 +593,7 @@ int GPSDriverAshtech::handleMessage(int len)
 
 			if (_satellite_info) {
 				_satellite_info->count = MIN(tot_sv_visible, satellite_info_s::SAT_INFO_MAX_SATELLITES);
-				_satellite_info->timestamp = gps_absolute_time();
+				_satellite_info->timestamp_sample = gps_absolute_time();
 				ret = 2;
 			}
 		}
@@ -708,7 +708,7 @@ int GPSDriverAshtech::handleMessage(int len)
 	}
 
 	if (ret == 1) {
-		_gps_position->timestamp_time_relative = (int32_t)(_last_timestamp_time - _gps_position->timestamp);
+		_gps_position->timestamp_time_relative = (int32_t)(_last_timestamp_time - _gps_position->timestamp_sample);
 	}
 
 

@@ -1756,8 +1756,8 @@ GPSDriverUBX::payloadRxDone()
 #endif
 		}
 
-		_gps_position->timestamp = gps_absolute_time();
-		_last_timestamp_time = _gps_position->timestamp;
+		_gps_position->timestamp_sample = gps_absolute_time();
+		_last_timestamp_time = _gps_position->timestamp_sample;
 
 		_rate_count_vel++;
 		_rate_count_lat_lon++;
@@ -1794,7 +1794,7 @@ GPSDriverUBX::payloadRxDone()
 		_gps_position->epv	= static_cast<float>(_buf.payload_rx_nav_posllh.vAcc) * 1e-3f; // from mm to m
 		_gps_position->alt_ellipsoid = _buf.payload_rx_nav_posllh.height;
 
-		_gps_position->timestamp = gps_absolute_time();
+		_gps_position->timestamp_sample = gps_absolute_time();
 
 		_rate_count_lat_lon++;
 		_got_posllh = true;
@@ -1872,7 +1872,7 @@ GPSDriverUBX::payloadRxDone()
 		UBX_TRACE_RXMSG("Rx NAV-SVINFO");
 
 		// _satellite_info already populated by payload_rx_add_svinfo(), just add a timestamp
-		_satellite_info->timestamp = gps_absolute_time();
+		_satellite_info->timestamp_sample = gps_absolute_time();
 
 		ret = 2;
 		break;
@@ -2027,7 +2027,7 @@ GPSDriverUBX::payloadRxDone()
 	}
 
 	if (ret > 0) {
-		_gps_position->timestamp_time_relative = (int32_t)(_last_timestamp_time - _gps_position->timestamp);
+		_gps_position->timestamp_time_relative = (int32_t)(_last_timestamp_time - _gps_position->timestamp_sample);
 	}
 
 	return ret;

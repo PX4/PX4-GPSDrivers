@@ -438,7 +438,7 @@ GPSDriverSBF::payloadRxDone()
 			if (_satellite_info) {
 				// Only fill in the satellite count for now (we could use the ChannelStatus message for the
 				// other data, but it's really large: >800B)
-				_satellite_info->timestamp = gps_absolute_time();
+				_satellite_info->timestamp_sample = gps_absolute_time();
 				_satellite_info->count = _gps_position->satellites_used;
 				ret = 2;
 			}
@@ -502,8 +502,9 @@ GPSDriverSBF::payloadRxDone()
 		}
 
 #endif
+		_gps_position->timestamp_sample = gps_absolute_time();
 		_gps_position->timestamp = gps_absolute_time();
-		_last_timestamp_time = _gps_position->timestamp;
+		_last_timestamp_time = _gps_position->timestamp_sample;
 		_rate_count_vel++;
 		_rate_count_lat_lon++;
 		ret |= (_msg_status == 7) ? 1 : 0;
@@ -536,7 +537,7 @@ GPSDriverSBF::payloadRxDone()
 	}
 
 	if (ret > 0) {
-		_gps_position->timestamp_time_relative = static_cast<int32_t>(_last_timestamp_time - _gps_position->timestamp);
+		_gps_position->timestamp_time_relative = static_cast<int32_t>(_last_timestamp_time - _gps_position->timestamp_sample);
 	}
 
 	if (ret == 1) {
