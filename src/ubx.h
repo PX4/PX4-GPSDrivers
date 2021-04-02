@@ -899,6 +899,18 @@ public:
 
 	bool shouldInjectRTCM() override { return _mode != UBXMode::RoverWithMovingBase; }
 
+	enum class Board : uint8_t {
+		unknown = 0,
+		u_blox5 = 5,
+		u_blox6 = 6,
+		u_blox7 = 7,
+		u_blox8 = 8, ///< M8N or M8P
+		u_blox9 = 9, ///< M9N, or any F9*, except F9P
+		u_blox9_F9P = 10, ///< F9P
+	};
+
+	const Board &board() const { return _board; }
+
 private:
 
 private:
@@ -1026,16 +1038,6 @@ private:
 	 * Wait for message acknowledge
 	 */
 	int waitForAck(const uint16_t msg, const unsigned timeout, const bool report);
-
-	enum class Board : uint8_t {
-		unknown = 0,
-		u_blox5 = 5,
-		u_blox6 = 6,
-		u_blox7 = 7,
-		u_blox8 = 8, ///< M8N or M8P
-		u_blox9 = 9, ///< M9N, or any F9*, except F9P
-		u_blox9_F9P = 10, ///< F9P
-	};
 
 	const Interface _interface{};
 
