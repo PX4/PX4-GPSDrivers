@@ -57,13 +57,13 @@
 #define SBF_DEBUG(...)       {/*GPS_WARN(__VA_ARGS__);*/}
 
 GPSDriverSBF::GPSDriverSBF(GPSCallbackPtr callback, void *callback_user,
-			   struct vehicle_gps_position_s *gps_position,
-			   struct satellite_info_s *satellite_info,
-			   uint8_t dynamic_model)
-	: GPSBaseStationSupport(callback, callback_user)
-	, _gps_position(gps_position)
-	, _satellite_info(satellite_info)
-	, _dynamic_model(dynamic_model)
+			   sensor_gps_s *gps_position,
+			   satellite_info_s *satellite_info,
+			   uint8_t dynamic_model) :
+	GPSBaseStationSupport(callback, callback_user),
+	_gps_position(gps_position),
+	_satellite_info(satellite_info),
+	_dynamic_model(dynamic_model)
 {
 	decodeInit();
 }
@@ -73,16 +73,16 @@ GPSDriverSBF::~GPSDriverSBF()
 }
 
 int
-GPSDriverSBF::configure(unsigned &baudrate, OutputMode output_mode)
+GPSDriverSBF::configure(unsigned &baudrate, const GPSConfig &config)
 {
 	_configured = false;
 
 	setBaudrate(SBF_TX_CFG_PRT_BAUDRATE);
 	baudrate = SBF_TX_CFG_PRT_BAUDRATE;
 
-	_output_mode = output_mode;
+	_output_mode = config.output_mode;
 
-	if (output_mode != OutputMode::RTCM) {
+	if (_output_mode != OutputMode::RTCM) {
 		sendMessage(SBF_CONFIG_FORCE_INPUT);
 	}
 
@@ -427,7 +427,7 @@ GPSDriverSBF::payloadRxDone()
 
 		// Check boundaries and invalidate position
 		// We're not just checking for the do-not-use value (-2*10^10) but for any value beyond the specified max values
-		if (fabs(_buf.payload_pvt_geodetic.latitude) > M_PI_2 || fabs(_buf.payload_pvt_geodetic.longitude) > M_PI_2 ||
+		if (fabs(_buf.payload_pvt_geodetic.latitude) > M_PI_2 || fabs(_buf.payload_pvt_geodetic.longitude) > M_PI ||
 		    fabs(_buf.payload_pvt_geodetic.height) > 100000.0 || fabs(_buf.payload_pvt_geodetic.undulation) > 100000.0) {
 			_gps_position->fix_type = 0;
 		}
@@ -552,12 +552,14 @@ GPSDriverSBF::decodeInit()
 	_decode_state = SBF_DECODE_SYNC1;
 	_rx_payload_index = 0;
 
-	if (_output_mode == OutputMode::RTCM) {
+	if (_output_mode == OutputMode::GPSAndRTCM || _output_mode == OutputMode::RTCM) {
 		if (!_rtcm_parsing) {
 			_rtcm_parsing = new RTCMParsing();
 		}
 
-		_rtcm_parsing->reset();
+		if (_rtcm_parsing) {
+			_rtcm_parsing->reset();
+		}
 	}
 }
 

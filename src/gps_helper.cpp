@@ -46,8 +46,9 @@
  * @author Julian Oes <julian@oes.ch>
  */
 
-GPSHelper::GPSHelper(GPSCallbackPtr callback, void *callback_user)
-	: _callback(callback), _callback_user(callback_user)
+GPSHelper::GPSHelper(GPSCallbackPtr callback, void *callback_user) :
+	_callback(callback),
+	_callback_user(callback_user)
 {
 }
 

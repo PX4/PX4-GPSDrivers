@@ -47,7 +47,7 @@
 #include <math.h>
 
 
-GPSDriverMTK::GPSDriverMTK(GPSCallbackPtr callback, void *callback_user, struct vehicle_gps_position_s *gps_position) :
+GPSDriverMTK::GPSDriverMTK(GPSCallbackPtr callback, void *callback_user, sensor_gps_s *gps_position) :
 	GPSHelper(callback, callback_user),
 	_gps_position(gps_position)
 {
@@ -55,10 +55,10 @@ GPSDriverMTK::GPSDriverMTK(GPSCallbackPtr callback, void *callback_user, struct 
 }
 
 int
-GPSDriverMTK::configure(unsigned &baudrate, OutputMode output_mode)
+GPSDriverMTK::configure(unsigned &baudrate, const GPSConfig &config)
 {
-	if (output_mode != OutputMode::GPS) {
-		GPS_WARN("MTK: Unsupported Output Mode %i", (int)output_mode);
+	if (config.output_mode != OutputMode::GPS) {
+		GPS_WARN("MTK: Unsupported Output Mode %i", (int)config.output_mode);
 		return -1;
 	}
 
