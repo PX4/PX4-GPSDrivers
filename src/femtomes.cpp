@@ -60,12 +60,6 @@
 #define FEMTO_UNUSED(x) (void)x;
 
 #if defined _FMTOMES_DEBUG
-#define _FEMTOMES_DEBUG_LEVEL	2
-#else
-#define _FEMTOMES_DEBUG_LEVEL	2
-#endif
-
-#if _FEMTOMES_DEBUG_LEVEL
 #define FEMTO_INFO(...)			{GPS_INFO(__VA_ARGS__);}
 #define FEMTO_DEBUG(...)		{GPS_WARN(__VA_ARGS__);}
 #define FEMTO_ERR(...)			{GPS_ERR(__VA_ARGS__);}
@@ -80,7 +74,7 @@ GPSDriverFemto::GPSDriverFemto(GPSCallbackPtr callback, void *callback_user,
 			       struct sensor_gps_s *gps_position,
 				   satellite_info_s *satellite_info,
 			       float heading_offset) :
-	GPSHelper(callback, callback_user),
+	GPSBaseStationSupport(callback, callback_user),
 	_gps_position(gps_position),
 	_satellite_info(satellite_info),
 	_heading_offset(heading_offset)
@@ -376,6 +370,7 @@ int GPSDriverFemto::parseChar(uint8_t temp)
 			break;
 
 		case FemtoDecodeState::crc4:
+		{
 			_femto_msg.crc += (uint32_t)(temp << 24);
 			_decode_state = FemtoDecodeState::pream_ble1;
 
@@ -389,7 +384,7 @@ int GPSDriverFemto::parseChar(uint8_t temp)
 			} else {
 				FEMTO_DEBUG("Femto: data packet is bad");
 			}
-
+		}
 			break;
 		default:
 			break;
