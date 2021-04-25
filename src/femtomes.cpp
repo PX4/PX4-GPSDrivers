@@ -192,6 +192,9 @@ int GPSDriverFemto::handleMessage(int len)
                 lon = -lon;
             }
 
+			FEMTO_UNUSED(ashtech_time)
+			FEMTO_UNUSED(hdop)
+
             if(!_correction_output_activated && 7 == fix_quality)
             {
                 lat = (int(lat * 0.01) + (lat * 0.01 - int(lat * 0.01)) * 100.0 / 60.0) * 10000000;
@@ -590,19 +593,19 @@ int GPSDriverFemto::configure(unsigned &baudrate, const GPSConfig &config)
 	}else{
 		decodeInit();
 	}
-	
+
 	if(_output_mode == OutputMode::GPS){
 		if (writeAckedCommandFemto("LOG UAVGPSB 0.05\r\n", "<LOG OK", FEMTO_RESPONSE_TIMEOUT) == 0) {
 			FEMTO_DEBUG("Femto: command LOG UAVGPSB 0.05 success");
 
 		} else {
 			FEMTO_DEBUG("Femto: command LOG UAVGPSB 0.05 failed");
-		}	
+		}
 	}else{	/**< RTCM mode for base station */
 		activateCorrectionOutput();
 	}
     _configure_done = true;
-    FEMTO_DEBUG("Femto: gps driver configure done")	
+    FEMTO_DEBUG("Femto: gps driver configure done")
 
 	return 0;
 }
@@ -677,7 +680,7 @@ void GPSDriverFemto::activateCorrectionOutput()
 
         const FixedPositionSettings &settings = _base_settings.settings.fixed_position;
         int len = snprintf(buffer, sizeof(buffer), "FIX POSITION %.8lf %.8lf %.5f\r\n",
-                   settings.latitude, settings.longitude,settings.altitude);
+                   settings.latitude, settings.longitude,(double)settings.altitude);
         if (len >= 0 && len < (int)(sizeof(buffer)))
         {
             if (writeAckedCommandFemto(buffer, "FIX OK", FEMTO_RESPONSE_TIMEOUT) == 0)
