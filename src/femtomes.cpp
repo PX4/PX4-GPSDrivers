@@ -641,7 +641,7 @@ GPSDriverFemto::calculateBlockCRC32(uint32_t length, uint8_t *buffer, uint32_t c
 
 void GPSDriverFemto::activateCorrectionOutput()
 {
-    if (_correction_output_activated || _output_mode != OutputMode::RTCM)
+    if (_output_mode != OutputMode::RTCM)
     {
         return;
     }
