@@ -206,7 +206,9 @@ int GPSDriverFemto::handleMessage(int len)
                 _correction_output_activated = true;
             }
 
+           if (_satellite_info) {
             _satellite_info->count = (uint8_t)num_of_sv;    /**< base station satellite count */
+            }
 
             ret = 2;
         }
