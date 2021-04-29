@@ -493,7 +493,9 @@ void GPSDriverFemto::decodeInit()
         {
             _rtcm_parsing = new RTCMParsing();
         }
+        if(_rtcm_parsing) {
         _rtcm_parsing->reset();
+        }
     }
 }
 
