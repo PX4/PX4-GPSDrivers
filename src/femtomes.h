@@ -127,11 +127,11 @@ enum class FemtoDecodeState {
 	crc3,				/**< Frame crc3 */
 	crc4,				/**< Frame crc4 */
 
-    pream_nmea_got_sync1,           /**< NMEA Frame '$' */
-    pream_nmea_got_asteriks,        /**< NMEA Frame '*' */
-    pream_nmea_got_first_cs_byte,   /**< NMEA Frame cs first byte */
+	pream_nmea_got_sync1,           /**< NMEA Frame '$' */
+	pream_nmea_got_asteriks,        /**< NMEA Frame '*' */
+	pream_nmea_got_first_cs_byte,   /**< NMEA Frame cs first byte */
 
-    decode_rtcm3                    /**< Frame rtcm3 */
+	decode_rtcm3                    /**< Frame rtcm3 */
 };
 
 class GPSDriverFemto : public GPSBaseStationSupport
@@ -140,7 +140,8 @@ public:
 	/**
 	 * @param heading_offset heading offset in radians [-pi, pi]. It is substracted from the measurement.
 	 */
-	GPSDriverFemto(GPSCallbackPtr callback, void *callback_user, struct sensor_gps_s *gps_position, satellite_info_s *satellite_info,
+	GPSDriverFemto(GPSCallbackPtr callback, void *callback_user, struct sensor_gps_s *gps_position,
+		       satellite_info_s *satellite_info,
 		       float heading_offset = 0.f);
 	virtual ~GPSDriverFemto();
 
@@ -182,20 +183,20 @@ private:
 	void receiveWait(unsigned timeout_min);
 
 	/**
-     * enable output of correction output
-     */
-    void activateCorrectionOutput();
+	* enable output of correction output
+	*/
+	void activateCorrectionOutput();
 
-    /**
-     * enable output of rtcm
-     */
-    void activateRTCMOutput();
+	/**
+	 * enable output of rtcm
+	 */
+	void activateRTCMOutput();
 
-    /**
-     * update survery in status of QGC RTK GPS
-     */
-    void sendSurveyInStatusUpdate(bool active, bool valid, double latitude = (double)NAN,
-                                  double longitude = (double)NAN,float altitude = NAN);
+	/**
+	 * update survery in status of QGC RTK GPS
+	 */
+	void sendSurveyInStatusUpdate(bool active, bool valid, double latitude = (double)NAN,
+				      double longitude = (double)NAN, float altitude = NAN);
 
 
 	struct sensor_gps_s 	*_gps_position {nullptr};
@@ -206,9 +207,9 @@ private:
 	float 					_heading_offset;
 
 	RTCMParsing             *_rtcm_parsing{nullptr};
-    OutputMode              _output_mode{OutputMode::GPS};
-    bool                    _configure_done{false};
-    bool                    _correction_output_activated{false};
+	OutputMode              _output_mode{OutputMode::GPS};
+	bool                    _configure_done{false};
+	bool                    _correction_output_activated{false};
 
 	gps_abstime 			_survey_in_start{0};
 };
