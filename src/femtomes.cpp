@@ -147,7 +147,9 @@ int GPSDriverFemto::handleMessage(int len)
         decodeInit();
         ret = 1;
     }
-	else if(messageid == FEMTO_MSG_ID_GPGGA && (memcmp(_femto_msg.data + 3, "GGA,", 3) == 0)) /**< GPGGA */
+	else if(OutputMode::RTCM == _output_mode 
+			&& messageid == FEMTO_MSG_ID_GPGGA 
+			&& (memcmp(_femto_msg.data + 3, "GGA,", 3) == 0)) /**< GPGGA only used in base station*/
     {
         int uiCalcComma = 0;
 
@@ -197,22 +199,34 @@ int GPSDriverFemto::handleMessage(int len)
 
             if(!_correction_output_activated && 7 == fix_quality)
             {
+				_survey_in_start = 0	/**< finished survey-in */
+
                 lat = (int(lat * 0.01) + (lat * 0.01 - int(lat * 0.01)) * 100.0 / 60.0) * 10000000;
                 lon = (int(lon * 0.01) + (lon * 0.01 - int(lon * 0.01)) * 100.0 / 60.0) * 10000000;
                 alt = alt * 1000;
 
-                activateRTCMOutput();
                 sendSurveyInStatusUpdate(false, true, lat, lon, (float)alt);
-                _correction_output_activated = true;
+				activateRTCMOutput();
             }
 
-           if (_satellite_info) {
-            _satellite_info->count = (uint8_t)num_of_sv;    /**< base station satellite count */
+           	if (_satellite_info) {
+            	_satellite_info->count = (uint8_t)num_of_sv;    /**< base station satellite count */
             }
 
             ret = 2;
         }
     }
+
+	// handle survey-in status update
+	if (_survey_in_start != 0) {
+		const gps_abstime now = gps_absolute_time();
+		uint32_t survey_in_duration = (now - _survey_in_start) / 1000000;
+
+		if (survey_in_duration != _base_settings.settings.survey_in.min_dur) {
+			_base_settings.settings.survey_in.min_dur = survey_in_duration;
+			sendSurveyInStatusUpdate(true, false);
+		}
+	}
 
 	return ret;
 }
@@ -494,7 +508,7 @@ void GPSDriverFemto::decodeInit()
             _rtcm_parsing = new RTCMParsing();
         }
         if(_rtcm_parsing) {
-        _rtcm_parsing->reset();
+        	_rtcm_parsing->reset();
         }
     }
 }
@@ -647,7 +661,7 @@ void GPSDriverFemto::activateCorrectionOutput()
 {
     if (_output_mode != OutputMode::RTCM)
     {
-        return;
+        return;	/**< only for base station */
     }
 
     char buffer[100];
@@ -675,8 +689,8 @@ void GPSDriverFemto::activateCorrectionOutput()
         }
 
         _base_settings.settings.survey_in.min_dur = 0; // use it as counter how long survey-in has been active
+		_survey_in_start = gps_absolute_time();
         sendSurveyInStatusUpdate(true, false);
-
     }
     else
     {
@@ -728,6 +742,7 @@ void GPSDriverFemto::activateRTCMOutput()
     {
         FEMTO_DEBUG("Femto: command LOG RTCM 1 success")
     }
+	_correction_output_activated = true;
 }
 
 void GPSDriverFemto::sendSurveyInStatusUpdate(bool active, bool valid, double latitude, double longitude, float altitude)

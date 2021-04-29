@@ -209,4 +209,6 @@ private:
     OutputMode              _output_mode{OutputMode::GPS};
     bool                    _configure_done{false};
     bool                    _correction_output_activated{false};
+
+	gps_abstime 			_survey_in_start{0};
 };
