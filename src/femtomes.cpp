@@ -199,7 +199,7 @@ int GPSDriverFemto::handleMessage(int len)
 
             if(!_correction_output_activated && 7 == fix_quality)
             {
-				_survey_in_start = 0	/**< finished survey-in */
+				_survey_in_start = 0;	/**< finished survey-in */
 
                 lat = (int(lat * 0.01) + (lat * 0.01 - int(lat * 0.01)) * 100.0 / 60.0) * 10000000;
                 lon = (int(lon * 0.01) + (lon * 0.01 - int(lon * 0.01)) * 100.0 / 60.0) * 10000000;
