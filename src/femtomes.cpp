@@ -706,7 +706,6 @@ void GPSDriverFemto::activateCorrectionOutput()
                 FEMTO_DEBUG("Femto: command %s success", buffer)
                 activateRTCMOutput();
                 sendSurveyInStatusUpdate(false, true, settings.latitude, settings.longitude, settings.altitude);
-                _correction_output_activated = true;
 
                 if (writeAckedCommandFemto("LOG GPGGA 1 \r\n", "<LOG OK",FEMTO_RESPONSE_TIMEOUT) == 0) /**< for updating GPS satellite count of RTK */
                 {
