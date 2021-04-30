@@ -33,23 +33,13 @@
  ****************************************************************************/
 
 /** @file Femtomes protocol definitions */
+#pragma once
 
+#include "base_station.h"
 #include "gps_helper.h"
 #include "../../definitions.h"
 
 class RTCMParsing;
-
-/* ms, timeout for waiting for a response*/
-#define FEMTO_RESPONSE_TIMEOUT		200
-
-#define FEMTO_MSG_MAX_LENGTH		256
-/* Femtomes ID for UAV output message */
-#define FEMTO_MSG_ID_UAVGPS 		8001
-
-/* Femto uavgps message frame premble 3 bytes*/
-#define FEMTO_PREAMBLE1			0xaa
-#define FEMTO_PREAMBLE2			0x44
-#define FEMTO_PREAMBLE3			0x12
 
 /*** femtomes protocol binary message and payload definitions ***/
 #pragma pack(push, 4)
@@ -81,6 +71,7 @@ typedef struct {
 	uint8_t 	fix_type;		/** 0-1: no fix, 2: 2D fix, 3: 3D fix, 4: RTCM code differential, 5: Real-Time Kinematic, float, 6: Real-Time Kinematic, fixed, 8: Extrapolated. Some applications will not use the value of this field unless it is at least two, so always correctly fill in the fix.*/
 	bool 		vel_ned_valid;		/** True if NED velocity is valid*/
 	uint8_t 	satellites_used;	/** Number of satellites used*/
+	uint8_t		heading_type;		/**< 0 invalid,5 for float,6 for fix*/
 } femto_uav_gps_t;
 
 /**
@@ -134,18 +125,25 @@ enum class FemtoDecodeState {
 	crc1,				/**< Frame crc1 */
 	crc2,				/**< Frame crc2 */
 	crc3,				/**< Frame crc3 */
-	crc4				/**< Frame crc4 */
+	crc4,				/**< Frame crc4 */
+
+	pream_nmea_got_sync1,           /**< NMEA Frame '$' */
+	pream_nmea_got_asteriks,        /**< NMEA Frame '*' */
+	pream_nmea_got_first_cs_byte,   /**< NMEA Frame cs first byte */
+
+	decode_rtcm3                    /**< Frame rtcm3 */
 };
 
-class GPSDriverFemto : public GPSHelper
+class GPSDriverFemto : public GPSBaseStationSupport
 {
 public:
 	/**
 	 * @param heading_offset heading offset in radians [-pi, pi]. It is substracted from the measurement.
 	 */
 	GPSDriverFemto(GPSCallbackPtr callback, void *callback_user, struct sensor_gps_s *gps_position,
+		       satellite_info_s *satellite_info = nullptr,
 		       float heading_offset = 0.f);
-	virtual ~GPSDriverFemto() = default;
+	virtual ~GPSDriverFemto();
 
 	int receive(unsigned timeout) override;
 	int configure(unsigned &baudrate, const GPSConfig &config) override;
@@ -184,10 +182,34 @@ private:
 	 */
 	void receiveWait(unsigned timeout_min);
 
+	/**
+	* enable output of correction output
+	*/
+	void activateCorrectionOutput();
+
+	/**
+	 * enable output of rtcm
+	 */
+	void activateRTCMOutput();
+
+	/**
+	 * update survery in status of QGC RTK GPS
+	 */
+	void sendSurveyInStatusUpdate(bool active, bool valid, double latitude = (double)NAN,
+				      double longitude = (double)NAN, float altitude = NAN);
+
 
 	struct sensor_gps_s 	*_gps_position {nullptr};
-	FemtoDecodeState				_decode_state{FemtoDecodeState::pream_ble1};
-	femto_uav_gps_t					_femto_uav_gps;
-	femto_msg_t 					_femto_msg;
-	float 						_heading_offset;
+	FemtoDecodeState		_decode_state{FemtoDecodeState::pream_ble1};
+	femto_uav_gps_t			_femto_uav_gps;
+	femto_msg_t 			_femto_msg;
+	satellite_info_s        *_satellite_info{nullptr};
+	float 					_heading_offset;
+
+	RTCMParsing             *_rtcm_parsing{nullptr};
+	OutputMode              _output_mode{OutputMode::GPS};
+	bool                    _configure_done{false};
+	bool                    _correction_output_activated{false};
+
+	gps_abstime 			_survey_in_start{0};
 };

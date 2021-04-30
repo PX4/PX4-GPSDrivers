@@ -41,16 +41,25 @@
 #include "femtomes.h"
 #include "rtcm.h"
 
+
+/* ms, timeout for waiting for a response*/
+#define FEMTO_RESPONSE_TIMEOUT		200
+
+#define FEMTO_MSG_MAX_LENGTH		256
+/* Femtomes ID for UAV output message */
+#define FEMTO_MSG_ID_UAVGPS 		8001
+#define FEMTO_MSG_ID_RTCM3          784
+#define FEMTO_MSG_ID_GPGGA          218
+
+/* Femto uavgps message frame premble 3 bytes*/
+#define FEMTO_PREAMBLE1			0xaa
+#define FEMTO_PREAMBLE2			0x44
+#define FEMTO_PREAMBLE3			0x12
+
 #define MIN(X,Y)	((X) < (Y) ? (X) : (Y))
 #define FEMTO_UNUSED(x) (void)x;
 
 #if defined _FMTOMES_DEBUG
-#define _FEMTOMES_DEBUG_LEVEL	2
-#else
-#define _FEMTOMES_DEBUG_LEVEL	2
-#endif
-
-#if _FEMTOMES_DEBUG_LEVEL
 #define FEMTO_INFO(...)			{GPS_INFO(__VA_ARGS__);}
 #define FEMTO_DEBUG(...)		{GPS_WARN(__VA_ARGS__);}
 #define FEMTO_ERR(...)			{GPS_ERR(__VA_ARGS__);}
@@ -63,19 +72,27 @@
 
 GPSDriverFemto::GPSDriverFemto(GPSCallbackPtr callback, void *callback_user,
 			       struct sensor_gps_s *gps_position,
+			       satellite_info_s *satellite_info,
 			       float heading_offset) :
-	GPSHelper(callback, callback_user),
+	GPSBaseStationSupport(callback, callback_user),
 	_gps_position(gps_position),
+	_satellite_info(satellite_info),
 	_heading_offset(heading_offset)
 {
 	decodeInit();
+}
+
+GPSDriverFemto::~GPSDriverFemto()
+{
+	if (_rtcm_parsing) {
+		delete (_rtcm_parsing);
+	}
 }
 
 int GPSDriverFemto::handleMessage(int len)
 {
 	int ret = 0;
 	uint16_t messageid = _femto_msg.header.femto_header.messageid;
-	float heading = 0.f;
 
 	if (messageid == FEMTO_MSG_ID_UAVGPS) { /**< uavgpsB*/
 		memcpy(&_femto_uav_gps, _femto_msg.data, sizeof(femto_uav_gps_t));
@@ -103,16 +120,104 @@ int GPSDriverFemto::handleMessage(int len)
 		_gps_position->vel_ned_valid = _femto_uav_gps.vel_ned_valid;
 		_gps_position->satellites_used = _femto_uav_gps.satellites_used;
 
-		heading = _femto_uav_gps.heading - _heading_offset;
+		if (_femto_uav_gps.heading_type == 6) {
+			float heading = _femto_uav_gps.heading;
+			heading *= M_PI_F / 180.0f; // deg to rad, now in range [0, 2pi]
+			heading -= _heading_offset; // range: [-pi, 3pi]
 
-		if (heading > M_PI_F) {
-			heading -= 2.f * M_PI_F;// final range is [-pi, pi]
+			if (heading > M_PI_F) {
+				heading -= 2.f * M_PI_F; // final range is [-pi, pi]
+			}
+
+			_gps_position->heading = heading;
+
+		} else {
+			_gps_position->heading = NAN;
 		}
 
-		_gps_position->heading = heading;
 		_gps_position->timestamp = gps_absolute_time();
 
 		ret = 1;
+
+	} else if (messageid == FEMTO_MSG_ID_RTCM3) { /**< rtcm3 */
+		gotRTCMMessage(_rtcm_parsing->message(), _rtcm_parsing->messageLength());
+		decodeInit();
+		ret = 1;
+
+	} else if (OutputMode::RTCM == _output_mode
+		   && messageid == FEMTO_MSG_ID_GPGGA
+		   && (memcmp(_femto_msg.data + 3, "GGA,", 3) == 0)) { /**< GPGGA only used in base station*/
+		int uiCalcComma = 0;
+
+		for (int i = 0 ; i < len; i++) {
+			if (_femto_msg.data[i] == ',') { uiCalcComma++; }
+		}
+
+		if (uiCalcComma == 14) {
+			char *bufptr = (char *)(_femto_msg.data + 6);
+			char *endp = nullptr;
+			double ashtech_time = 0.0, lat = 0.0, lon = 0.0, alt = 0.0;
+			int num_of_sv = 0, fix_quality = 0;
+			double hdop = 99.9;
+			char ns = '?', ew = '?';
+
+			if (bufptr && *(++bufptr) != ',') { ashtech_time = strtod(bufptr, &endp); bufptr = endp; }
+
+			if (bufptr && *(++bufptr) != ',') { lat = strtod(bufptr, &endp); bufptr = endp; }
+
+			if (bufptr && *(++bufptr) != ',') { ns = *(bufptr++); }
+
+			if (bufptr && *(++bufptr) != ',') { lon = strtod(bufptr, &endp); bufptr = endp; }
+
+			if (bufptr && *(++bufptr) != ',') { ew = *(bufptr++); }
+
+			if (bufptr && *(++bufptr) != ',') { fix_quality = strtol(bufptr, &endp, 10); bufptr = endp; }
+
+			if (bufptr && *(++bufptr) != ',') { num_of_sv = strtol(bufptr, &endp, 10); bufptr = endp; }
+
+			if (bufptr && *(++bufptr) != ',') { hdop = strtod(bufptr, &endp); bufptr = endp; }
+
+			if (bufptr && *(++bufptr) != ',') { alt = strtod(bufptr, &endp); bufptr = endp; }
+
+			if (ns == 'S') {
+				lat = -lat;
+			}
+
+			if (ew == 'W') {
+				lon = -lon;
+			}
+
+			FEMTO_UNUSED(ashtech_time)
+			FEMTO_UNUSED(hdop)
+
+			if (!_correction_output_activated && 7 == fix_quality) {
+				_survey_in_start = 0;	/**< finished survey-in */
+
+				lat = (int(lat * 0.01) + (lat * 0.01 - int(lat * 0.01)) * 100.0 / 60.0) * 10000000;
+				lon = (int(lon * 0.01) + (lon * 0.01 - int(lon * 0.01)) * 100.0 / 60.0) * 10000000;
+				alt = alt * 1000;
+
+				sendSurveyInStatusUpdate(false, true, lat, lon, (float)alt);
+				activateRTCMOutput();
+			}
+
+			if (_satellite_info) {
+				_satellite_info->count = (uint8_t)num_of_sv;    /**< base station satellite count */
+			}
+
+			ret = 2;
+		}
+	}
+
+	// handle survey-in status update
+	if (_survey_in_start != 0) {
+		const gps_abstime now = gps_absolute_time();
+		uint32_t survey_in_duration = (now - _survey_in_start) / 1000000;
+
+		if (survey_in_duration != _base_settings.settings.survey_in.min_dur) {
+			_base_settings.settings.survey_in.min_dur = survey_in_duration;
+			sendSurveyInStatusUpdate(true, false);
+		}
 	}
 
 	return ret;
@@ -190,107 +295,194 @@ int GPSDriverFemto::parseChar(uint8_t temp)
 {
 	int iRet = 0;
 
-	switch (_decode_state) {
-	case FemtoDecodeState::pream_ble1:
-		if (temp == FEMTO_PREAMBLE1) {
-			_decode_state = FemtoDecodeState::pream_ble2;
-			_femto_msg.read = 0;
-		}
+	if (_output_mode == OutputMode::GPS) {
 
-		break;
+		switch (_decode_state) {
+		case FemtoDecodeState::pream_ble1:
+			if (temp == FEMTO_PREAMBLE1) {
+				_decode_state = FemtoDecodeState::pream_ble2;
+				_femto_msg.read = 0;
+			}
 
-	case FemtoDecodeState::pream_ble2:
-		if (temp == FEMTO_PREAMBLE2) {
-			_decode_state = FemtoDecodeState::pream_ble3;
+			break;
 
-		} else {
-			_decode_state = FemtoDecodeState::pream_ble1;
-		}
+		case FemtoDecodeState::pream_ble2:
+			if (temp == FEMTO_PREAMBLE2) {
+				_decode_state = FemtoDecodeState::pream_ble3;
 
-		break;
+			} else {
+				_decode_state = FemtoDecodeState::pream_ble1;
+			}
 
-	case FemtoDecodeState::pream_ble3:
-		if (temp == FEMTO_PREAMBLE3) {
-			_decode_state = FemtoDecodeState::head_length;
+			break;
 
-		} else {
-			_decode_state = FemtoDecodeState::pream_ble1;
-		}
+		case FemtoDecodeState::pream_ble3:
+			if (temp == FEMTO_PREAMBLE3) {
+				_decode_state = FemtoDecodeState::head_length;
 
-		break;
+			} else {
+				_decode_state = FemtoDecodeState::pream_ble1;
+			}
 
-	case FemtoDecodeState::head_length:
-		_femto_msg.header.data[0] = FEMTO_PREAMBLE1;
-		_femto_msg.header.data[1] = FEMTO_PREAMBLE2;
-		_femto_msg.header.data[2] = FEMTO_PREAMBLE3;
-		_femto_msg.header.data[3] = temp;
-		_femto_msg.header.femto_header.headerlength = temp;
-		_decode_state = FemtoDecodeState::head_data;
-		_femto_msg.read = 4;
-		break;
+			break;
 
-	case FemtoDecodeState::head_data:
-		if (_femto_msg.read >= sizeof(_femto_msg.header.data)) {
-			_decode_state = FemtoDecodeState::pream_ble1;
+		case FemtoDecodeState::head_length:
+			_femto_msg.header.data[0] = FEMTO_PREAMBLE1;
+			_femto_msg.header.data[1] = FEMTO_PREAMBLE2;
+			_femto_msg.header.data[2] = FEMTO_PREAMBLE3;
+			_femto_msg.header.data[3] = temp;
+			_femto_msg.header.femto_header.headerlength = temp;
+			_decode_state = FemtoDecodeState::head_data;
+			_femto_msg.read = 4;
+			break;
+
+		case FemtoDecodeState::head_data:
+			if (_femto_msg.read >= sizeof(_femto_msg.header.data)) {
+				_decode_state = FemtoDecodeState::pream_ble1;
+				break;
+			}
+
+			_femto_msg.header.data[_femto_msg.read] = temp;
+			_femto_msg.read++;
+
+			if (_femto_msg.read >= _femto_msg.header.femto_header.headerlength) {
+				_decode_state = FemtoDecodeState::data;
+			}
+
+			break;
+
+		case FemtoDecodeState::data:
+			if (_femto_msg.read >= FEMTO_MSG_MAX_LENGTH) {
+				_decode_state = FemtoDecodeState::pream_ble1;
+				break;
+			}
+
+			_femto_msg.data[_femto_msg.read - _femto_msg.header.femto_header.headerlength] = temp;
+			_femto_msg.read++;
+
+			if (_femto_msg.read >= (_femto_msg.header.femto_header.messagelength + _femto_msg.header.femto_header.headerlength)) {
+				_decode_state = FemtoDecodeState::crc1;
+			}
+
+			break;
+
+		case FemtoDecodeState::crc1:
+			_femto_msg.crc = (uint32_t)(temp << 0);
+			_decode_state = FemtoDecodeState::crc2;
+			break;
+
+		case FemtoDecodeState::crc2:
+			_femto_msg.crc += (uint32_t)(temp << 8);
+			_decode_state = FemtoDecodeState::crc3;
+			break;
+
+		case FemtoDecodeState::crc3:
+			_femto_msg.crc += (uint32_t)(temp << 16);
+			_decode_state = FemtoDecodeState::crc4;
+			break;
+
+		case FemtoDecodeState::crc4: {
+				_femto_msg.crc += (uint32_t)(temp << 24);
+				_decode_state = FemtoDecodeState::pream_ble1;
+
+				uint32_t crc = calculateBlockCRC32((uint32_t)_femto_msg.header.femto_header.headerlength,
+								   (uint8_t *)&_femto_msg.header.data, (uint32_t)0);
+				crc = calculateBlockCRC32((uint32_t)_femto_msg.header.femto_header.messagelength, (uint8_t *)&_femto_msg.data[0], crc);
+
+				if (_femto_msg.crc == crc) {
+					iRet = _femto_msg.read;
+
+				} else {
+					FEMTO_DEBUG("Femto: data packet is bad");
+				}
+			}
+			break;
+
+		default:
 			break;
 		}
 
-		_femto_msg.header.data[_femto_msg.read] = temp;
-		_femto_msg.read++;
+	} else {	/**< RTCM mode */
 
-		if (_femto_msg.read >= _femto_msg.header.femto_header.headerlength) {
-			_decode_state = FemtoDecodeState::data;
-		}
+		switch (_decode_state) {
+		case FemtoDecodeState::pream_ble1:
+			if (temp == '$') {
+				_decode_state = FemtoDecodeState::pream_nmea_got_sync1;
+				_femto_msg.read = 0;
+				_femto_msg.data[_femto_msg.read++] = temp;
 
-		break;
+			} else if (temp == RTCM3_PREAMBLE && _rtcm_parsing) {
+				_decode_state = FemtoDecodeState::decode_rtcm3;
+				_rtcm_parsing->addByte(temp);
+			}
 
-	case FemtoDecodeState::data:
-		if (_femto_msg.read >= FEMTO_MSG_MAX_LENGTH) {
-			_decode_state = FemtoDecodeState::pream_ble1;
+			break;
+
+		case FemtoDecodeState::pream_nmea_got_sync1:
+			if (temp == '$') {
+				_decode_state = FemtoDecodeState::pream_nmea_got_sync1;
+				_femto_msg.read = 0;
+
+			} else if (temp == '*') {
+				_decode_state = FemtoDecodeState::pream_nmea_got_asteriks;
+
+			} else if (temp == RTCM3_PREAMBLE && _rtcm_parsing) {
+				_decode_state = FemtoDecodeState::decode_rtcm3;
+				_rtcm_parsing->addByte(temp);
+			}
+
+			if (_femto_msg.read >= (sizeof(_femto_msg.data) - 5)) {
+				FEMTO_DEBUG("buffer overflow")
+				_decode_state = FemtoDecodeState::pream_ble1;
+				_femto_msg.read = 0;
+
+			} else {
+				_femto_msg.data[_femto_msg.read++] = temp;
+			}
+
+			break;
+
+		case FemtoDecodeState::pream_nmea_got_asteriks:
+			_femto_msg.data[_femto_msg.read++] = temp;
+			_decode_state = FemtoDecodeState::pream_nmea_got_first_cs_byte;
+			break;
+
+		case FemtoDecodeState::pream_nmea_got_first_cs_byte: {
+				_femto_msg.data[_femto_msg.read++] = temp;
+				uint8_t checksum = 0;
+				uint8_t *buffer = _femto_msg.data + 1;
+				uint8_t *bufend = _femto_msg.data + _femto_msg.read - 3;
+
+				for (; buffer < bufend; buffer++) {
+					checksum ^= *buffer;
+				}
+
+				if ((HEXDIGIT_CHAR(checksum >> 4) == *(_femto_msg.data + _femto_msg.read - 2)) &&
+				    (HEXDIGIT_CHAR(checksum & 0x0F) == *(_femto_msg.data + _femto_msg.read - 1))) {
+					iRet = _femto_msg.read;
+					_femto_msg.header.femto_header.messageid = FEMTO_MSG_ID_GPGGA;
+					FEMTO_DEBUG("Femto: got NMEA message with length %i", _femto_msg.read)
+				}
+
+				decodeInit();
+				break;
+			}
+
+		case FemtoDecodeState::decode_rtcm3:
+			if (_rtcm_parsing->addByte(temp)) {
+				FEMTO_DEBUG("Femto: got RTCM message with length %i", (int)_rtcm_parsing->messageLength())
+				_femto_msg.header.femto_header.messageid  = FEMTO_MSG_ID_RTCM3;
+				iRet = _rtcm_parsing->messageLength();
+			}
+
+			break;
+
+		default:
 			break;
 		}
 
-		_femto_msg.data[_femto_msg.read - _femto_msg.header.femto_header.headerlength] = temp;
-		_femto_msg.read++;
-
-		if (_femto_msg.read >= (_femto_msg.header.femto_header.messagelength + _femto_msg.header.femto_header.headerlength)) {
-			_decode_state = FemtoDecodeState::crc1;
-		}
-
-		break;
-
-	case FemtoDecodeState::crc1:
-		_femto_msg.crc = (uint32_t)(temp << 0);
-		_decode_state = FemtoDecodeState::crc2;
-		break;
-
-	case FemtoDecodeState::crc2:
-		_femto_msg.crc += (uint32_t)(temp << 8);
-		_decode_state = FemtoDecodeState::crc3;
-		break;
-
-	case FemtoDecodeState::crc3:
-		_femto_msg.crc += (uint32_t)(temp << 16);
-		_decode_state = FemtoDecodeState::crc4;
-		break;
-
-	case FemtoDecodeState::crc4:
-		_femto_msg.crc += (uint32_t)(temp << 24);
-		_decode_state = FemtoDecodeState::pream_ble1;
-
-		uint32_t crc = calculateBlockCRC32((uint32_t)_femto_msg.header.femto_header.headerlength,
-						   (uint8_t *)&_femto_msg.header.data, (uint32_t)0);
-		crc = calculateBlockCRC32((uint32_t)_femto_msg.header.femto_header.messagelength, (uint8_t *)&_femto_msg.data[0], crc);
-
-		if (_femto_msg.crc == crc) {
-			iRet = _femto_msg.read;
-
-		} else {
-			FEMTO_DEBUG("Femto: data packet is bad");
-		}
-
-		break;
 	}
+
 
 	return iRet;
 }
@@ -299,6 +491,16 @@ void GPSDriverFemto::decodeInit()
 {
 	_decode_state = FemtoDecodeState::pream_ble1;
 
+	/** init or reset rtcm parsing */
+	if (_output_mode == OutputMode::RTCM) {
+		if (!_rtcm_parsing) {
+			_rtcm_parsing = new RTCMParsing();
+		}
+
+		if (_rtcm_parsing) {
+			_rtcm_parsing->reset();
+		}
+	}
 }
 
 int GPSDriverFemto::writeAckedCommandFemto(const char *command, const char *reply, const unsigned int timeout)
@@ -309,7 +511,7 @@ int GPSDriverFemto::writeAckedCommandFemto(const char *command, const char *repl
 	uint8_t buf[GPS_READ_BUFFER_SIZE];
 	gps_abstime time_started = gps_absolute_time();
 
-	while (time_started + timeout * 1000 > gps_absolute_time()) {
+	while (time_started + timeout * 2000 > gps_absolute_time()) {
 		int ret = read(buf, sizeof(buf), timeout);
 		buf[sizeof(buf) - 1] = 0;
 
@@ -324,17 +526,21 @@ int GPSDriverFemto::writeAckedCommandFemto(const char *command, const char *repl
 
 int GPSDriverFemto::configure(unsigned &baudrate, const GPSConfig &config)
 {
+	FEMTO_DEBUG("Femto: configure gps driver")
 
-	if (config.output_mode != OutputMode::GPS) {
+	if (config.output_mode != OutputMode::GPS && config.output_mode != OutputMode::RTCM) {
 		FEMTO_DEBUG("Femto: Unsupported Output Mode %i", (int)config.output_mode);
 		return -1;
 	}
 
+	_output_mode = config.output_mode;
+	_configure_done = false;
+	_correction_output_activated = false;
 	/** Try different baudrates (115200 is the default for Femtomes) and request the baudrate that we want.	 */
 	const unsigned baudrates_to_try[] = {115200};
 	bool success = false;
 
-	unsigned test_baudrate;
+	unsigned test_baudrate = 0;
 
 	for (unsigned int baud_i = 0; !success && baud_i < sizeof(baudrates_to_try) / sizeof(baudrates_to_try[0]); baud_i++) {
 		test_baudrate = baudrates_to_try[baud_i];
@@ -358,7 +564,7 @@ int GPSDriverFemto::configure(unsigned &baudrate, const GPSConfig &config)
 	}
 
 	if (!success) {
-		FEMTO_DEBUG("Femto: gps start failed %i", test_baudrate);
+		FEMTO_DEBUG("Femto: gps driver configure failed,no port for baudrate %i", test_baudrate);
 		return -1;
 	}
 
@@ -393,14 +599,25 @@ int GPSDriverFemto::configure(unsigned &baudrate, const GPSConfig &config)
 		if (!success) {
 			return -1;
 		}
-	}
-
-	if (writeAckedCommandFemto("LOG UAVGPSB 0.05\r\n", "<LOG OK", FEMTO_RESPONSE_TIMEOUT) == 0) {
-		FEMTO_DEBUG("Femto: command LOG UAVGPSB 0.05 success");
 
 	} else {
-		FEMTO_DEBUG("Femto: command LOG UAVGPSB 0.05 failed");
+		decodeInit();
 	}
+
+	if (_output_mode == OutputMode::GPS) {
+		if (writeAckedCommandFemto("LOG UAVGPSB 0.05\r\n", "<LOG OK", FEMTO_RESPONSE_TIMEOUT) == 0) {
+			FEMTO_DEBUG("Femto: command LOG UAVGPSB 0.05 success");
+
+		} else {
+			FEMTO_DEBUG("Femto: command LOG UAVGPSB 0.05 failed");
+		}
+
+	} else {	/**< RTCM mode for base station */
+		activateCorrectionOutput();
+	}
+
+	_configure_done = true;
+	FEMTO_DEBUG("Femto: gps driver configure done")
 
 	return 0;
 }
@@ -434,3 +651,90 @@ GPSDriverFemto::calculateBlockCRC32(uint32_t length, uint8_t *buffer, uint32_t c
 	return (crc);
 }
 
+void GPSDriverFemto::activateCorrectionOutput()
+{
+	if (_output_mode != OutputMode::RTCM) {
+		return;	/**< only for base station */
+	}
+
+	char buffer[100];
+
+	if (_base_settings.type == BaseSettingsType::survey_in) {
+		FEMTO_DEBUG("Femto: enabling survey-in")
+
+		if (writeAckedCommandFemto("POSAVE ON \r\n", "<POSAVE OK", FEMTO_RESPONSE_TIMEOUT) == 0) {
+			FEMTO_DEBUG("Femto: command POSAVE ON success")
+
+			if (writeAckedCommandFemto("LOG GPGGA 1 \r\n", "<LOG OK",
+						   FEMTO_RESPONSE_TIMEOUT) == 0) { /**< for updating GPS satellite count of RTK */
+				FEMTO_DEBUG("Femto: command LOG GPGGA 1 success")
+
+			} else {
+				FEMTO_ERR("Femto: LOG GPGGA command failed")
+			}
+
+		} else {
+			FEMTO_ERR("Femto: command POSAVE ON failed")
+		}
+
+		_base_settings.settings.survey_in.min_dur = 0; // use it as counter how long survey-in has been active
+		_survey_in_start = gps_absolute_time();
+		sendSurveyInStatusUpdate(true, false);
+
+	} else {
+		FEMTO_DEBUG("Femto: setting base station position")
+
+		const FixedPositionSettings &settings = _base_settings.settings.fixed_position;
+		int len = snprintf(buffer, sizeof(buffer), "FIX POSITION %.8lf %.8lf %.5f\r\n",
+				   settings.latitude, settings.longitude, (double)settings.altitude);
+
+		if (len >= 0 && len < (int)(sizeof(buffer))) {
+			if (writeAckedCommandFemto(buffer, "FIX OK", FEMTO_RESPONSE_TIMEOUT) == 0) {
+				FEMTO_DEBUG("Femto: command %s success", buffer)
+				activateRTCMOutput();
+				sendSurveyInStatusUpdate(false, true, settings.latitude, settings.longitude, settings.altitude);
+
+				if (writeAckedCommandFemto("LOG GPGGA 1 \r\n", "<LOG OK",
+							   FEMTO_RESPONSE_TIMEOUT) == 0) { /**< for updating GPS satellite count of RTK */
+					FEMTO_DEBUG("Femto: command LOG GPGGA 1 success")
+
+				} else {
+					FEMTO_ERR("Femto: LOG GPGGA command failed")
+				}
+
+			} else {
+				FEMTO_ERR("Femto: fix base station position failed.")
+			}
+
+		} else {
+			FEMTO_DEBUG("Femto: snprintf failed (buffer too short)")
+		}
+
+
+	}
+}
+
+void GPSDriverFemto::activateRTCMOutput()
+{
+	if (writeAckedCommandFemto("LOG RTCM 1\r\n", "<LOG OK", FEMTO_RESPONSE_TIMEOUT) != 0) {
+		FEMTO_ERR("Femto: command LOG RTCM failed")
+
+	} else {
+		FEMTO_DEBUG("Femto: command LOG RTCM 1 success")
+	}
+
+	_correction_output_activated = true;
+}
+
+void GPSDriverFemto::sendSurveyInStatusUpdate(bool active, bool valid, double latitude, double longitude,
+		float altitude)
+{
+	SurveyInStatus status;
+	status.latitude = latitude;
+	status.longitude = longitude;
+	status.altitude = altitude;
+	status.duration = _base_settings.settings.survey_in.min_dur;
+	status.mean_accuracy = 0; // unknown
+	status.flags = (int)valid | ((int)active << 1);
+	surveyInStatus(status);
+}
