@@ -210,7 +210,6 @@ int GPSDriverFemto::handleMessage(int len)
 				alt = alt * 1000;
 
 				sendSurveyInStatusUpdate(false, true, lat, lon, (float)alt);
-//				writeAckedCommandFemto("UNLOG GPGGA \r\n", "<UNLOG OK", FEMTO_RESPONSE_TIMEOUT);	/**< stop GPGGA msg after finished survey-in */
 				activateRTCMOutput();
 			}
 
