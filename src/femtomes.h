@@ -132,7 +132,7 @@ typedef union {
 * receive Femto complete uavgps frame
 */
 typedef struct {
-	uint8_t 		data[1024];		/**< receive Frame message content */
+	uint8_t 		data[600];		/**< receive Frame message content */
 	uint32_t 		crc;			/**< receive Frame message crc 4 bytes */
 	msg_header_t 		header;			/**< receive Frame message header */
 	uint16_t 		read;			/**< receive Frame message read bytes count */

@@ -620,30 +620,27 @@ int GPSDriverFemto::configure(unsigned &baudrate, const GPSConfig &config)
 		if (writeAckedCommandFemto("LOG UAVGPSB 0.1\r\n", "<LOG OK", FEMTO_RESPONSE_TIMEOUT) == 0) {
 			FEMTO_DEBUG("Femto: command LOG UAVGPSB 0.1 success");
 
+			/** 20Hz need authorization in femtomes device */
+			if (writeAckedCommandFemto("LOG UAVGPSB 0.05\r\n", "<LOG OK", FEMTO_RESPONSE_TIMEOUT) == 0) {
+				FEMTO_DEBUG("Femto: command LOG UAVGPSB 0.05 success");
+
+			} else {
+				FEMTO_ERR("Femto: command LOG UAVGPSB 0.05 failed,maybe no authorization");
+			}
+			
 		} else {
 			FEMTO_ERR("Femto: command LOG UAVGPSB 0.1 failed");
 		}
 
-		if (writeAckedCommandFemto("LOG UAVSTATUSB 0.1\r\n", "<LOG OK", FEMTO_RESPONSE_TIMEOUT) == 0) {
-			FEMTO_DEBUG("Femto: command LOG UAVSTATUSB 0.1 success");
+		if(_satellite_info) {
+			if (writeAckedCommandFemto("LOG UAVSTATUSB 0.5\r\n", "<LOG OK", FEMTO_RESPONSE_TIMEOUT) == 0) {
+				FEMTO_DEBUG("Femto: command LOG UAVSTATUSB 0.5 success");
 
-		} else {
-			FEMTO_ERR("Femto: command LOG UAVSTATUSB 0.1 failed");
-		}
-		/** 20Hz need authorization in femtomes device */
-		if (writeAckedCommandFemto("LOG UAVGPSB 0.05\r\n", "<LOG OK", FEMTO_RESPONSE_TIMEOUT) == 0) {
-			FEMTO_DEBUG("Femto: command LOG UAVGPSB 0.05 success");
-
-		} else {
-			FEMTO_ERR("Femto: command LOG UAVGPSB 0.05 failed,maybe no authorization");
+			} else {
+				FEMTO_ERR("Femto: command LOG UAVSTATUSB 0.5 failed");
+			}
 		}
 
-		if (writeAckedCommandFemto("LOG UAVSTATUSB 0.05\r\n", "<LOG OK", FEMTO_RESPONSE_TIMEOUT) == 0) {
-			FEMTO_DEBUG("Femto: command LOG UAVSTATUSB 0.05 success");
-
-		} else {
-			FEMTO_ERR("Femto: command LOG UAVSTATUSB 0.05 failed,maybe no authorization");
-		}
 
 	} else {	/**< RTCM mode for base station */
 		activateCorrectionOutput();
