@@ -95,6 +95,32 @@ typedef struct {
 } femto_msg_header_t;
 
 /**
+*  uav status data
+*/
+typedef struct {
+	int32_t     master_ant_status;
+	int32_t     slave_ant_status;
+	uint16_t    master_ant_power;
+	uint16_t    slave_ant_power;
+	uint32_t    jam_status;
+	uint32_t    spoofing_status;
+	uint16_t    reserved16_1;
+	uint16_t    diff_age;		    /**< in unit of second*/
+	uint32_t    base_id;
+	uint32_t    reserved32_1;
+	uint32_t    reserved32_2;
+	uint32_t    sat_number;
+	struct femto_uav_sat_status_data_t {
+		uint8_t   svid;
+		uint8_t   system_id;
+		uint8_t   cn0;		        /**< in unit of dB-Hz*/
+		uint8_t   ele;		        /**< in unit of degree*/
+		uint16_t  azi;		        /**< in unit of degree*/
+		uint16_t  status;
+	} sat_status[64];               /**< uav status of all satellites */
+} femto_uav_status_t;
+
+/**
 * Analysis Femto uavgps frame header
 */
 typedef union {
@@ -106,7 +132,7 @@ typedef union {
 * receive Femto complete uavgps frame
 */
 typedef struct {
-	uint8_t 		data[256];		/**< receive Frame message content */
+	uint8_t 		data[600];		/**< receive Frame message content */
 	uint32_t 		crc;			/**< receive Frame message crc 4 bytes */
 	msg_header_t 		header;			/**< receive Frame message header */
 	uint16_t 		read;			/**< receive Frame message read bytes count */
