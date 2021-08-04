@@ -633,11 +633,11 @@ int GPSDriverFemto::configure(unsigned &baudrate, const GPSConfig &config)
 		}
 
 		if(_satellite_info) {
-			if (writeAckedCommandFemto("LOG UAVSTATUSB 0.5\r\n", "<LOG OK", FEMTO_RESPONSE_TIMEOUT) == 0) {
-				FEMTO_DEBUG("Femto: command LOG UAVSTATUSB 0.5 success");
+			if (writeAckedCommandFemto("LOG UAVSTATUSB 1\r\n", "<LOG OK", FEMTO_RESPONSE_TIMEOUT) == 0) {
+				FEMTO_DEBUG("Femto: command LOG UAVSTATUSB 1 success");
 
 			} else {
-				FEMTO_ERR("Femto: command LOG UAVSTATUSB 0.5 failed");
+				FEMTO_ERR("Femto: command LOG UAVSTATUSB 1 failed");
 			}
 		}
 
