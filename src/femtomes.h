@@ -42,7 +42,7 @@
 class RTCMParsing;
 
 /*** femtomes protocol binary message and payload definitions ***/
-#pragma pack(push, 4)
+#pragma pack(push, 1)
 
 /**
 * femto_uav_gps_t struct need to be packed
