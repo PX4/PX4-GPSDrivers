@@ -234,7 +234,7 @@ protected:
 	 */
 	int read(uint8_t *buf, int buf_length, int timeout)
 	{
-		*((int *)buf) = timeout;
+		memcpy(buf, &timeout, sizeof(timeout));
 		return _callback(GPSCallbackType::readDeviceData, buf, buf_length, _callback_user);
 	}
 
