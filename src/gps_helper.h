@@ -40,6 +40,7 @@
 #pragma once
 
 #include <cstdint>
+#include <cstring>
 #include "../../definitions.h"
 
 #ifndef GPS_READ_BUFFER_SIZE
