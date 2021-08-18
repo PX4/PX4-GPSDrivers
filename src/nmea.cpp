@@ -239,11 +239,11 @@ int GPSDriverNMEA::handleMessage(int len)
 
 		if (bufptr && *(++bufptr) != ',') { alt = strtof(bufptr, &endp); bufptr = endp; }
 
-		while (*(++bufptr) != ','); //skip M
+		while (*(++bufptr) != ',') {} //skip M
 
 		if (bufptr && *(++bufptr) != ',') { geoid_h = strtof(bufptr, &endp); bufptr = endp; }
 
-		while (*(++bufptr) != ','); //skip M
+		while (*(++bufptr) != ',') {} //skip M
 
 		if (bufptr && *(++bufptr) != ',') { dgps_age = strtof(bufptr, &endp); bufptr = endp; }
 
