@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (c) 2020 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2020, 2021 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -47,6 +47,8 @@
 #include "gps_helper.h"
 #include "../../definitions.h"
 
+class RTCMParsing;
+
 #define NMEA_RECV_BUFFER_SIZE 1024
 #define NMEA_DEFAULT_BAUDRATE 115200
 
@@ -60,7 +62,8 @@ public:
 		      sensor_gps_s *gps_position,
 		      satellite_info_s *satellite_info,
 		      float heading_offset = 0.f);
-	virtual ~GPSDriverNMEA() = default;
+
+	virtual ~GPSDriverNMEA();
 
 	int receive(unsigned timeout) override;
 	int configure(unsigned &baudrate, const GPSConfig &config) override;
@@ -71,6 +74,7 @@ private:
 		got_sync1,
 		got_asteriks,
 		got_first_cs_byte,
+		decode_rtcm3
 	};
 
 	void decodeInit(void);
@@ -114,6 +118,10 @@ private:
 	NMEADecodeState _decode_state{NMEADecodeState::uninit};
 	uint8_t _rx_buffer[NMEA_RECV_BUFFER_SIZE] {};
 	uint16_t _rx_buffer_bytes{0};
+
+	OutputMode _output_mode{OutputMode::GPS};
+
+	RTCMParsing *_rtcm_parsing{nullptr};
 
 	float _heading_offset;
 };
