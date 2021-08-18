@@ -70,6 +70,7 @@ GPSDriverSBF::GPSDriverSBF(GPSCallbackPtr callback, void *callback_user,
 
 GPSDriverSBF::~GPSDriverSBF()
 {
+	delete _rtcm_parsing;
 }
 
 int

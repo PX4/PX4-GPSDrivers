@@ -85,9 +85,7 @@ GPSDriverFemto::GPSDriverFemto(GPSCallbackPtr callback, void *callback_user,
 
 GPSDriverFemto::~GPSDriverFemto()
 {
-	if (_rtcm_parsing) {
-		delete (_rtcm_parsing);
-	}
+	delete _rtcm_parsing;
 }
 
 int GPSDriverFemto::handleMessage(int len)
