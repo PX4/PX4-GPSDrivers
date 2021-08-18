@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (c) 2020 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2020, 2021 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -49,6 +49,7 @@
 #include <ctime>
 
 #include "nmea.h"
+#include "rtcm.h"
 
 #ifndef M_PI_F
 # define M_PI_F 3.14159265358979323846f
@@ -56,6 +57,10 @@
 
 #define MAX(X,Y)    ((X) > (Y) ? (X) : (Y))
 #define NMEA_UNUSED(x) (void)x;
+
+/**** Warning macros, disable to save memory */
+#define NMEA_WARN(...)         {GPS_WARN(__VA_ARGS__);}
+#define NMEA_DEBUG(...)        {/*GPS_WARN(__VA_ARGS__);*/}
 
 GPSDriverNMEA::GPSDriverNMEA(GPSCallbackPtr callback, void *callback_user,
 			     sensor_gps_s *gps_position,
@@ -67,6 +72,11 @@ GPSDriverNMEA::GPSDriverNMEA(GPSCallbackPtr callback, void *callback_user,
 	_heading_offset(heading_offset)
 {
 	decodeInit();
+}
+
+GPSDriverNMEA::~GPSDriverNMEA()
+{
+	delete _rtcm_parsing;
 }
 
 /*
@@ -874,7 +884,7 @@ int GPSDriverNMEA::receive(unsigned timeout)
 
 		if (ret < 0) {
 			/* something went wrong when polling or reading */
-			GPS_WARN("poll_or_read err");
+			NMEA_WARN("poll_or_read err");
 			return -1;
 
 		} else if (ret != 0) {
@@ -913,6 +923,11 @@ int GPSDriverNMEA::parseChar(uint8_t b)
 			_decode_state = NMEADecodeState::got_sync1;
 			_rx_buffer_bytes = 0;
 			_rx_buffer[_rx_buffer_bytes++] = b;
+
+		}  else if (b == RTCM3_PREAMBLE && _rtcm_parsing) {
+			_decode_state = NMEADecodeState::decode_rtcm3;
+			_rtcm_parsing->addByte(b);
+
 		}
 
 		break;
@@ -941,20 +956,30 @@ int GPSDriverNMEA::parseChar(uint8_t b)
 		_decode_state = NMEADecodeState::got_first_cs_byte;
 		break;
 
-	case NMEADecodeState::got_first_cs_byte:
-		_rx_buffer[_rx_buffer_bytes++] = b;
-		uint8_t checksum = 0;
-		uint8_t *buffer = _rx_buffer + 1;
-		uint8_t *bufend = _rx_buffer + _rx_buffer_bytes - 3;
+	case NMEADecodeState::got_first_cs_byte: {
+			_rx_buffer[_rx_buffer_bytes++] = b;
+			uint8_t checksum = 0;
+			uint8_t *buffer = _rx_buffer + 1;
+			uint8_t *bufend = _rx_buffer + _rx_buffer_bytes - 3;
 
-		for (; buffer < bufend; buffer++) { checksum ^= *buffer; }
+			for (; buffer < bufend; buffer++) { checksum ^= *buffer; }
 
-		if ((HEXDIGIT_CHAR(checksum >> 4) == *(_rx_buffer + _rx_buffer_bytes - 2)) &&
-		    (HEXDIGIT_CHAR(checksum & 0x0F) == *(_rx_buffer + _rx_buffer_bytes - 1))) {
-			iRet = _rx_buffer_bytes;
+			if ((HEXDIGIT_CHAR(checksum >> 4) == *(_rx_buffer + _rx_buffer_bytes - 2)) &&
+			    (HEXDIGIT_CHAR(checksum & 0x0F) == *(_rx_buffer + _rx_buffer_bytes - 1))) {
+				iRet = _rx_buffer_bytes;
+			}
+
+			decodeInit();
+		}
+		break;
+
+	case NMEADecodeState::decode_rtcm3:
+		if (_rtcm_parsing->addByte(b)) {
+			NMEA_DEBUG("got RTCM message with length %i", (int)_rtcm_parsing->messageLength());
+			gotRTCMMessage(_rtcm_parsing->message(), _rtcm_parsing->messageLength());
+			decodeInit();
 		}
 
-		decodeInit();
 		break;
 	}
 
@@ -965,13 +990,24 @@ void GPSDriverNMEA::decodeInit()
 {
 	_rx_buffer_bytes = 0;
 	_decode_state = NMEADecodeState::uninit;
+
+	if (_output_mode == OutputMode::GPSAndRTCM || _output_mode == OutputMode::RTCM) {
+		if (!_rtcm_parsing) {
+			_rtcm_parsing = new RTCMParsing();
+		}
+
+		if (_rtcm_parsing) {
+			_rtcm_parsing->reset();
+		}
+	}
 }
 
 int GPSDriverNMEA::configure(unsigned &baudrate, const GPSConfig &config)
 {
-	if (config.output_mode != OutputMode::GPS) {
-		GPS_WARN("NMEA: Unsupported Output Mode %i", (int)config.output_mode);
-		return -1;
+	_output_mode = config.output_mode;
+
+	if (_output_mode != OutputMode::GPS) {
+		NMEA_WARN("RTCM output have to be configured manually");
 	}
 
 	// If a baudrate is defined, we test this first
@@ -996,6 +1032,9 @@ int GPSDriverNMEA::configure(unsigned &baudrate, const GPSConfig &config)
 
 		test_baudrate = baudrates_to_try[baud_i];
 		setBaudrate(test_baudrate);
+
+		NMEA_DEBUG("baudrate set to %i", test_baudrate);
+
 		decodeInit();
 		int ret = receive(400);
 		gps_usleep(2000);
