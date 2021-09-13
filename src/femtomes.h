@@ -66,7 +66,6 @@ typedef struct {
 	float 		vel_e_m_s;		/** GPS East velocity, (metres/sec)*/
 	float 		vel_d_m_s;		/** GPS Down velocity, (metres/sec)*/
 	float 		cog_rad;		/** Course over ground (NOT heading, but direction of movement), -PI..PI, (radians)*/
-	int32_t 	timestamp_time_relative;/** timestamp + timestamp_time_relative = Time of the UTC timestamp since system start, (microseconds)*/
 	float 		heading;		/** heading angle of XYZ body frame rel to NED. Set to NaN if not available and updated (used for dual antenna GPS), (rad, [-PI, PI])*/
 	uint8_t 	fix_type;		/** 0-1: no fix, 2: 2D fix, 3: 3D fix, 4: RTCM code differential, 5: Real-Time Kinematic, float, 6: Real-Time Kinematic, fixed, 8: Extrapolated. Some applications will not use the value of this field unless it is at least two, so always correctly fill in the fix.*/
 	bool 		vel_ned_valid;		/** True if NED velocity is valid*/

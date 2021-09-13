@@ -137,34 +137,16 @@ int GPSDriverAshtech::handleMessage(int len)
 		timeinfo.tm_sec = int(ashtech_sec);
 		timeinfo.tm_isdst = 0;
 
-#ifndef NO_MKTIME
 		time_t epoch = mktime(&timeinfo);
 
 		if (epoch > GPS_EPOCH_SECS) {
 			uint64_t usecs = static_cast<uint64_t>((ashtech_sec - static_cast<uint64_t>(ashtech_sec))) * 1000000;
-
-			// FMUv2+ boards have a hardware RTC, but GPS helps us to configure it
-			// and control its drift. Since we rely on the HRT for our monotonic
-			// clock, updating it from time to time is safe.
-
-			timespec ts{};
-			ts.tv_sec = epoch;
-			ts.tv_nsec = usecs * 1000;
-
-			setClock(ts);
-
 			_gps_position->time_utc_usec = static_cast<uint64_t>(epoch) * 1000000ULL;
 			_gps_position->time_utc_usec += usecs;
 
 		} else {
 			_gps_position->time_utc_usec = 0;
 		}
-
-#else
-		_gps_position->time_utc_usec = 0;
-#endif
-
-		_last_timestamp_time = gps_absolute_time();
 	}
 
 	else if ((memcmp(_rx_buffer + 3, "GGA,", 3) == 0) && (uiCalcComma == 14) && !_got_pashr_pos_message) {
@@ -262,7 +244,7 @@ int GPSDriverAshtech::handleMessage(int len)
 			_gps_position->fix_type = 3 + fix_quality - 1;
 		}
 
-		_gps_position->timestamp = gps_absolute_time();
+		_gps_position->timestamp_sample = gps_absolute_time();
 
 		_gps_position->vel_m_s = 0;                                  /**< GPS ground speed (m/s) */
 		_gps_position->vel_n_m_s = 0;                                /**< GPS ground speed in m/s */
@@ -444,7 +426,7 @@ int GPSDriverAshtech::handleMessage(int len)
 			}
 		}
 
-		_gps_position->timestamp = gps_absolute_time();
+		_gps_position->timestamp_sample = gps_absolute_time();
 
 		float track_rad = static_cast<float>(track_true) * M_PI_F / 180.0f;
 
@@ -704,11 +686,6 @@ int GPSDriverAshtech::handleMessage(int len)
 		}
 
 	}
-
-	if (ret == 1) {
-		_gps_position->timestamp_time_relative = (int32_t)(_last_timestamp_time - _gps_position->timestamp);
-	}
-
 
 	// handle survey-in status update
 	if (_survey_in_start != 0) {

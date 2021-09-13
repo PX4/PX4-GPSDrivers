@@ -1097,8 +1097,6 @@ private:
 
 	uint32_t _ubx_version{0};
 
-	uint64_t _last_timestamp_time{0};
-
 	Board _board{Board::unknown};
 
 	OutputMode _output_mode{OutputMode::GPS};
@@ -1107,6 +1105,8 @@ private:
 
 	const UBXMode _mode;
 	const float _heading_offset;
+
+	unsigned _baudrate{0};
 };
 
 

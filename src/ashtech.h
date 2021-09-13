@@ -128,7 +128,6 @@ private:
 
 	uint8_t _rx_buffer[ASHTECH_RECV_BUFFER_SIZE];
 	uint16_t _rx_buffer_bytes{};
-	uint64_t _last_timestamp_time{0};
 
 	float _heading_offset;
 

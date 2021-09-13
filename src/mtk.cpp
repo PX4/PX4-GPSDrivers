@@ -264,21 +264,9 @@ GPSDriverMTK::handleMessage(gps_mtk_packet_t &packet)
 
 	timeinfo.tm_isdst = 0;
 
-#ifndef NO_MKTIME
-
 	time_t epoch = mktime(&timeinfo);
 
 	if (epoch > GPS_EPOCH_SECS) {
-		// FMUv2+ boards have a hardware RTC, but GPS helps us to configure it
-		// and control its drift. Since we rely on the HRT for our monotonic
-		// clock, updating it from time to time is safe.
-
-		timespec ts{};
-		ts.tv_sec = epoch;
-		ts.tv_nsec = timeinfo_conversion_temp * 1000000ULL;
-
-		setClock(ts);
-
 		_gps_position->time_utc_usec = static_cast<uint64_t>(epoch) * 1000000ULL;
 		_gps_position->time_utc_usec += timeinfo_conversion_temp * 1000ULL;
 
@@ -286,12 +274,7 @@ GPSDriverMTK::handleMessage(gps_mtk_packet_t &packet)
 		_gps_position->time_utc_usec = 0;
 	}
 
-#else
-	_gps_position->time_utc_usec = 0;
-#endif
-
-	_gps_position->timestamp = gps_absolute_time();
-	_gps_position->timestamp_time_relative = 0;
+	_gps_position->timestamp_sample = gps_absolute_time();
 
 	// Position and velocity update always at the same time
 	_rate_count_vel++;

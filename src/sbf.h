@@ -356,7 +356,6 @@ private:
 	sensor_gps_s *_gps_position { nullptr };
 	satellite_info_s *_satellite_info { nullptr };
 	uint8_t _dynamic_model{ 7 };
-	uint64_t _last_timestamp_time { 0 };
 	bool _configured { false };
 	uint8_t _msg_status { 0 };
 	sbf_decode_state_t _decode_state { SBF_DECODE_SYNC1 };

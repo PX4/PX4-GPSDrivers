@@ -387,8 +387,6 @@ int    // 0 = no message handled, 1 = message handled, 2 = sat info message hand
 GPSDriverSBF::payloadRxDone()
 {
 	int ret = 0;
-	struct tm timeinfo;
-	time_t epoch;
 
 	if (_buf.length <= 4 || _buf.crc16 != crc16(reinterpret_cast<uint8_t *>(&_buf) + 4, _buf.length - 4)) {
 		return 1;
@@ -474,10 +472,9 @@ GPSDriverSBF::payloadRxDone()
 		}
 
 		_gps_position->time_utc_usec = 0;
-#ifndef NO_MKTIME
-		/* convert to unix timestamp */
-		memset(&timeinfo, 0, sizeof(timeinfo));
 
+		/* convert to unix timestamp */
+		struct tm timeinfo {};
 		timeinfo.tm_year = 1980 - 1900;
 		timeinfo.tm_mon = 0;
 		timeinfo.tm_mday = 6 + _buf.WNc * 7;
@@ -485,26 +482,14 @@ GPSDriverSBF::payloadRxDone()
 		timeinfo.tm_min = 0;
 		timeinfo.tm_sec = _buf.TOW / 1000;
 
-		epoch = mktime(&timeinfo);
+		time_t epoch = mktime(&timeinfo);
 
 		if (epoch > GPS_EPOCH_SECS) {
-			// FMUv2+ boards have a hardware RTC, but GPS helps us to configure it
-			// and control its drift. Since we rely on the HRT for our monotonic
-			// clock, updating it from time to time is safe.
-
-			timespec ts;
-			memset(&ts, 0, sizeof(ts));
-			ts.tv_sec = epoch;
-			ts.tv_nsec = (_buf.TOW % 1000) * 1000 * 1000;
-			setClock(ts);
-
 			_gps_position->time_utc_usec = static_cast<uint64_t>(epoch) * 1000000ULL;
 			_gps_position->time_utc_usec += (_buf.TOW % 1000) * 1000;
 		}
 
-#endif
-		_gps_position->timestamp = gps_absolute_time();
-		_last_timestamp_time = _gps_position->timestamp;
+		_gps_position->timestamp_sample = gps_absolute_time();
 		_rate_count_vel++;
 		_rate_count_lat_lon++;
 		ret |= (_msg_status == 7) ? 1 : 0;
@@ -534,10 +519,6 @@ GPSDriverSBF::payloadRxDone()
 
 	default:
 		break;
-	}
-
-	if (ret > 0) {
-		_gps_position->timestamp_time_relative = static_cast<int32_t>(_last_timestamp_time - _gps_position->timestamp);
 	}
 
 	if (ret == 1) {
