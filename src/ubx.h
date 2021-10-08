@@ -55,7 +55,7 @@
 
 
 #define UBX_CONFIG_TIMEOUT    250 // ms, timeout for waiting ACK
-#define UBX_PACKET_TIMEOUT    2   // ms, if now data during this delay assume that full update received
+#define UBX_PACKET_TIMEOUT    8   // ms, if now data during this delay assume that full update received
 
 #define DISABLE_MSG_INTERVAL  1000000    // us, try to disable message with this interval
 
@@ -64,6 +64,8 @@
 
 #define UBX_SYNC1             0xB5
 #define UBX_SYNC2             0x62
+
+#define UART1_BAUDRATE_HEADING 921600
 
 /* Message Classes */
 #define UBX_CLASS_NAV         0x01
@@ -333,20 +335,35 @@
 #define UBX_CFG_KEY_TMODE_SVIN_MIN_DUR          0x40030010
 #define UBX_CFG_KEY_TMODE_SVIN_ACC_LIMIT        0x40030011
 
-#define UBX_CFG_KEY_MSGOUT_UBX_MON_RF_I2C       0x20910359
-#define UBX_CFG_KEY_MSGOUT_UBX_NAV_SVIN_I2C     0x20910088
-#define UBX_CFG_KEY_MSGOUT_UBX_NAV_SAT_I2C      0x20910015
-#define UBX_CFG_KEY_MSGOUT_UBX_NAV_DOP_I2C      0x20910038
-#define UBX_CFG_KEY_MSGOUT_UBX_NAV_PVT_I2C      0x20910006
+#define UBX_CFG_KEY_MSGOUT_UBX_MON_RF_I2C        0x20910359
+#define UBX_CFG_KEY_MSGOUT_UBX_NAV_SVIN_I2C      0x20910088
+#define UBX_CFG_KEY_MSGOUT_UBX_NAV_SAT_I2C       0x20910015
+#define UBX_CFG_KEY_MSGOUT_UBX_NAV_DOP_I2C       0x20910038
+#define UBX_CFG_KEY_MSGOUT_UBX_NAV_PVT_I2C       0x20910006
 #define UBX_CFG_KEY_MSGOUT_UBX_NAV_RELPOSNED_I2C 0x2091008d
-#define UBX_CFG_KEY_MSGOUT_UBX_RXM_SFRBX_I2C    0x20910231
-#define UBX_CFG_KEY_MSGOUT_UBX_RXM_RAWX_I2C     0x209102a4
-#define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1005_I2C 0x209102bd
-#define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1077_I2C 0x209102cc
-#define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1087_I2C 0x209102d1
-#define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1097_I2C 0x20910318
-#define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1127_I2C 0x209102d6
-#define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1230_I2C 0x20910303
+#define UBX_CFG_KEY_MSGOUT_UBX_RXM_SFRBX_I2C     0x20910231
+#define UBX_CFG_KEY_MSGOUT_UBX_RXM_RAWX_I2C      0x209102a4
+#define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1005_I2C  0x209102bd
+#define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1077_I2C  0x209102cc
+#define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1087_I2C  0x209102d1
+#define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1097_I2C  0x20910318
+#define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1127_I2C  0x209102d6
+#define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1230_I2C  0x20910303
+
+#define UBX_CFG_KEY_MSGOUT_UBX_NAV_RELPOSNED_UART1 0x2091008e
+#define UBX_CFG_KEY_MSGOUT_UBX_NAV_RELPOSNED_UART2 0x2091008f
+
+#define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE4072_0_UART1  0x209102ff
+#define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE4072_1_UART1  0x20910382
+#define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1077_UART1    0x209102cd
+#define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1087_UART1    0x209102d2
+#define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1097_UART1    0x20910319
+#define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1127_UART1    0x209102d7
+#define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1230_UART1    0x20910304
+#define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1074_UART1    0x2091035f
+#define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1084_UART1    0x20910364
+#define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1094_UART1    0x20910369
+#define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1124_UART1    0x2091036e
 
 #define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE4072_0_UART2  0x20910300
 #define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE4072_1_UART2  0x20910383
@@ -888,9 +905,11 @@ class GPSDriverUBX : public GPSBaseStationSupport
 {
 public:
 	enum class UBXMode : uint8_t {
-		Normal,              ///< all non-heading configurations
-		RoverWithMovingBase, ///< expect RTCM input on UART2 from a moving base for heading output
-		MovingBase,          ///< RTCM output on UART2 to a rover (GPS is installed on the vehicle)
+		Normal,                    ///< all non-heading configurations
+		RoverWithMovingBase,       ///< expect RTCM input on UART2 from a moving base for heading output
+		MovingBase,                ///< RTCM output on UART2 to a rover (GPS is installed on the vehicle)
+		RoverWithMovingBaseUART1, ///< expect RTCM input on UART1 from a moving base for heading output
+		MovingBaseUART1,          ///< RTCM output on UART1 to a rover (GPS is installed on the vehicle)
 	};
 
 	GPSDriverUBX(Interface gpsInterface, GPSCallbackPtr callback, void *callback_user,
