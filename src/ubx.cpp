@@ -68,11 +68,12 @@
 #define UBX_DEBUG(...)        {/*GPS_WARN(__VA_ARGS__);*/}
 
 GPSDriverUBX::GPSDriverUBX(Interface gpsInterface, GPSCallbackPtr callback, void *callback_user,
-			   sensor_gps_s *gps_position, satellite_info_s *satellite_info, uint8_t dynamic_model,
+			   sensor_gps_s *gps_position, sensor_gps_heading_s *gps_heading, satellite_info_s *satellite_info, uint8_t dynamic_model,
 			   float heading_offset, UBXMode mode) :
 	GPSBaseStationSupport(callback, callback_user),
 	_interface(gpsInterface),
 	_gps_position(gps_position),
+	_gps_heading(gps_heading),
 	_satellite_info(satellite_info),
 	_dyn_model(dynamic_model),
 	_mode(mode),
@@ -1958,6 +1959,20 @@ GPSDriverUBX::payloadRxDone()
 			(void)rel_length_acc;
 			UBX_DEBUG("Heading: %.1f deg, acc: %.1f deg, relLen: %.1f cm, relAcc: %.1f cm, valid: %i %i", (double)heading,
 				  (double)heading_acc, (double)rel_length, (double)rel_length_acc, heading_valid, rel_pos_valid);
+
+
+			_gps_heading->timestamp_sample = hrt_absolute_time();
+			_gps_heading->heading = (_buf.payload_rx_nav_relposned.relPosHeading * 1e-5f) * (M_PI_F / 180.f);
+			_gps_heading->heading_accuracy = _buf.payload_rx_nav_relposned.accHeading * 1e-5f;
+			_gps_heading->relative_position[0] = _buf.payload_rx_nav_relposned.relPosN * 100.f +
+							     _buf.payload_rx_nav_relposned.relPosHPN * 10000.f;
+			_gps_heading->relative_position[1] = _buf.payload_rx_nav_relposned.relPosN * 100.f +
+							     _buf.payload_rx_nav_relposned.relPosHPE * 10000.f;
+			_gps_heading->relative_position[2] = _buf.payload_rx_nav_relposned.relPosN * 100.f +
+							     _buf.payload_rx_nav_relposned.relPosHPD * 10000.f;
+			_gps_heading->relative_position_accuracy[0] = _buf.payload_rx_nav_relposned.accN * 10000.f;
+			_gps_heading->relative_position_accuracy[1] = _buf.payload_rx_nav_relposned.accE * 10000.f;
+			_gps_heading->relative_position_accuracy[2] = _buf.payload_rx_nav_relposned.accD * 10000.f;
 
 			if (heading_valid && rel_pos_valid && rel_length < 1000.f) { // validity & sanity checks
 				heading *= M_PI_F / 180.0f; // deg to rad, now in range [0, 2pi]

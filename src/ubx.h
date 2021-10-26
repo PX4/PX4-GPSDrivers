@@ -894,7 +894,7 @@ public:
 	};
 
 	GPSDriverUBX(Interface gpsInterface, GPSCallbackPtr callback, void *callback_user,
-		     sensor_gps_s *gps_position, satellite_info_s *satellite_info,
+		     sensor_gps_s *gps_position, sensor_gps_heading_s *gps_heading, satellite_info_s *satellite_info,
 		     uint8_t dynamic_model = 7,
 		     float heading_offset = 0.f,
 		     UBXMode mode = UBXMode::Normal);
@@ -1051,6 +1051,7 @@ private:
 
 	gps_abstime             _disable_cmd_last{0};
 	sensor_gps_s           *_gps_position {nullptr};
+	sensor_gps_heading_s   *_gps_heading{nullptr};
 	satellite_info_s       *_satellite_info {nullptr};
 	ubx_ack_state_t         _ack_state{UBX_ACK_IDLE};
 	ubx_buf_t               _buf{};
