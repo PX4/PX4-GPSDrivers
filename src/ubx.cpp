@@ -2015,15 +2015,15 @@ GPSDriverUBX::payloadRxDone()
 
 		if ((_mode == UBXMode::RoverWithMovingBase) || (_mode == UBXMode::RoverWithMovingBaseUART1)) {
 			float heading = _buf.payload_rx_nav_relposned.relPosHeading * 1e-5f;
-			float heading_acc = _buf.payload_rx_nav_relposned.accHeading * 1e-5f;
-			float rel_length = _buf.payload_rx_nav_relposned.relPosLength + _buf.payload_rx_nav_relposned.relPosHPLength * 1e-2f;
-			float rel_length_acc = _buf.payload_rx_nav_relposned.accLength * 1e-2f;
+			float heading_accuracy = _buf.payload_rx_nav_relposned.accHeading * 1e-5f;
+			float relative_length_m = _buf.payload_rx_nav_relposned.relPosLength + _buf.payload_rx_nav_relposned.relPosHPLength * 1e-2f;
+			float relative_length_acc_m = _buf.payload_rx_nav_relposned.accLength * 1e-2f;
 			bool heading_valid = _buf.payload_rx_nav_relposned.flags & (1 << 8);
 			bool rel_pos_valid = _buf.payload_rx_nav_relposned.flags & (1 << 2);
-			(void)heading_acc;
-			(void)rel_length_acc;
+			(void)heading_accuracy;
+			(void)relative_length_acc_m;
 
-			if (heading_valid && rel_pos_valid && rel_length < 1000.f) { // validity & sanity checks
+			if (heading_valid && rel_pos_valid && relative_length_m < 1000.f) { // validity & sanity checks
 				heading *= M_PI_F / 180.0f; // deg to rad, now in range [0, 2pi]
 				heading -= _heading_offset; // range: [-pi, 3pi]
 
@@ -2034,7 +2034,7 @@ GPSDriverUBX::payloadRxDone()
 				_gps_position->heading = heading;
 
 				UBX_DEBUG("Heading: %.3f rad, acc: %.1f deg, relLen: %.1f cm, relAcc: %.1f cm, valid: %i %i", (double)heading,
-					  (double)heading_acc, (double)rel_length, (double)rel_length_acc, heading_valid, rel_pos_valid);
+					  (double)heading_accuracy, (double)relative_length_m, (double)relative_length_acc_m, heading_valid, rel_pos_valid);
 			}
 
 			ret = 1;
