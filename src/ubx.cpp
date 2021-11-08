@@ -2020,7 +2020,6 @@ GPSDriverUBX::payloadRxDone()
 			float rel_length_acc = _buf.payload_rx_nav_relposned.accLength * 1e-2f;
 			bool heading_valid = _buf.payload_rx_nav_relposned.flags & (1 << 8);
 			bool rel_pos_valid = _buf.payload_rx_nav_relposned.flags & (1 << 2);
-			(void)heading_acc;
 			(void)rel_length_acc;
 
 			if (heading_valid && rel_pos_valid && rel_length < 1000.f) { // validity & sanity checks
@@ -2032,6 +2031,10 @@ GPSDriverUBX::payloadRxDone()
 				}
 
 				_gps_position->heading = heading;
+
+				heading_acc *= M_PI_F / 180.0f; // deg to rad, now in range [0, 2pi]
+
+				_gps_position->heading_accuracy = heading_acc;
 
 				UBX_DEBUG("Heading: %.3f rad, acc: %.1f deg, relLen: %.1f cm, relAcc: %.1f cm, valid: %i %i", (double)heading,
 					  (double)heading_acc, (double)rel_length, (double)rel_length_acc, heading_valid, rel_pos_valid);
