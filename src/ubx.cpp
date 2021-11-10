@@ -107,10 +107,14 @@ GPSDriverUBX::configure(unsigned &baudrate, const GPSConfig &config)
 	if (_interface == Interface::UART) {
 
 		/* try different baudrates */
-		const unsigned baudrates[] = {38400, 57600, 9600, 115200, 230400};
+		const unsigned baudrates[] = {38400, 57600, 9600, 115200, 230400, 460800, 921600};
 
 		unsigned baud_i;
 		unsigned desired_baudrate = auto_baudrate ? UBX_BAUDRATE_M8_AND_NEWER : baudrate;
+
+		if ((_mode == UBXMode::RoverWithMovingBaseUART1) || (_mode == UBXMode::MovingBaseUART1)) {
+			desired_baudrate = UART1_BAUDRATE_HEADING;
+		}
 
 		for (baud_i = 0; baud_i < sizeof(baudrates) / sizeof(baudrates[0]); baud_i++) {
 			unsigned test_baudrate = baudrates[baud_i];
@@ -529,7 +533,15 @@ int GPSDriverUBX::configureDevice(const GNSSSystemsMask &gnssSystems)
 	// measurement rate
 	// In case of F9P we use 10Hz, otherwise 8Hz (receivers such as M9N can go higher as well, but
 	// the number of used satellites will be restricted to 16. Not mentioned in datasheet)
-	const int rate_meas = (_board == Board::u_blox9_F9P) ? 100 : 125;
+	int rate_meas;
+
+	if ((_mode == UBXMode::MovingBaseUART1) || (_mode == UBXMode::RoverWithMovingBaseUART1)) {
+		rate_meas = 125; //8Hz for heading. At 8Hz, the rover will drop output to 4Hz.
+
+	} else {
+		rate_meas = (_board == Board::u_blox9_F9P) ? 100 : 125;
+	}
+
 	cfgValset<uint16_t>(UBX_CFG_KEY_RATE_MEAS, rate_meas, cfg_valset_msg_size);
 	cfgValset<uint16_t>(UBX_CFG_KEY_RATE_NAV, 1, cfg_valset_msg_size);
 	cfgValset<uint8_t>(UBX_CFG_KEY_RATE_TIMEREF, 0, cfg_valset_msg_size);
@@ -658,6 +670,7 @@ int GPSDriverUBX::configureDevice(const GNSSSystemsMask &gnssSystems)
 		}
 	}
 
+	int uart1_baudrate = UART1_BAUDRATE_HEADING;
 	int uart2_baudrate = 230400;
 
 	if (_mode == UBXMode::RoverWithMovingBase) {
@@ -713,6 +726,59 @@ int GPSDriverUBX::configureDevice(const GNSSSystemsMask &gnssSystems)
 		if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true) < 0) {
 			return -1;
 		}
+
+	} else if (_mode == UBXMode::RoverWithMovingBaseUART1) {
+		UBX_DEBUG("Configuring UART1 for rover");
+		// heading output @1Hz + set baudrate
+		cfg_valset_msg_size = initCfgValset();
+		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1INPROT_UBX, 1, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1INPROT_RTCM3X, 1, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1INPROT_NMEA, 0, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1OUTPROT_UBX, 1, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1OUTPROT_RTCM3X, 0, cfg_valset_msg_size);
+		cfgValset<uint32_t>(UBX_CFG_KEY_CFG_UART1_BAUDRATE, uart1_baudrate, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_UBX_NAV_RELPOSNED_UART1, 1, cfg_valset_msg_size);
+
+		if (!sendMessage(UBX_MSG_CFG_VALSET, (uint8_t *)&_buf, cfg_valset_msg_size)) {
+			return -1;
+		}
+
+		if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true) < 0) {
+			return -1;
+		}
+
+		setBaudrate(uart1_baudrate);
+
+	} else if (_mode == UBXMode::MovingBaseUART1) {
+		UBX_DEBUG("Configuring UART1 for moving base");
+		// enable RTCM output on uart1 + set baudrate
+		cfg_valset_msg_size = initCfgValset();
+		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1INPROT_UBX, 1, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1INPROT_RTCM3X, 0, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1INPROT_NMEA, 0, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1OUTPROT_UBX, 1, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1OUTPROT_RTCM3X, 1, cfg_valset_msg_size);
+		cfgValset<uint32_t>(UBX_CFG_KEY_CFG_UART1_BAUDRATE, uart1_baudrate, cfg_valset_msg_size);
+
+		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_UBX_NAV_RELPOSNED_UART1, 0, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_UBX_NAV_RELPOSNED_UART2, 0, cfg_valset_msg_size);
+
+		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE4072_0_UART1, 1, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1230_UART1, 1, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1074_UART1, 1, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1084_UART1, 1, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1094_UART1, 1, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1124_UART1, 1, cfg_valset_msg_size);
+
+		if (!sendMessage(UBX_MSG_CFG_VALSET, (uint8_t *)&_buf, cfg_valset_msg_size)) {
+			return -1;
+		}
+
+		if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true) < 0) {
+			return -1;
+		}
+
+		setBaudrate(uart1_baudrate);
 	}
 
 	return 0;
@@ -1139,7 +1205,7 @@ GPSDriverUBX::parseChar(const uint8_t b)
 
 	case UBX_DECODE_RTCM3:
 		if (_rtcm_parsing->addByte(b)) {
-			UBX_DEBUG("got RTCM message with length %i", static_cast<int>(_rtcm_parsing->messageLength()));
+			//UBX_DEBUG("got RTCM message with length %i", static_cast<int>(_rtcm_parsing->messageLength()));
 			gotRTCMMessage(_rtcm_parsing->message(), _rtcm_parsing->messageLength());
 			decodeInit();
 		}
@@ -1366,7 +1432,7 @@ GPSDriverUBX::payloadRxInit()
 				if (t > _disable_cmd_last + DISABLE_MSG_INTERVAL && _configured) {
 					/* don't attempt for every message to disable, some might not be disabled */
 					_disable_cmd_last = t;
-					UBX_DEBUG("ubx disabling msg 0x%04x (0x%04x)", SWAP16((unsigned)_rx_msg), key_id);
+					UBX_DEBUG("ubx disabling msg 0x%04x (0x%04x)", SWAP16((unsigned)_rx_msg), (uint16_t)key_id);
 
 					// this will overwrite _buf, which is fine, as we'll return -1 and abort further parsing
 					int cfg_valset_msg_size = initCfgValset();
@@ -1617,7 +1683,7 @@ GPSDriverUBX::payloadRxAddMonVer(const uint8_t b)
 			// Part 1 complete: decode Part 1 buffer and calculate hash for SW&HW version strings
 			_ubx_version = fnv1_32_str(_buf.payload_rx_mon_ver_part1.swVersion, FNV1_32_INIT);
 			_ubx_version = fnv1_32_str(_buf.payload_rx_mon_ver_part1.hwVersion, _ubx_version);
-			UBX_DEBUG("VER hash 0x%08x", _ubx_version);
+			UBX_DEBUG("VER hash 0x%08x", (uint16_t)_ubx_version);
 			UBX_DEBUG("VER hw  \"%10s\"", _buf.payload_rx_mon_ver_part1.hwVersion);
 			UBX_DEBUG("VER sw  \"%30s\"", _buf.payload_rx_mon_ver_part1.swVersion);
 
@@ -1904,7 +1970,7 @@ GPSDriverUBX::payloadRxDone()
 		{
 			ubx_payload_rx_nav_svin_t &svin = _buf.payload_rx_nav_svin;
 
-			UBX_DEBUG("Survey-in status: %is cur accuracy: %imm nr obs: %i valid: %i active: %i",
+			UBX_DEBUG("Survey-in status: %lus cur accuracy: %lumm nr obs: %lu valid: %i active: %i",
 				  svin.dur, svin.meanAcc / 10, svin.obs, static_cast<int>(svin.valid), static_cast<int>(svin.active));
 
 			SurveyInStatus status{};
@@ -1947,17 +2013,14 @@ GPSDriverUBX::payloadRxDone()
 	case UBX_MSG_NAV_RELPOSNED:
 		UBX_TRACE_RXMSG("Rx NAV-RELPOSNED");
 
-		if (_mode == UBXMode::RoverWithMovingBase) {
+		if ((_mode == UBXMode::RoverWithMovingBase) || (_mode == UBXMode::RoverWithMovingBaseUART1)) {
 			float heading = _buf.payload_rx_nav_relposned.relPosHeading * 1e-5f;
 			float heading_acc = _buf.payload_rx_nav_relposned.accHeading * 1e-5f;
 			float rel_length = _buf.payload_rx_nav_relposned.relPosLength + _buf.payload_rx_nav_relposned.relPosHPLength * 1e-2f;
 			float rel_length_acc = _buf.payload_rx_nav_relposned.accLength * 1e-2f;
 			bool heading_valid = _buf.payload_rx_nav_relposned.flags & (1 << 8);
 			bool rel_pos_valid = _buf.payload_rx_nav_relposned.flags & (1 << 2);
-			(void)heading_acc;
 			(void)rel_length_acc;
-			UBX_DEBUG("Heading: %.1f deg, acc: %.1f deg, relLen: %.1f cm, relAcc: %.1f cm, valid: %i %i", (double)heading,
-				  (double)heading_acc, (double)rel_length, (double)rel_length_acc, heading_valid, rel_pos_valid);
 
 			if (heading_valid && rel_pos_valid && rel_length < 1000.f) { // validity & sanity checks
 				heading *= M_PI_F / 180.0f; // deg to rad, now in range [0, 2pi]
@@ -1968,6 +2031,13 @@ GPSDriverUBX::payloadRxDone()
 				}
 
 				_gps_position->heading = heading;
+
+				heading_acc *= M_PI_F / 180.0f; // deg to rad, now in range [0, 2pi]
+
+				_gps_position->heading_accuracy = heading_acc;
+
+				UBX_DEBUG("Heading: %.3f rad, acc: %.1f deg, relLen: %.1f cm, relAcc: %.1f cm, valid: %i %i", (double)heading,
+					  (double)heading_acc, (double)rel_length, (double)rel_length_acc, heading_valid, rel_pos_valid);
 			}
 
 			ret = 1;
@@ -2130,7 +2200,7 @@ GPSDriverUBX::decodeInit()
 	_rx_payload_length = 0;
 	_rx_payload_index = 0;
 
-	if (_output_mode == OutputMode::GPSAndRTCM || _output_mode == OutputMode::RTCM) {
+	if (_output_mode == OutputMode::GPSAndRTCM || _output_mode == OutputMode::RTCM || _mode == UBXMode::MovingBaseUART1) {
 		if (!_rtcm_parsing) {
 			_rtcm_parsing = new RTCMParsing();
 		}
