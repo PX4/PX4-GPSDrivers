@@ -670,7 +670,6 @@ int GPSDriverUBX::configureDevice(const GNSSSystemsMask &gnssSystems)
 		}
 	}
 
-	int uart1_baudrate = UART1_BAUDRATE_HEADING;
 	int uart2_baudrate = 230400;
 
 	if (_mode == UBXMode::RoverWithMovingBase) {
@@ -736,7 +735,6 @@ int GPSDriverUBX::configureDevice(const GNSSSystemsMask &gnssSystems)
 		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1INPROT_NMEA, 0, cfg_valset_msg_size);
 		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1OUTPROT_UBX, 1, cfg_valset_msg_size);
 		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1OUTPROT_RTCM3X, 0, cfg_valset_msg_size);
-		cfgValset<uint32_t>(UBX_CFG_KEY_CFG_UART1_BAUDRATE, uart1_baudrate, cfg_valset_msg_size);
 		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_UBX_NAV_RELPOSNED_UART1, 1, cfg_valset_msg_size);
 
 		if (!sendMessage(UBX_MSG_CFG_VALSET, (uint8_t *)&_buf, cfg_valset_msg_size)) {
@@ -747,8 +745,6 @@ int GPSDriverUBX::configureDevice(const GNSSSystemsMask &gnssSystems)
 			return -1;
 		}
 
-		setBaudrate(uart1_baudrate);
-
 	} else if (_mode == UBXMode::MovingBaseUART1) {
 		UBX_DEBUG("Configuring UART1 for moving base");
 		// enable RTCM output on uart1 + set baudrate
@@ -758,7 +754,6 @@ int GPSDriverUBX::configureDevice(const GNSSSystemsMask &gnssSystems)
 		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1INPROT_NMEA, 0, cfg_valset_msg_size);
 		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1OUTPROT_UBX, 1, cfg_valset_msg_size);
 		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1OUTPROT_RTCM3X, 1, cfg_valset_msg_size);
-		cfgValset<uint32_t>(UBX_CFG_KEY_CFG_UART1_BAUDRATE, uart1_baudrate, cfg_valset_msg_size);
 
 		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_UBX_NAV_RELPOSNED_UART1, 0, cfg_valset_msg_size);
 		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_UBX_NAV_RELPOSNED_UART2, 0, cfg_valset_msg_size);
@@ -778,7 +773,6 @@ int GPSDriverUBX::configureDevice(const GNSSSystemsMask &gnssSystems)
 			return -1;
 		}
 
-		setBaudrate(uart1_baudrate);
 	}
 
 	return 0;
