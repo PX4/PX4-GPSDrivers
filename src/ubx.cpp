@@ -1990,7 +1990,7 @@ GPSDriverUBX::payloadRxDone()
 	case UBX_MSG_NAV_VELNED:
 		UBX_TRACE_RXMSG("Rx NAV-VELNED");
 
-		_gps_position->vel_m_s        = static_cast<float>(_buf.payload_rx_nav_velned.speed) * 1e-2f;
+		_gps_position->vel_m_s        = static_cast<float>(_buf.payload_rx_nav_velned.gSpeed) * 1e-2f;
 		_gps_position->vel_n_m_s      = static_cast<float>(_buf.payload_rx_nav_velned.velN)  * 1e-2f; // NED NORTH velocity
 		_gps_position->vel_e_m_s      = static_cast<float>(_buf.payload_rx_nav_velned.velE)  * 1e-2f; // NED EAST velocity
 		_gps_position->vel_d_m_s      = static_cast<float>(_buf.payload_rx_nav_velned.velD)  * 1e-2f; // NED DOWN velocity
