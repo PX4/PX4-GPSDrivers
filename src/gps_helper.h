@@ -87,6 +87,14 @@ enum class GPSCallbackType {
 	gotRTCMMessage,
 
 	/**
+	 * Got a relative position message from the device.
+	 * data1: pointer to the message
+	 * data2: message length
+	 * return: ignored
+	 */
+	gotRelativePositionMessage,
+
+	/**
 	 * message about current survey-in status
 	 * data1: points to a SurveyInStatus struct
 	 * data2: ignored
@@ -269,6 +277,12 @@ protected:
 	void gotRTCMMessage(uint8_t *buf, int buf_length)
 	{
 		_callback(GPSCallbackType::gotRTCMMessage, buf, buf_length, _callback_user);
+	}
+
+	/** got a relative position message from the device */
+	void gotRelativePositionMessage(sensor_gnss_relative_s &gnss_relative)
+	{
+		_callback(GPSCallbackType::gotRelativePositionMessage, &gnss_relative, sizeof(sensor_gnss_relative_s), _callback_user);
 	}
 
 	void setClock(timespec &t)
