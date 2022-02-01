@@ -2039,6 +2039,47 @@ GPSDriverUBX::payloadRxDone()
 			ret = 1;
 		}
 
+		{
+			sensor_gnss_relative_s gps_rel{};
+
+			gps_rel.timestamp_sample = gps_absolute_time(); // TODO: adjust with delay estimate
+
+			gps_rel.time_utc_usec = _buf.payload_rx_nav_relposned.iTOW * 1000; // TODO: convert iTOW ms GPS time of week
+			gps_rel.reference_station_id = _buf.payload_rx_nav_relposned.refStationId;
+
+			// relPosN + (relPosHPN * 1e-2), relPosHPN is 0.1 mm
+			gps_rel.position[0] = (_buf.payload_rx_nav_relposned.relPosN + _buf.payload_rx_nav_relposned.relPosHPN * 1e-2f) * 1e-2f;
+			gps_rel.position[1] = (_buf.payload_rx_nav_relposned.relPosE + _buf.payload_rx_nav_relposned.relPosHPE * 1e-2f) * 1e-2f;
+			gps_rel.position[2] = (_buf.payload_rx_nav_relposned.relPosD + _buf.payload_rx_nav_relposned.relPosHPD * 1e-2f) * 1e-2f;
+
+			// full length of the relative position vector, in units of cm, is given by relPosLength + (relPosHPLength * 1e-2)
+			gps_rel.position_length = (_buf.payload_rx_nav_relposned.relPosLength
+						   + _buf.payload_rx_nav_relposned.relPosHPLength * 1e-2f) * 1e-2f;
+
+			gps_rel.heading = _buf.payload_rx_nav_relposned.relPosHeading * 1e-5f * (M_PI_F / 180.f);  // 1e-5 deg -> radians
+			gps_rel.heading_accuracy = _buf.payload_rx_nav_relposned.accHeading * 1e-5f * (M_PI_F / 180.f); // 1e-5 deg -> radians
+
+			// Accuracy of relative position in 0.1 mm
+			gps_rel.position_accuracy[0] = _buf.payload_rx_nav_relposned.accN * 1e-4f; // 0.1mm -> m
+			gps_rel.position_accuracy[1] = _buf.payload_rx_nav_relposned.accE * 1e-4f; // 0.1mm -> m
+			gps_rel.position_accuracy[2] = _buf.payload_rx_nav_relposned.accD * 1e-4f; // 0.1mm -> m
+
+			gps_rel.accuracy_length = _buf.payload_rx_nav_relposned.accLength * 1e-4f; // 0.1mm -> m
+
+			gps_rel.gnss_fix_ok                  = _buf.payload_rx_nav_relposned.flags & (1 << 0);
+			gps_rel.differential_solution        = _buf.payload_rx_nav_relposned.flags & (1 << 1);
+			gps_rel.relative_position_valid      = _buf.payload_rx_nav_relposned.flags & (1 << 2);
+			gps_rel.carrier_solution_floating    = _buf.payload_rx_nav_relposned.flags & (1 << 3);
+			gps_rel.carrier_solution_fixed       = _buf.payload_rx_nav_relposned.flags & (1 << 4);
+			gps_rel.moving_base_mode             = _buf.payload_rx_nav_relposned.flags & (1 << 5);
+			gps_rel.reference_position_miss      = _buf.payload_rx_nav_relposned.flags & (1 << 6);
+			gps_rel.reference_observations_miss  = _buf.payload_rx_nav_relposned.flags & (1 << 7);
+			gps_rel.heading_valid                = _buf.payload_rx_nav_relposned.flags & (1 << 8);
+			gps_rel.relative_position_normalized = _buf.payload_rx_nav_relposned.flags & (1 << 9);
+
+			gotRelativePositionMessage(gps_rel);
+		}
+
 		break;
 
 	case UBX_MSG_MON_VER:
