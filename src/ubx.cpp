@@ -1981,7 +1981,7 @@ GPSDriverUBX::payloadRxDone()
 
 			if (svin.valid == 1 && svin.active == 0) {
 				if (activateRTCMOutput(true) != 0) {
-					return -1;
+					return 0;
 				}
 			}
 		}
