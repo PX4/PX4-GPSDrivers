@@ -282,7 +282,7 @@ GPSDriverEmlidReach::handleErbSentence()
 
 	} else if (_erb_buff.header.id == ERB_ID_GEODIC_POSITION) {
 
-		_gps_position->timestamp = gps_absolute_time();
+		_gps_position->timestamp_sample = gps_absolute_time();
 
 		_last_POS_timeGPS = _erb_buff.payload.geodic_position.timeGPS;
 		_gps_position->lon = round(_erb_buff.payload.geodic_position.longitude * 1e7);

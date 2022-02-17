@@ -142,10 +142,8 @@ int GPSDriverNMEA::handleMessage(int len)
 		int utc_minute = static_cast<int>((utc_time - utc_hour * 10000) / 100);
 		double utc_sec = static_cast<double>(utc_time - utc_hour * 10000 - utc_minute * 100);
 
-		/*
-		* convert to unix timestamp
-		*/
-		struct tm timeinfo = {};
+		// convert to unix timestamp
+		struct tm timeinfo {};
 		timeinfo.tm_year = year - 1900;
 		timeinfo.tm_mon = month - 1;
 		timeinfo.tm_mday = day;
@@ -154,23 +152,10 @@ int GPSDriverNMEA::handleMessage(int len)
 		timeinfo.tm_sec = int(utc_sec);
 		timeinfo.tm_isdst = 0;
 
-#ifndef NO_MKTIME
 		time_t epoch = mktime(&timeinfo);
 
 		if (epoch > GPS_EPOCH_SECS) {
 			uint64_t usecs = static_cast<uint64_t>((utc_sec - static_cast<uint64_t>(utc_sec)) * 1000000);
-
-			// FMUv2+ boards have a hardware RTC, but GPS helps us to configure it
-			// and control its drift. Since we rely on the HRT for our monotonic
-			// clock, updating it from time to time is safe.
-
-			if (!_clock_set) {
-				timespec ts{};
-				ts.tv_sec = epoch;
-				ts.tv_nsec = usecs * 1000;
-				setClock(ts);
-				_clock_set = true;
-			}
 
 			_gps_position->time_utc_usec = static_cast<uint64_t>(epoch) * 1000000ULL;
 			_gps_position->time_utc_usec += usecs;
@@ -179,11 +164,8 @@ int GPSDriverNMEA::handleMessage(int len)
 			_gps_position->time_utc_usec = 0;
 		}
 
-#else
-		_gps_position->time_utc_usec = 0;
-#endif
 		_TIME_received = true;
-		_gps_position->timestamp = gps_absolute_time();
+		_gps_position->timestamp_sample = gps_absolute_time();
 
 	} else if ((memcmp(_rx_buffer + 3, "GGA,", 4) == 0) && (uiCalcComma >= 14)) {
 		/*
@@ -300,7 +282,7 @@ int GPSDriverNMEA::handleMessage(int len)
 		_FIX_received = true;
 
 		_gps_position->c_variance_rad = 0.1f;
-		_gps_position->timestamp = gps_absolute_time();
+		_gps_position->timestamp_sample = gps_absolute_time();
 
 	} else if (memcmp(_rx_buffer + 3, "HDT,", 4) == 0 && uiCalcComma == 2) {
 		/*
@@ -506,13 +488,12 @@ int GPSDriverNMEA::handleMessage(int len)
 		_gps_position->vel_ned_valid = true; /**< Flag to indicate if NED speed is valid */
 		_gps_position->c_variance_rad = 0.1f;
 		_gps_position->s_variance_m_s = 0;
-		_gps_position->timestamp = gps_absolute_time();
-		_last_timestamp_time = gps_absolute_time();
+		_gps_position->timestamp_sample = gps_absolute_time();
 
 		/*
 		 * convert to unix timestamp
 		 */
-		struct tm timeinfo = {};
+		struct tm timeinfo {};
 		timeinfo.tm_year = nmea_year + 100;
 		timeinfo.tm_mon = nmea_mth - 1;
 		timeinfo.tm_mday = nmea_day;
@@ -521,34 +502,16 @@ int GPSDriverNMEA::handleMessage(int len)
 		timeinfo.tm_sec = int(utc_sec);
 		timeinfo.tm_isdst = 0;
 
-#ifndef NO_MKTIME
 		time_t epoch = mktime(&timeinfo);
 
 		if (epoch > GPS_EPOCH_SECS) {
 			uint64_t usecs = static_cast<uint64_t>((utc_sec - static_cast<uint64_t>(utc_sec)) * 1000000);
-
-			// FMUv2+ boards have a hardware RTC, but GPS helps us to configure it
-			// and control its drift. Since we rely on the HRT for our monotonic
-			// clock, updating it from time to time is safe.
-			if (!_clock_set) {
-				timespec ts{};
-				ts.tv_sec = epoch;
-				ts.tv_nsec = usecs * 1000;
-
-				setClock(ts);
-				_clock_set = true;
-			}
-
 			_gps_position->time_utc_usec = static_cast<uint64_t>(epoch) * 1000000ULL;
 			_gps_position->time_utc_usec += usecs;
 
 		} else {
 			_gps_position->time_utc_usec = 0;
 		}
-
-#else
-		_gps_position->time_utc_usec = 0;
-#endif
 
 		if (!_POS_received && (_last_POS_timeUTC < utc_time)) {
 			_last_POS_timeUTC = utc_time;
@@ -859,8 +822,6 @@ int GPSDriverNMEA::handleMessage(int len)
 
 	if (_VEL_received && _POS_received) {
 		ret = 1;
-		_gps_position->timestamp_time_relative = (int32_t)(_last_timestamp_time - _gps_position->timestamp);
-		_clock_set = false;
 		_VEL_received = false;
 		_POS_received = false;
 		_rate_count_vel++;

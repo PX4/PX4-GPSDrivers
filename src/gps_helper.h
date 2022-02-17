@@ -93,14 +93,6 @@ enum class GPSCallbackType {
 	 * return: ignored
 	 */
 	surveyInStatus,
-
-	/**
-	 * can be used to set the current clock accurately
-	 * data1: pointer to a timespec struct
-	 * data2: ignored
-	 * return: ignored
-	 */
-	setClock,
 };
 
 enum class GPSRestartType {
@@ -269,11 +261,6 @@ protected:
 	void gotRTCMMessage(uint8_t *buf, int buf_length)
 	{
 		_callback(GPSCallbackType::gotRTCMMessage, buf, buf_length, _callback_user);
-	}
-
-	void setClock(timespec &t)
-	{
-		_callback(GPSCallbackType::setClock, &t, 0, _callback_user);
 	}
 
 	/**

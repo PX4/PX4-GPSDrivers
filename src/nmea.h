@@ -90,7 +90,6 @@ private:
 	double _last_POS_timeUTC{0};
 	double _last_VEL_timeUTC{0};
 	double _last_FIX_timeUTC{0};
-	uint64_t _last_timestamp_time{0};
 
 	uint8_t _sat_num_gga{0};
 	uint8_t _sat_num_gns{0};
@@ -101,9 +100,7 @@ private:
 	uint8_t _sat_num_gbgsv{0};
 	uint8_t _sat_num_bdgsv{0};
 
-	bool _clock_set {false};
-
-//  check if we got all basic essential packages we need
+	//  check if we got all basic essential packages we need
 	bool _TIME_received{false};
 	bool _POS_received{false};
 	bool _ALT_received{false};
