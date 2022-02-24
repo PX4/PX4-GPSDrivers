@@ -48,6 +48,8 @@
 #define SBF_PACKET_TIMEOUT 	2        // ms, if now data during this delay assume that full update received
 #define DISABLE_MSG_INTERVAL 	1000000  // us, try to disable message with this interval
 // #define DNU			100000.0 // Do-Not-Use value for PVTGeodetic  // commented to test without conversion
+float dnu_float = 100000.0f;
+double dnu_double = 100000.0;
 
 /**** Trace macros, disable for production builds */
 #define SBF_TRACE_PARSER(...)   {/*GPS_INFO(__VA_ARGS__);*/}    /* decoding progress in parse_char() */
@@ -430,7 +432,7 @@ GPSDriverSBF::payloadRxDone()
 		// Check boundaries and invalidate position
 		// We're not just checking for the do-not-use value (-2*10^10) but for any value beyond the specified max values
 		if (fabs(_buf.payload_pvt_geodetic.latitude) > M_PI_2 || fabs(_buf.payload_pvt_geodetic.longitude) > M_PI ||
-		    fabs(_buf.payload_pvt_geodetic.height) > 100000.0 || fabs(_buf.payload_pvt_geodetic.undulation) > 100000.0f) { // This is to test without a const. (conversion error)
+		    fabs(_buf.payload_pvt_geodetic.height) > dnu_double || fabs(_buf.payload_pvt_geodetic.undulation) > dnu_float) { // This is to test without a const. (conversion error)
 			_gps_position->fix_type = 0;
 		}
 
