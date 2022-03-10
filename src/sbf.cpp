@@ -44,12 +44,10 @@
 #include <string.h>
 #include <math.h>
 
-#define SBF_CONFIG_TIMEOUT 	500      // ms, timeout for waiting ACK
-#define SBF_PACKET_TIMEOUT 	2        // ms, if now data during this delay assume that full update received
+#define SBF_CONFIG_TIMEOUT 	    500      // ms, timeout for waiting ACK
+#define SBF_PACKET_TIMEOUT 	    2        // ms, if now data during this delay assume that full update received
 #define DISABLE_MSG_INTERVAL 	1000000  // us, try to disable message with this interval
-// #define DNU			100000.0 // Do-Not-Use value for PVTGeodetic  // commented to test without conversion
-float dnu_float = 100000.0f;
-double dnu_double = 100000.0;
+#define DNU			            100000.0 // Do-Not-Use value for PVTGeodetic  // commented to test without conversion
 
 /**** Trace macros, disable for production builds */
 #define SBF_TRACE_PARSER(...)   {/*GPS_INFO(__VA_ARGS__);*/}    /* decoding progress in parse_char() */
@@ -57,18 +55,18 @@ double dnu_double = 100000.0;
 
 /**** Warning macros, disable to save memory */
 #define SBF_WARN(...)        {GPS_WARN(__VA_ARGS__);}
-#define SBF_DEBUG(...)       {/*GPS_WARN(__VA_ARGS__);*/}
+#define SBF_DEBUG(...)       {GPS_WARN(__VA_ARGS__);}
 
 GPSDriverSBF::GPSDriverSBF(GPSCallbackPtr callback, void *callback_user,
-			   sensor_gps_s *gps_position,
-			   satellite_info_s *satellite_info,
-			   uint8_t dynamic_model) :
-	GPSBaseStationSupport(callback, callback_user),
-	_gps_position(gps_position),
-	_satellite_info(satellite_info),
-	_dynamic_model(dynamic_model)
+                           sensor_gps_s *gps_position,
+                           satellite_info_s *satellite_info,
+                           uint8_t dynamic_model) :
+        GPSBaseStationSupport(callback, callback_user),
+        _gps_position(gps_position),
+        _satellite_info(satellite_info),
+        _dynamic_model(dynamic_model)
 {
-	decodeInit();
+    decodeInit();
 }
 
 GPSDriverSBF::~GPSDriverSBF()
@@ -81,7 +79,7 @@ GPSDriverSBF::configure(unsigned &baudrate, const GPSConfig &config)
 {
 	_configured = false;
 
-	setBaudrate(SBF_TX_CFG_PRT_BAUDRATE);
+	/*setBaudrate(SBF_TX_CFG_PRT_BAUDRATE);
 	baudrate = SBF_TX_CFG_PRT_BAUDRATE;
 
 	_output_mode = config.output_mode;
@@ -90,25 +88,27 @@ GPSDriverSBF::configure(unsigned &baudrate, const GPSConfig &config)
 		sendMessage(SBF_CONFIG_FORCE_INPUT);
 	}
 
-	// Change the baudrate
+	// Change the baud rate
 	char msg[64];
 	snprintf(msg, sizeof(msg), SBF_CONFIG_BAUDRATE, baudrate);
 
 	if (!sendMessage(msg)) {
-		return -1; // connection and/or baudrate detection failed
+            SBF_DEBUG("Connection and/or baudrate detection failed (SBF_CONFIG_BAUDRATE)");
+        return -1; // connection and/or baudrate detection failed
 	}
 
-	/* flush input and wait for at least 50 ms silence */
+	// flush input and wait for at least 50 ms silence
 	decodeInit();
 	receive(50);
 	decodeInit();
 
-	if (!sendMessageAndWaitForAck(SBF_CONFIG_RESET, SBF_CONFIG_TIMEOUT)) {
+	if (!sendMessage(SBF_CONFIG_RESET)) {
+            SBF_DEBUG("Connection and/or baudrate detection failed (SBF_CONFIG_RESET)");
 		return -1; // connection and/or baudrate detection failed
 	}
 
 	// at this point we have correct baudrate on both ends
-
+        SBF_DEBUG("Correct baud rate on both ends");
 	const char *config_cmds;
 
 	if (_output_mode == OutputMode::RTCM) {
@@ -164,7 +164,7 @@ GPSDriverSBF::configure(unsigned &baudrate, const GPSConfig &config)
 			sendMessageAndWaitForAck(SBF_CONFIG_RTCM_STATIC1, SBF_CONFIG_TIMEOUT);
 			sendMessageAndWaitForAck(SBF_CONFIG_RTCM_STATIC2, SBF_CONFIG_TIMEOUT);
 		}
-	}
+	}*/
 
 	_configured = true;
 	return 0;
@@ -190,9 +190,10 @@ GPSDriverSBF::sendMessageAndWaitForAck(const char *msg, const int timeout)
 	int length = static_cast<int>(strlen(msg));
 
 	if (write(msg, length) != length) {
+            SBF_DEBUG("Error writing to device");
 		return false;
 	}
-
+        SBF_DEBUG("Send successful, waiting for ack");
 	// Wait for acknowledge
 	// For all valid set -, get - and exe -commands, the first line of the reply is an exact copy
 	// of the command as entered by the user, preceded with "$R:"
@@ -214,6 +215,7 @@ GPSDriverSBF::sendMessageAndWaitForAck(const char *msg, const int timeout)
 
 		offset += ret;
 		buf[offset++] = '\0';
+        SBF_DEBUG("%u", ret)
 
 		if (!found_response && strstr(buf, "$R: ") != nullptr) {
 			SBF_DEBUG("READ %d: %s", (int)offset, buf);
@@ -225,7 +227,7 @@ GPSDriverSBF::sendMessageAndWaitForAck(const char *msg, const int timeout)
 		}
 
 	} while (time_started + 1000 * timeout > gps_absolute_time());
-
+        SBF_DEBUG("Found response: %d", found_response)
 	return found_response;
 }
 
@@ -238,7 +240,7 @@ GPSDriverSBF::receive(unsigned timeout)
 		return 0;
 	}
 
-	uint8_t buf[GPS_READ_BUFFER_SIZE];
+	uint8_t buf[800];
 
 	// timeout additional to poll
 	gps_abstime time_started = gps_absolute_time();
@@ -255,7 +257,7 @@ GPSDriverSBF::receive(unsigned timeout)
 			return -1;
 
 		} else {
-			// SBF_DEBUG("Read %d bytes", ret);
+				SBF_DEBUG("Read %d bytes", ret);
 
 			// pass received bytes to the packet decoder
 			for (int i = 0; i < ret; i++) {
@@ -432,7 +434,7 @@ GPSDriverSBF::payloadRxDone()
 		// Check boundaries and invalidate position
 		// We're not just checking for the do-not-use value (-2*10^10) but for any value beyond the specified max values
 		if (fabs(_buf.payload_pvt_geodetic.latitude) > M_PI_2 || fabs(_buf.payload_pvt_geodetic.longitude) > M_PI ||
-		    fabs(_buf.payload_pvt_geodetic.height) > dnu_double|| fabsf(_buf.payload_pvt_geodetic.undulation) > dnu_float) {
+		    fabs(_buf.payload_pvt_geodetic.height) > DNU|| fabsf(_buf.payload_pvt_geodetic.undulation) > (float) DNU) {
 			_gps_position->fix_type = 0;
 		}
 
@@ -511,6 +513,7 @@ GPSDriverSBF::payloadRxDone()
 		_rate_count_vel++;
 		_rate_count_lat_lon++;
 		ret |= (_msg_status == 7) ? 1 : 0;
+			SBF_DEBUG("PVTGeodetic handled");
 		break;
 
 	case SBF_ID_VelCovGeodetic:
@@ -525,7 +528,7 @@ GPSDriverSBF::payloadRxDone()
 		if (_gps_position->s_variance_m_s < _buf.payload_vel_col_geodetic.cov_vu_vu) {
 			_gps_position->s_variance_m_s = _buf.payload_vel_col_geodetic.cov_vu_vu;
 		}
-
+			SBF_DEBUG("VelCovGeodetic handled");
 		break;
 
 	case SBF_ID_DOP:
@@ -533,6 +536,7 @@ GPSDriverSBF::payloadRxDone()
 		_msg_status |= 4;
 		_gps_position->hdop = _buf.payload_dop.hDOP * 0.01f;
 		_gps_position->vdop = _buf.payload_dop.vDOP * 0.01f;
+			SBF_DEBUG("DOP handled");
 		break;
 
 	default:

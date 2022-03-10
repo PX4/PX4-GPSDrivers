@@ -63,12 +63,7 @@
 	"setSatelliteTracking, All\n" \
 	"setSatelliteUsage, All\n" \
 	"setElevationMask, All, 10\n" \
-	"setSBFOutput, Stream1, DSK1, Support, msec100\n" \
-	"setSBFOutput, Stream2, Dsk1, Event+Comment, OnChange\n" \
-	"setSBFOutput, Stream3, COM1, DOP+VelCovGeodetic, sec1\n" \
-	"setSBFOutput, Stream4, COM1, PVTGeodetic, msec100\n" \
-	"setFileNaming, DSK1, Incremental\n" \
-	"setFileNaming, DSK1, , 'px4'\n"
+	"setSBFOutput, Stream1, COM1, DOP+VelCovGeodetic+PVTGeodetic, msec100\n" \
 
 #define SBF_CONFIG_RTCM "" \
 	"setDataInOut, USB1, Auto, RTCMv3+SBF\n" \
@@ -112,6 +107,7 @@
 #define SBF_ID_PVTGeodetic    4007
 #define SBF_ID_ChannelStatus  4013
 #define SBF_ID_VelCovGeodetic 5908
+#define SBF_ID_AttEuler       5938
 
 /*** SBF protocol binary message and payload definitions ***/
 #pragma pack(push, 1)
@@ -261,6 +257,7 @@ typedef struct {
 	uint16_t pvt_info;
 } sbf_payload_channel_state_info_t;
 
+
 /* General message and payload buffer union */
 
 typedef struct {
@@ -289,6 +286,7 @@ uint8_t msg_revision:
 		sbf_payload_pvt_geodetic_t  payload_pvt_geodetic;
 		sbf_payload_vel_cov_geodetic_t payload_vel_col_geodetic;
 		sbf_payload_dop_t payload_dop;
+        sbf_payload_att_euler payload_att_euler;
 	};
 
 	uint8_t padding[16];
@@ -308,10 +306,14 @@ typedef enum {
 class GPSDriverSBF : public GPSBaseStationSupport
 {
 public:
-	GPSDriverSBF(GPSCallbackPtr callback, void *callback_user,
-		     sensor_gps_s *gps_position,
-		     satellite_info_s *satellite_info,
-		     uint8_t dynamic_model);
+    enum class SBFMode : uint8_t {
+        Normal,                    ///< all non-heading configurations
+        DualAntenna,               ///< Dual antenna
+    };
+    GPSDriverSBF(GPSCallbackPtr callback, void *callback_user,
+                 sensor_gps_s *gps_position,
+                 satellite_info_s *satellite_info,
+                 uint8_t dynamic_model);
 
 	virtual ~GPSDriverSBF() override;
 
