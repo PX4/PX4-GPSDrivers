@@ -63,7 +63,7 @@
 	"setSatelliteTracking, All\n" \
 	"setSatelliteUsage, All\n" \
 	"setElevationMask, All, 10\n" \
-	"setSBFOutput, Stream1, COM1, DOP+VelCovGeodetic+PVTGeodetic, msec100\n" \
+    "setSBFOutput, Stream1, COM1, DOP+VelCovGeodetic+PVTGeodetic, msec100\n"
 
 #define SBF_CONFIG_RTCM "" \
 	"setDataInOut, USB1, Auto, RTCMv3+SBF\n" \
@@ -108,6 +108,7 @@
 #define SBF_ID_ChannelStatus  4013
 #define SBF_ID_VelCovGeodetic 5908
 #define SBF_ID_AttEuler       5938
+#define SBF_ID_AttCovEuler    5939
 
 /*** SBF protocol binary message and payload definitions ***/
 #pragma pack(push, 1)
@@ -257,6 +258,58 @@ typedef struct {
 	uint16_t pvt_info;
 } sbf_payload_channel_state_info_t;
 
+typedef struct {
+    uint8_t nr_sv;                  /**< The average over all antennas of the number of satellites currently included in the attitude calculations. */
+
+    uint8_t error_aux1: 2;          /**< Bits 0-1: Error code for Main-Aux1 baseline:
+                                            0: No error
+                                            1: Not enough measurements
+                                            2: Reserved
+                                            3: Reserved */
+    uint8_t error_aux2: 2;          /**< Bits 2-3: Error code for Main-Aux2 baseline, same definition as bit 0-1. */
+    uint8_t error_reserved: 2;      /**< Bits 4-6: Reserved */
+    uint8_t error_not_requested: 1; /**< Bit 7: Set when GNSS-based attitude not requested by user. In that case, the other bits are all zero. */
+
+    uint16_t mode;                  /**< Attitude mode code:
+                                            0: No attitude
+                                            1: Heading, pitch (roll = 0), aux antenna positions obtained with float
+                                            ambiguities
+                                            2: Heading, pitch (roll = 0), aux antenna positions obtained with fixed
+                                            ambiguities
+                                            3: Heading, pitch, roll, aux antenna positions obtained with float ambiguities
+                                            4: Heading, pitch, roll, aux antenna positions obtained with fixed ambiguities */
+    uint16_t reserved;              /**< Reserved for future use, to be ignored by decoding software */
+
+    float heading;                  /**< Heading */
+    float pitch;                    /**< Pitch */
+    float roll;                     /**< Roll */
+    float pitch_dot;                /**< Rate of change of the pitch angle */
+    float roll_dot;                 /**< Rate of change of the roll angle */
+    float heading_dot;              /**< Rate of change of the heading angle */
+} sbf_payload_att_euler;
+
+typedef struct {
+    uint8_t reserved;               /**< Reserved for future use, to be ignored by decoding software */
+
+    uint8_t error_aux1: 2;          /**< Bits 0-1: Error code for Main-Aux1 baseline:
+                                            0: No error
+                                            1: Not enough measurements
+                                            2: Reserved
+                                            3: Reserved */
+    uint8_t error_aux2: 2;          /**< Bits 2-3: Error code for Main-Aux2 baseline, same definition as bit 0-1. */
+    uint8_t error_reserved: 2;      /**< Bits 4-6: Reserved */
+    uint8_t error_not_requested: 1; /**< Bit 7: Set when GNSS-based attitude not requested by user. In that case, the other bits are all zero. */
+
+    float cov_headhead;             /**< Variance of the heading estimate */
+    float cov_pitchpitch;           /**< Variance of the pitch estimate */
+    float cov_rollroll;             /**< Variance of the roll estimate */
+    float cov_headpitch;            /**< Covariance between Euler angle estimates.
+                                         Future functionality. The values are currently set to their Do-Not-Use values. */
+    float cov_headroll;             /**< Covariance between Euler angle estimates.
+                                         Future functionality. The values are currently set to their Do-Not-Use values. */
+    float cov_pitchroll;            /**< Covariance between Euler angle estimates.
+                                         Future functionality. The values are currently set to their Do-Not-Use values. */
+} sbf_payload_att_cov_euler;
 
 /* General message and payload buffer union */
 
@@ -287,6 +340,7 @@ uint8_t msg_revision:
 		sbf_payload_vel_cov_geodetic_t payload_vel_col_geodetic;
 		sbf_payload_dop_t payload_dop;
         sbf_payload_att_euler payload_att_euler;
+        sbf_payload_att_cov_euler payload_att_cov_euler;
 	};
 
 	uint8_t padding[16];
@@ -307,13 +361,14 @@ class GPSDriverSBF : public GPSBaseStationSupport
 {
 public:
     enum class SBFMode : uint8_t {
-        Normal,                    ///< all non-heading configurations
-        DualAntenna,               ///< Dual antenna
+        Normal,         ///< all non-heading configurations
+        DualAntenna,    ///< Dual antenna
     };
-    GPSDriverSBF(GPSCallbackPtr callback, void *callback_user,
-                 sensor_gps_s *gps_position,
-                 satellite_info_s *satellite_info,
-                 uint8_t dynamic_model);
+
+	GPSDriverSBF(GPSCallbackPtr callback, void *callback_user,
+		     sensor_gps_s *gps_position,
+		     satellite_info_s *satellite_info,
+		     uint8_t dynamic_model);
 
 	virtual ~GPSDriverSBF() override;
 
@@ -366,6 +421,9 @@ private:
 	sbf_buf_t _buf;
 	OutputMode _output_mode { OutputMode::GPS };
 	RTCMParsing	*_rtcm_parsing { nullptr };
+
+    const SBFMode _mode;
+    const float _heading_offset;
 };
 
 uint16_t crc16(const uint8_t *buf, uint32_t len);

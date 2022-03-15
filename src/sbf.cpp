@@ -60,11 +60,14 @@
 GPSDriverSBF::GPSDriverSBF(GPSCallbackPtr callback, void *callback_user,
                            sensor_gps_s *gps_position,
                            satellite_info_s *satellite_info,
-                           uint8_t dynamic_model) :
+                           uint8_t dynamic_model,
+                           float heading_offset, SBFMode mode) :
         GPSBaseStationSupport(callback, callback_user),
         _gps_position(gps_position),
         _satellite_info(satellite_info),
-        _dynamic_model(dynamic_model)
+        _dynamic_model(dynamic_model),
+        _mode(mode),
+        _heading_offset(heading_offset)
 {
     decodeInit();
 }
@@ -79,7 +82,7 @@ GPSDriverSBF::configure(unsigned &baudrate, const GPSConfig &config)
 {
 	_configured = false;
 
-	/*setBaudrate(SBF_TX_CFG_PRT_BAUDRATE);
+	setBaudrate(SBF_TX_CFG_PRT_BAUDRATE);
 	baudrate = SBF_TX_CFG_PRT_BAUDRATE;
 
 	_output_mode = config.output_mode;
@@ -164,7 +167,7 @@ GPSDriverSBF::configure(unsigned &baudrate, const GPSConfig &config)
 			sendMessageAndWaitForAck(SBF_CONFIG_RTCM_STATIC1, SBF_CONFIG_TIMEOUT);
 			sendMessageAndWaitForAck(SBF_CONFIG_RTCM_STATIC2, SBF_CONFIG_TIMEOUT);
 		}
-	}*/
+	}
 
 	_configured = true;
 	return 0;
@@ -538,6 +541,57 @@ GPSDriverSBF::payloadRxDone()
 		_gps_position->vdop = _buf.payload_dop.vDOP * 0.01f;
 			SBF_DEBUG("DOP handled");
 		break;
+
+    case SBF_ID_AttEuler:
+        SBF_TRACE_RXMSG("Rx AttEuler");
+        if (_mode == SBFMode::DualAntenna){
+            float heading = _buf.payload_att_euler.heading * 1e-5f;
+            float pitch = _buf.payload_att_euler.pitch * 1e-5f;
+            float roll = _buf.payload_att_euler.roll * 1e-5f;
+            float pitch_dot = _buf.payload_att_euler.pitch_dot * 1e-5f;
+            float roll_dot = _buf.payload_att_euler.roll_dot * 1e-5f;
+            float heading_dot = _buf.payload_att_euler.heading_dot * 1e-5f;
+            int error_aux1 = _buf.payload_att_euler.error_aux1;
+            int error_aux2 = _buf.payload_att_euler.error_aux2;
+
+            if (error_aux1 && error_aux2 == 0){
+                heading *= M_PI_F / 180.0f; // deg to rad, now in range [0, 2pi]
+
+                if (heading > M_PI_F) {
+                    heading -= 2.f * M_PI_F; // final range is [-pi, pi]
+                }
+
+                _gps_position->heading = heading;
+            } else if (error_aux1 != 0){
+                SBF_DEBUG("Error code for Main-Aux1 baseline: %u: Not enough measurements", error_aux1)
+            } else if (error_aux2 != 0){
+                SBF_DEBUG("Error code for Main-Aux2 baseline: %u: Not enough measurements", error_aux2)
+            }
+        }
+
+        SBF_DEBUG("AttEuler handled");
+        break;
+
+    case SBF_ID_AttCovEuler:
+        SBF_TRACE_RXMSG("Rx AttCovEuler");
+        if (_mode == SBFMode::DualAntenna){
+            float heading_acc = _buf.payload_att_cov_euler.cov_headhead *1e-5f;
+
+            int error_aux1 = _buf.payload_att_cov_euler.error_aux1;
+            int error_aux2 = _buf.payload_att_cov_euler.error_aux2;
+
+            if (error_aux1 && error_aux2 == 0){
+                heading_acc *= M_PI_F / 180.0f; // deg to rad, now in range [0, 2pi]
+                _gps_position->heading_accuracy = heading_acc;
+            } else if (error_aux1 != 0){
+                SBF_DEBUG("Error code for Main-Aux1 baseline: %u: Not enough measurements", error_aux1)
+            } else if (error_aux2 != 0){
+                SBF_DEBUG("Error code for Main-Aux2 baseline: %u: Not enough measurements", error_aux2)
+            }
+        }
+        
+        SBF_DEBUG("AttCovEuler handled");
+        break;
 
 	default:
 		break;
