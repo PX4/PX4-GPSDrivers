@@ -47,6 +47,7 @@
 #include "rtcm.h"
 #include "../../definitions.h"
 
+
 #define SBF_CONFIG_FORCE_INPUT "SSSSSSSSSS\n"
 
 #define SBF_CONFIG_BAUDRATE "setCOMSettings, COM1, baud%d\n"
@@ -360,17 +361,12 @@ typedef enum {
 class GPSDriverSBF : public GPSBaseStationSupport
 {
 public:
-    enum class SBFMode : uint8_t {
-        Normal,         ///< all non-heading configurations
-        DualAntenna,    ///< Dual antenna
-    };
+    /**
+     * @param heading_offset heading offset in radians [-pi, pi]. It is subtracted from the measurement.
+     */
+     GPSDriverSBF(GPSCallbackPtr callback, void *callback_user, struct sensor_gps_s *gps_position, satellite_info_s *satellite_info = nullptr, float heading_offset = 0.f);
 
-	GPSDriverSBF(GPSCallbackPtr callback, void *callback_user,
-		     sensor_gps_s *gps_position,
-		     satellite_info_s *satellite_info,
-		     uint8_t dynamic_model);
-
-	virtual ~GPSDriverSBF() override;
+	virtual ~GPSDriverSBF();
 
 	int receive(unsigned timeout) override;
 	int configure(unsigned &baudrate, const GPSConfig &config) override;
@@ -422,7 +418,6 @@ private:
 	OutputMode _output_mode { OutputMode::GPS };
 	RTCMParsing	*_rtcm_parsing { nullptr };
 
-    const SBFMode _mode;
     const float _heading_offset;
 };
 
