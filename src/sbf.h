@@ -364,7 +364,11 @@ public:
     /**
      * @param heading_offset heading offset in radians [-pi, pi]. It is subtracted from the measurement.
      */
-     GPSDriverSBF(GPSCallbackPtr callback, void *callback_user, struct sensor_gps_s *gps_position, satellite_info_s *satellite_info = nullptr, float heading_offset = 0.f);
+    GPSDriverSBF(GPSCallbackPtr callback,
+                 void *callback_user,
+                 struct sensor_gps_s *gps_position,
+                 satellite_info_s *satellite_info = nullptr,
+                 float heading_offset = 0.f);
 
 	virtual ~GPSDriverSBF();
 

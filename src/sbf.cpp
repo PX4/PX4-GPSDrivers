@@ -41,8 +41,14 @@
 */
 
 #include "sbf.h"
-#include <string.h>
+#include "rtcm.h"
+
+#include <stdlib.h>
+#include <stdio.h>
 #include <math.h>
+#include <string.h>
+#include <ctime>
+#include <cmath>
 
 #define SBF_CONFIG_TIMEOUT 	    500      // ms, timeout for waiting ACK
 #define SBF_PACKET_TIMEOUT 	    2        // ms, if now data during this delay assume that full update received
@@ -78,7 +84,7 @@ int GPSDriverSBF::configure(unsigned &baudrate, const GPSConfig &config)
 {
 	_configured = false;
 
-	setBaudrate(SBF_TX_CFG_PRT_BAUDRATE);
+	/*setBaudrate(SBF_TX_CFG_PRT_BAUDRATE);
 	baudrate = SBF_TX_CFG_PRT_BAUDRATE;
 
 	_output_mode = config.output_mode;
@@ -163,7 +169,7 @@ int GPSDriverSBF::configure(unsigned &baudrate, const GPSConfig &config)
 			sendMessageAndWaitForAck(SBF_CONFIG_RTCM_STATIC1, SBF_CONFIG_TIMEOUT);
 			sendMessageAndWaitForAck(SBF_CONFIG_RTCM_STATIC2, SBF_CONFIG_TIMEOUT);
 		}
-	}
+	}*/
 
 	_configured = true;
 	return 0;
@@ -543,11 +549,6 @@ int GPSDriverSBF::payloadRxDone()
 
             if (error_aux1 && error_aux2 == 0){
                 float heading = _buf.payload_att_euler.heading * 1e-5f;
-                float pitch = _buf.payload_att_euler.pitch * 1e-5f;
-                float roll = _buf.payload_att_euler.roll * 1e-5f;
-                float pitch_dot = _buf.payload_att_euler.pitch_dot * 1e-5f;
-                float roll_dot = _buf.payload_att_euler.roll_dot * 1e-5f;
-                float heading_dot = _buf.payload_att_euler.heading_dot * 1e-5f;
 
                 heading *= M_PI_F / 180.0f; // deg to rad, now in range [0, 2pi]
                 heading -= _heading_offset; // range: [-pi, 3pi]
