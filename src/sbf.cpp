@@ -1,5 +1,5 @@
 /****************************************************************************
- *
+ * 
  *   Copyright (c) 2018 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -542,7 +542,7 @@ int GPSDriverSBF::payloadRxDone()
 
     case SBF_ID_AttEuler:
         SBF_TRACE_RXMSG("Rx AttEuler");
-        if (!_buf.payload_att_euler.error_not_requested){
+        if (_buf.payload_att_euler.error_not_requested){
 
             int error_aux1 = _buf.payload_att_euler.error_aux1;
             int error_aux2 = _buf.payload_att_euler.error_aux2;
@@ -558,18 +558,19 @@ int GPSDriverSBF::payloadRxDone()
                 }
 
                 _gps_position->heading = heading;
+                SBF_DEBUG("AttEuler handled");
             } else if (error_aux1 != 0){
                 SBF_DEBUG("Error code for Main-Aux1 baseline: %u: Not enough measurements", error_aux1)
             } else if (error_aux2 != 0){
                 SBF_DEBUG("Error code for Main-Aux2 baseline: %u: Not enough measurements", error_aux2)
             }
-            SBF_DEBUG("AttEuler handled");
         }
+
         break;
 
     case SBF_ID_AttCovEuler:
         SBF_TRACE_RXMSG("Rx AttCovEuler");
-        if (!_buf.payload_att_cov_euler.error_not_requested){
+        if (_buf.payload_att_cov_euler.error_not_requested){
             int error_aux1 = _buf.payload_att_cov_euler.error_aux1;
             int error_aux2 = _buf.payload_att_cov_euler.error_aux2;
 
@@ -577,12 +578,14 @@ int GPSDriverSBF::payloadRxDone()
                 float heading_acc = _buf.payload_att_cov_euler.cov_headhead *1e-5f;
                 heading_acc *= M_PI_F / 180.0f; // deg to rad, now in range [0, 2pi]
                 _gps_position->heading_accuracy = heading_acc;
+                SBF_DEBUG("AttCovEuler handled");
             } else if (error_aux1 != 0){
                 SBF_DEBUG("Error code for Main-Aux1 baseline: %u: Not enough measurements", error_aux1)
-            } else if (error_aux2 != 0){
+            } else if (error_aux2 != 0) {
                 SBF_DEBUG("Error code for Main-Aux2 baseline: %u: Not enough measurements", error_aux2)
             }
-            SBF_DEBUG("AttCovEuler handled");
+        } else {
+            SBF_DEBUG("No Dual Antenna");
         }
         break;
 
