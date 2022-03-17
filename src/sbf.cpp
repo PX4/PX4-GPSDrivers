@@ -294,6 +294,7 @@ int GPSDriverSBF::parseChar(const uint8_t b)
 			_decode_state = SBF_DECODE_SYNC2;
 
 		} else if (b == RTCM3_PREAMBLE && _rtcm_parsing) {
+            SBF_DEBUG("----RTCM----")
 			SBF_TRACE_PARSER("RTCM");
 			_decode_state = SBF_DECODE_RTCM3;
 			_rtcm_parsing->addByte(b);
@@ -542,14 +543,15 @@ int GPSDriverSBF::payloadRxDone()
 
     case SBF_ID_AttEuler:
         SBF_TRACE_RXMSG("Rx AttEuler");
-        if (_buf.payload_att_euler.error_not_requested){
+        if (!_buf.payload_att_euler.error_not_requested){
 
             int error_aux1 = _buf.payload_att_euler.error_aux1;
             int error_aux2 = _buf.payload_att_euler.error_aux2;
+            // SBF_DEBUG("Mode: %u", _buf.payload_att_euler.mode)
+            if (error_aux1 == 0 && error_aux2 == 0){
+                float heading = _buf.payload_att_euler.heading;
 
-            if (error_aux1 && error_aux2 == 0){
-                float heading = _buf.payload_att_euler.heading * 1e-5f;
-
+                SBF_DEBUG("------Heading: %.3f deg", (double) heading)
                 heading *= M_PI_F / 180.0f; // deg to rad, now in range [0, 2pi]
                 heading -= _heading_offset; // range: [-pi, 3pi]
 
@@ -558,6 +560,7 @@ int GPSDriverSBF::payloadRxDone()
                 }
 
                 _gps_position->heading = heading;
+                SBF_DEBUG("Heading: %.3f rad", (double)_gps_position->heading)
                 SBF_DEBUG("AttEuler handled");
             } else if (error_aux1 != 0){
                 SBF_DEBUG("Error code for Main-Aux1 baseline: %u: Not enough measurements", error_aux1)
@@ -565,27 +568,27 @@ int GPSDriverSBF::payloadRxDone()
                 SBF_DEBUG("Error code for Main-Aux2 baseline: %u: Not enough measurements", error_aux2)
             }
         }
+            SBF_DEBUG("err_not_requested: %u", _buf.payload_att_euler.error_not_requested)
 
         break;
 
     case SBF_ID_AttCovEuler:
         SBF_TRACE_RXMSG("Rx AttCovEuler");
-        if (_buf.payload_att_cov_euler.error_not_requested){
+        if (!_buf.payload_att_cov_euler.error_not_requested){
             int error_aux1 = _buf.payload_att_cov_euler.error_aux1;
             int error_aux2 = _buf.payload_att_cov_euler.error_aux2;
 
-            if (error_aux1 && error_aux2 == 0){
-                float heading_acc = _buf.payload_att_cov_euler.cov_headhead *1e-5f;
+            if (error_aux1 == 0 && error_aux2 == 0){
+                float heading_acc = _buf.payload_att_cov_euler.cov_headhead;
                 heading_acc *= M_PI_F / 180.0f; // deg to rad, now in range [0, 2pi]
                 _gps_position->heading_accuracy = heading_acc;
+                SBF_DEBUG("Heading-Accuracy: %.3f rad", (double)_gps_position->heading_accuracy)
                 SBF_DEBUG("AttCovEuler handled");
             } else if (error_aux1 != 0){
                 SBF_DEBUG("Error code for Main-Aux1 baseline: %u: Not enough measurements", error_aux1)
             } else if (error_aux2 != 0) {
                 SBF_DEBUG("Error code for Main-Aux2 baseline: %u: Not enough measurements", error_aux2)
             }
-        } else {
-            SBF_DEBUG("No Dual Antenna");
         }
         break;
 

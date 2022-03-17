@@ -261,14 +261,13 @@ typedef struct {
 
 typedef struct {
     uint8_t nr_sv;                  /**< The average over all antennas of the number of satellites currently included in the attitude calculations. */
-
     uint8_t error_aux1: 2;          /**< Bits 0-1: Error code for Main-Aux1 baseline:
                                             0: No error
                                             1: Not enough measurements
                                             2: Reserved
                                             3: Reserved */
     uint8_t error_aux2: 2;          /**< Bits 2-3: Error code for Main-Aux2 baseline, same definition as bit 0-1. */
-    uint8_t error_reserved: 2;      /**< Bits 4-6: Reserved */
+    uint8_t error_reserved: 3;      /**< Bits 4-6: Reserved */
     uint8_t error_not_requested: 1; /**< Bit 7: Set when GNSS-based attitude not requested by user. In that case, the other bits are all zero. */
 
     uint16_t mode;                  /**< Attitude mode code:
