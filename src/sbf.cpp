@@ -1,5 +1,5 @@
 /****************************************************************************
- * 
+ *
  *   Copyright (c) 2018 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -37,23 +37,21 @@
  * Septentrio protocol as defined in PPSDK SBF Reference Guide 4.1.8
  *
  * @author Matej Frančeškin <Matej.Franceskin@gmail.com>
+ * @author <a href="https://github.com/SeppeG">Seppe Geuens</a>
  *
 */
 
 #include "sbf.h"
 #include "rtcm.h"
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <math.h>
 #include <string.h>
 #include <ctime>
 #include <cmath>
 
-#define SBF_CONFIG_TIMEOUT 	    500      // ms, timeout for waiting ACK
-#define SBF_PACKET_TIMEOUT 	    2        // ms, if now data during this delay assume that full update received
-#define DISABLE_MSG_INTERVAL 	1000000  // us, try to disable message with this interval
-#define DNU			            100000.0 // Do-Not-Use value for PVTGeodetic  // commented to test without conversion
+#define SBF_CONFIG_TIMEOUT        500      // ms, timeout for waiting ACK
+#define SBF_PACKET_TIMEOUT        2        // ms, if now data during this delay assume that full update received
+#define DISABLE_MSG_INTERVAL    1000000  // us, try to disable message with this interval
+#define DNU                        100000.0 // Do-Not-Use value for PVTGeodetic  // commented to test without conversion
 
 /**** Trace macros, disable for production builds */
 #define SBF_TRACE_PARSER(...)   {/*GPS_INFO(__VA_ARGS__);*/}    /* decoding progress in parse_char() */
@@ -64,585 +62,571 @@
 #define SBF_DEBUG(...)       {GPS_WARN(__VA_ARGS__);}
 
 GPSDriverSBF::GPSDriverSBF(GPSCallbackPtr callback, void *callback_user,
-                               struct sensor_gps_s *gps_position,
-                               satellite_info_s *satellite_info,
-                               float heading_offset) :
+                           struct sensor_gps_s *gps_position,
+                           satellite_info_s *satellite_info,
+                           float heading_offset) :
         GPSBaseStationSupport(callback, callback_user),
         _gps_position(gps_position),
         _satellite_info(satellite_info),
-        _heading_offset(heading_offset)
-{
+        _heading_offset(heading_offset) {
     decodeInit();
 }
 
-GPSDriverSBF::~GPSDriverSBF()
-{
-	delete _rtcm_parsing;
+GPSDriverSBF::~GPSDriverSBF() {
+    delete _rtcm_parsing;
 }
 
-int GPSDriverSBF::configure(unsigned &baudrate, const GPSConfig &config)
-{
-	_configured = false;
+int GPSDriverSBF::configure(unsigned &baudrate, const GPSConfig &config) {
+    /*_configured = false;
 
-	/*setBaudrate(SBF_TX_CFG_PRT_BAUDRATE);
-	baudrate = SBF_TX_CFG_PRT_BAUDRATE;
+    setBaudrate(SBF_TX_CFG_PRT_BAUDRATE);
+    baudrate = SBF_TX_CFG_PRT_BAUDRATE;
 
-	_output_mode = config.output_mode;
+    _output_mode = config.output_mode;
 
-	if (_output_mode != OutputMode::RTCM) {
-		sendMessage(SBF_CONFIG_FORCE_INPUT);
-	}
+    if (_output_mode != OutputMode::RTCM) {
+        sendMessage(SBF_CONFIG_FORCE_INPUT);
+    }
 
-	// Change the baud rate
-	char msg[64];
-	snprintf(msg, sizeof(msg), SBF_CONFIG_BAUDRATE, baudrate);
+    // Change the baud rate
+    char msg[64];
+    snprintf(msg, sizeof(msg), SBF_CONFIG_BAUDRATE, baudrate);
 
-	if (!sendMessage(msg)) {
+    if (!sendMessage(msg)) {
             SBF_DEBUG("Connection and/or baudrate detection failed (SBF_CONFIG_BAUDRATE)");
         return -1; // connection and/or baudrate detection failed
-	}
+    }
 
-	// flush input and wait for at least 50 ms silence
-	decodeInit();
-	receive(50);
-	decodeInit();
+    // flush input and wait for at least 50 ms silence
+    decodeInit();
+    receive(50);
+    decodeInit();
 
-	if (!sendMessage(SBF_CONFIG_RESET)) {
+    if (!sendMessage(SBF_CONFIG_RESET)) {
             SBF_DEBUG("Connection and/or baudrate detection failed (SBF_CONFIG_RESET)");
-		return -1; // connection and/or baudrate detection failed
-	}
+        return -1; // connection and/or baudrate detection failed
+    }
 
-	// at this point we have correct baudrate on both ends
+    // at this point we have correct baudrate on both ends
         SBF_DEBUG("Correct baud rate on both ends");
-	const char *config_cmds;
+    const char *config_cmds;
 
-	if (_output_mode == OutputMode::RTCM) {
-		config_cmds = SBF_CONFIG_RTCM;
+    if (_output_mode == OutputMode::RTCM) {
+        config_cmds = SBF_CONFIG_RTCM;
 
-	} else {
+    } else {
 
-		if (_dynamic_model < 6) {
-			snprintf(msg, sizeof(msg), SBF_CONFIG_RECEIVER_DYNAMICS, "low");
+        if (_dynamic_model < 6) {
+            snprintf(msg, sizeof(msg), SBF_CONFIG_RECEIVER_DYNAMICS, "low");
 
-		} else if (_dynamic_model < 7) {
-			snprintf(msg, sizeof(msg), SBF_CONFIG_RECEIVER_DYNAMICS, "moderate");
+        } else if (_dynamic_model < 7) {
+            snprintf(msg, sizeof(msg), SBF_CONFIG_RECEIVER_DYNAMICS, "moderate");
 
-		} else if (_dynamic_model < 8) {
-			snprintf(msg, sizeof(msg), SBF_CONFIG_RECEIVER_DYNAMICS, "high");
+        } else if (_dynamic_model < 8) {
+            snprintf(msg, sizeof(msg), SBF_CONFIG_RECEIVER_DYNAMICS, "high");
 
-		} else {
-			snprintf(msg, sizeof(msg), SBF_CONFIG_RECEIVER_DYNAMICS, "max");
-		}
+        } else {
+            snprintf(msg, sizeof(msg), SBF_CONFIG_RECEIVER_DYNAMICS, "max");
+        }
 
-		sendMessageAndWaitForAck(msg, SBF_CONFIG_TIMEOUT);
+        sendMessageAndWaitForAck(msg, SBF_CONFIG_TIMEOUT);
 
-		config_cmds = SBF_CONFIG;
-	}
+        config_cmds = SBF_CONFIG;
+    }
 
-	uint8_t i = 0;
-	msg[0] = 0;
+    uint8_t i = 0;
+    msg[0] = 0;
 
-	while (*config_cmds != 0) {
-		msg[i] = *config_cmds;
+    while (*config_cmds != 0) {
+        msg[i] = *config_cmds;
 
-		if (msg[i++] == '\n') {
-			msg[i] = 0;
+        if (msg[i++] == '\n') {
+            msg[i] = 0;
 
-			sendMessageAndWaitForAck(msg, SBF_CONFIG_TIMEOUT);
+            sendMessageAndWaitForAck(msg, SBF_CONFIG_TIMEOUT);
 
-			i = 0;
-			msg[0] = 0;
-		}
+            i = 0;
+            msg[0] = 0;
+        }
 
-		config_cmds++;
-	}
+        config_cmds++;
+    }
 
-	if (_output_mode == OutputMode::RTCM) {
-		if (_base_settings.type == BaseSettingsType::fixed_position) {
-			snprintf(msg, sizeof(msg), SBF_CONFIG_RTCM_STATIC_COORDINATES,
-				 _base_settings.settings.fixed_position.latitude,
-				 _base_settings.settings.fixed_position.longitude,
-				 static_cast<double>(_base_settings.settings.fixed_position.altitude));
-			sendMessageAndWaitForAck(msg, SBF_CONFIG_TIMEOUT);
-			snprintf(msg, sizeof(msg), SBF_CONFIG_RTCM_STATIC_OFFSET, 0.0, 0.0, 0.0);
-			sendMessageAndWaitForAck(msg, SBF_CONFIG_TIMEOUT);
-			sendMessageAndWaitForAck(SBF_CONFIG_RTCM_STATIC1, SBF_CONFIG_TIMEOUT);
-			sendMessageAndWaitForAck(SBF_CONFIG_RTCM_STATIC2, SBF_CONFIG_TIMEOUT);
-		}
-	}*/
+    if (_output_mode == OutputMode::RTCM) {
+        if (_base_settings.type == BaseSettingsType::fixed_position) {
+            snprintf(msg, sizeof(msg), SBF_CONFIG_RTCM_STATIC_COORDINATES,
+                 _base_settings.settings.fixed_position.latitude,
+                 _base_settings.settings.fixed_position.longitude,
+                 static_cast<double>(_base_settings.settings.fixed_position.altitude));
+            sendMessageAndWaitForAck(msg, SBF_CONFIG_TIMEOUT);
+            snprintf(msg, sizeof(msg), SBF_CONFIG_RTCM_STATIC_OFFSET, 0.0, 0.0, 0.0);
+            sendMessageAndWaitForAck(msg, SBF_CONFIG_TIMEOUT);
+            sendMessageAndWaitForAck(SBF_CONFIG_RTCM_STATIC1, SBF_CONFIG_TIMEOUT);
+            sendMessageAndWaitForAck(SBF_CONFIG_RTCM_STATIC2, SBF_CONFIG_TIMEOUT);
+        }
+    }*/
 
-	_configured = true;
-	return 0;
+    _configured = true;
+    return 0;
 }
 
-bool GPSDriverSBF::sendMessage(const char *msg)
-{
-	SBF_DEBUG("Send MSG: %s", msg);
+bool GPSDriverSBF::sendMessage(const char *msg) {
+    SBF_DEBUG("Send MSG: %s", msg);
 
-	// Send message
-	int length = static_cast<int>(strlen(msg));
+    // Send message
+    int length = static_cast<int>(strlen(msg));
 
-	return (write(msg, length) == length);
+    return (write(msg, length) == length);
 }
 
-bool GPSDriverSBF::sendMessageAndWaitForAck(const char *msg, const int timeout)
-{
-	SBF_DEBUG("Send MSG: %s", msg);
+bool GPSDriverSBF::sendMessageAndWaitForAck(const char *msg, const int timeout) {
+    SBF_DEBUG("Send MSG: %s", msg);
 
-	// Send message
-	int length = static_cast<int>(strlen(msg));
+    // Send message
+    int length = static_cast<int>(strlen(msg));
 
-	if (write(msg, length) != length) {
-            SBF_DEBUG("Error writing to device");
-		return false;
-	}
-        SBF_DEBUG("Send successful, waiting for ack");
-	// Wait for acknowledge
-	// For all valid set -, get - and exe -commands, the first line of the reply is an exact copy
-	// of the command as entered by the user, preceded with "$R:"
-	char buf[GPS_READ_BUFFER_SIZE];
-	size_t offset = 1;
-	gps_abstime time_started = gps_absolute_time();
+    if (write(msg, length) != length) {
+        SBF_DEBUG("Error writing to device");
+        return false;
+    }
+    SBF_DEBUG("Send successful, waiting for ack");
+    // Wait for acknowledge
+    // For all valid set -, get - and exe -commands, the first line of the reply is an exact copy
+    // of the command as entered by the user, preceded with "$R:"
+    char buf[GPS_READ_BUFFER_SIZE];
+    size_t offset = 1;
+    gps_abstime time_started = gps_absolute_time();
 
-	bool found_response = false;
+    bool found_response = false;
 
-	do {
-		--offset; //overwrite the null-char
-		int ret = read(reinterpret_cast<uint8_t *>(buf) + offset, sizeof(buf) - offset - 1, timeout);
+    do {
+        --offset; //overwrite the null-char
+        int ret = read(reinterpret_cast<uint8_t *>(buf) + offset, sizeof(buf) - offset - 1, timeout);
 
-		if (ret < 0) {
-			// something went wrong when polling or reading
-			SBF_WARN("sbf poll_or_read err");
-			return false;
-		}
+        if (ret < 0) {
+            // something went wrong when polling or reading
+            SBF_WARN("sbf poll_or_read err");
+            return false;
+        }
 
-		offset += ret;
-		buf[offset++] = '\0';
-        SBF_DEBUG("%u", ret)
+        offset += ret;
+        buf[offset++] = '\0';
 
-		if (!found_response && strstr(buf, "$R: ") != nullptr) {
-			SBF_DEBUG("READ %d: %s", (int)offset, buf);
-			found_response = true;
-		}
+        if (!found_response && strstr(buf, "$R: ") != nullptr) {
+            SBF_DEBUG("READ %d: %s", (int) offset, buf);
+            found_response = true;
+        }
 
-		if (offset >= sizeof(buf)) {
-			offset = 1;
-		}
+        if (offset >= sizeof(buf)) {
+            offset = 1;
+        }
 
-	} while (time_started + 1000 * timeout > gps_absolute_time());
-        SBF_DEBUG("Found response: %d", found_response)
-	return found_response;
+    } while (time_started + 1000 * timeout > gps_absolute_time());
+    SBF_DEBUG("Found response: %d", found_response)
+    return found_response;
 }
+
 // -1 = error, 0 = no message handled, 1 = message handled, 2 = sat info message handled
-int GPSDriverSBF::receive(unsigned timeout)
-{
-	// Do not receive messages until we're configured
-	if (!_configured) {
-		gps_usleep(timeout * 1000);
-		return 0;
-	}
+int GPSDriverSBF::receive(unsigned timeout) {
+    // Do not receive messages until we're configured
+    if (!_configured) {
+        gps_usleep(timeout * 1000);
+        return 0;
+    }
 
-	uint8_t buf[800];
+    uint8_t buf[800]; // To be reviewed
 
-	// timeout additional to poll
-	gps_abstime time_started = gps_absolute_time();
+    // timeout additional to poll
+    gps_abstime time_started = gps_absolute_time();
 
-	int handled = 0;
+    int handled = 0;
 
-	while (true) {
-		// Wait for only SBF_PACKET_TIMEOUT if something already received.
-		int ret = read(buf, sizeof(buf), handled ? SBF_PACKET_TIMEOUT : timeout);
+    while (true) {
+        // Wait for only SBF_PACKET_TIMEOUT if something already received.
+        int ret = read(buf, sizeof(buf), handled ? SBF_PACKET_TIMEOUT : timeout);
 
-		if (ret < 0) {
-			// something went wrong when polling or reading
-			SBF_WARN("ubx poll_or_read err");
-			return -1;
+        if (ret < 0) {
+            // something went wrong when polling or reading
+            SBF_WARN("ubx poll_or_read err");
+            return -1;
 
-		} else {
-				SBF_DEBUG("Read %d bytes", ret);
+        } else {
+            SBF_DEBUG("Read %d bytes", ret);
 
-			// pass received bytes to the packet decoder
-			for (int i = 0; i < ret; i++) {
-				handled |= parseChar(buf[i]);
-				// SBF_DEBUG("parsed %d: 0x%x", i, buf[i]);
-			}
-		}
+            // pass received bytes to the packet decoder
+            for (int i = 0; i < ret; i++) {
+                handled |= parseChar(buf[i]);
+                // SBF_DEBUG("parsed %d: 0x%x", i, buf[i]);
+            }
+        }
 
-		if (handled > 0) {
-			return handled;
-		}
+        if (handled > 0) {
+            return handled;
+        }
 
-		// abort after timeout if no useful packets received
-		if (time_started + timeout * 1000 < gps_absolute_time()) {
-			SBF_DEBUG("timed out, returning");
-			return -1;
-		}
-	}
+        // abort after timeout if no useful packets received
+        if (time_started + timeout * 1000 < gps_absolute_time()) {
+            SBF_DEBUG("timed out, returning");
+            return -1;
+        }
+    }
 }
+
 // 0 = decoding, 1 = message handled, 2 = sat info message handled
-int GPSDriverSBF::parseChar(const uint8_t b)
-{
-	int ret = 0;
+int GPSDriverSBF::parseChar(const uint8_t b) {
+    int ret = 0;
 
-	switch (_decode_state) {
+    switch (_decode_state) {
 
-	// Expecting Sync1
-	case SBF_DECODE_SYNC1:
-		if (b == SBF_SYNC1) { // Sync1 found --> expecting Sync2
-			SBF_TRACE_PARSER("A");
-			ret = payloadRxAdd(b); // add a payload byte
-			_decode_state = SBF_DECODE_SYNC2;
+        // Expecting Sync1
+        case SBF_DECODE_SYNC1:
+            if (b == SBF_SYNC1) { // Sync1 found --> expecting Sync2
+                SBF_TRACE_PARSER("A");
+                ret = payloadRxAdd(b); // add a payload byte
+                _decode_state = SBF_DECODE_SYNC2;
 
-		} else if (b == RTCM3_PREAMBLE && _rtcm_parsing) {
-            SBF_DEBUG("----RTCM----")
-			SBF_TRACE_PARSER("RTCM");
-			_decode_state = SBF_DECODE_RTCM3;
-			_rtcm_parsing->addByte(b);
-		}
+            } else if (b == RTCM3_PREAMBLE && _rtcm_parsing) {
+                SBF_TRACE_PARSER("RTCM");
+                _decode_state = SBF_DECODE_RTCM3;
+                _rtcm_parsing->addByte(b);
+            }
 
-		break;
+            break;
 
-	// Expecting Sync2
-	case SBF_DECODE_SYNC2:
-		if (b == SBF_SYNC2) { // Sync2 found --> expecting CRC
-			SBF_TRACE_PARSER("B");
-			ret = payloadRxAdd(b); // add a payload byte
-			_decode_state = SBF_DECODE_PAYLOAD;
+            // Expecting Sync2
+        case SBF_DECODE_SYNC2:
+            if (b == SBF_SYNC2) { // Sync2 found --> expecting CRC
+                SBF_TRACE_PARSER("B");
+                ret = payloadRxAdd(b); // add a payload byte
+                _decode_state = SBF_DECODE_PAYLOAD;
 
-		} else { // Sync1 not followed by Sync2: reset parser
-			decodeInit();
-		}
+            } else { // Sync1 not followed by Sync2: reset parser
+                decodeInit();
+            }
 
-		break;
+            break;
 
-	// Expecting payload
-	case SBF_DECODE_PAYLOAD:
-		SBF_TRACE_PARSER(".");
+            // Expecting payload
+        case SBF_DECODE_PAYLOAD: SBF_TRACE_PARSER(".");
 
-		ret = payloadRxAdd(b); // add a payload byte
+            ret = payloadRxAdd(b); // add a payload byte
 
-		if (ret < 0) {
-			// payload not handled, discard message
-			ret = 0;
-			decodeInit();
+            if (ret < 0) {
+                // payload not handled, discard message
+                ret = 0;
+                decodeInit();
 
-		} else if (ret > 0) {
-			ret = payloadRxDone(); // finish payload processing
-			decodeInit();
+            } else if (ret > 0) {
+                ret = payloadRxDone(); // finish payload processing
+                decodeInit();
 
-		} else {
-			// expecting more payload, stay in state SBF_DECODE_PAYLOAD
-			ret = 0;
+            } else {
+                // expecting more payload, stay in state SBF_DECODE_PAYLOAD
+                ret = 0;
 
-		}
+            }
 
-		break;
+            break;
 
-	case SBF_DECODE_RTCM3:
-		if (_rtcm_parsing->addByte(b)) {
-			SBF_DEBUG("got RTCM message with length %i", (int)_rtcm_parsing->messageLength());
-			gotRTCMMessage(_rtcm_parsing->message(), _rtcm_parsing->messageLength());
-			decodeInit();
-		}
+        case SBF_DECODE_RTCM3:
+            if (_rtcm_parsing->addByte(b)) {
+                SBF_DEBUG("got RTCM message with length %i", (int) _rtcm_parsing->messageLength());
+                gotRTCMMessage(_rtcm_parsing->message(), _rtcm_parsing->messageLength());
+                decodeInit();
+            }
 
-		break;
-	}
+            break;
+    }
 
-	return ret;
+    return ret;
 }
 
 /**
  * Add payload rx byte
  */
 // -1 = error, 0 = ok, 1 = payload completed
-int GPSDriverSBF::payloadRxAdd(const uint8_t b)
-{
-	int ret = 0;
-	uint8_t *p_buf = reinterpret_cast<uint8_t *>(&_buf);
+int GPSDriverSBF::payloadRxAdd(const uint8_t b) {
+    int ret = 0;
+    uint8_t *p_buf = reinterpret_cast<uint8_t *>(&_buf);
 
-	p_buf[_rx_payload_index++] = b;
+    p_buf[_rx_payload_index++] = b;
 
-	if ((_rx_payload_index > 7 && _rx_payload_index >= _buf.length) || _rx_payload_index >= sizeof(_buf)) {
-		ret = 1; // payload received completely
-	}
+    if ((_rx_payload_index > 7 && _rx_payload_index >= _buf.length) || _rx_payload_index >= sizeof(_buf)) {
+        ret = 1; // payload received completely
+    }
 
-	return ret;
+    return ret;
 }
 
 /**
  * Calculate buffer CRC16
  */
 uint16_t
-crc16(const uint8_t *data_p, uint32_t length)
-{
-	uint8_t x;
-	uint16_t crc = 0;
+crc16(const uint8_t *data_p, uint32_t length) {
+    uint8_t x;
+    uint16_t crc = 0;
 
-	while (length--) {
-		x = crc >> 8 ^ *data_p++;
-		x ^= x >> 4;
-		crc = static_cast<uint16_t>((crc << 8) ^ (x << 12) ^ (x << 5) ^ x);
-	}
+    while (length--) {
+        x = crc >> 8 ^ *data_p++;
+        x ^= x >> 4;
+        crc = static_cast<uint16_t>((crc << 8) ^ (x << 12) ^ (x << 5) ^ x);
+    }
 
-	return crc;
+    return crc;
 }
 
 /**
  * Finish payload rx
  */
 // 0 = no message handled, 1 = message handled, 2 = sat info message handled
-int GPSDriverSBF::payloadRxDone()
-{
-	int ret = 0;
-	struct tm timeinfo;
-	time_t epoch;
+int GPSDriverSBF::payloadRxDone() {
+    int ret = 0;
+    struct tm timeinfo;
+    time_t epoch;
 
-	if (_buf.length <= 4 || _buf.crc16 != crc16(reinterpret_cast<uint8_t *>(&_buf) + 4, _buf.length - 4)) {
-		return 1;
-	}
+    if (_buf.length <= 4 || _buf.crc16 != crc16(reinterpret_cast<uint8_t *>(&_buf) + 4, _buf.length - 4)) {
+        return 1;
+    }
 
-	// handle message
-	switch (_buf.msg_id) {
-	case SBF_ID_PVTGeodetic:
-		SBF_TRACE_RXMSG("Rx PVTGeodetic");
-		_msg_status |= 1;
+    // handle message
+    switch (_buf.msg_id) {
+        case SBF_ID_PVTGeodetic: SBF_TRACE_RXMSG("Rx PVTGeodetic");
+            _msg_status |= 1;
 
-		if (_buf.payload_pvt_geodetic.mode_type < 1) {
-			_gps_position->fix_type = 1;
+            if (_buf.payload_pvt_geodetic.mode_type < 1) {
+                _gps_position->fix_type = 1;
 
-		} else if (_buf.payload_pvt_geodetic.mode_type == 6) {
-			_gps_position->fix_type = 4;
+            } else if (_buf.payload_pvt_geodetic.mode_type == 6) {
+                _gps_position->fix_type = 4;
 
-		} else if (_buf.payload_pvt_geodetic.mode_type == 5 || _buf.payload_pvt_geodetic.mode_type == 8) {
-			_gps_position->fix_type = 5;
+            } else if (_buf.payload_pvt_geodetic.mode_type == 5 || _buf.payload_pvt_geodetic.mode_type == 8) {
+                _gps_position->fix_type = 5;
 
-		} else if (_buf.payload_pvt_geodetic.mode_type == 4 || _buf.payload_pvt_geodetic.mode_type == 7) {
-			_gps_position->fix_type = 6;
+            } else if (_buf.payload_pvt_geodetic.mode_type == 4 || _buf.payload_pvt_geodetic.mode_type == 7) {
+                _gps_position->fix_type = 6;
 
-		} else {
-			_gps_position->fix_type = 3;
-		}
+            } else {
+                _gps_position->fix_type = 3;
+            }
 
-		// Check fix and error code
-		_gps_position->vel_ned_valid = _gps_position->fix_type > 1 && _buf.payload_pvt_geodetic.error == 0;
+            // Check fix and error code
+            _gps_position->vel_ned_valid = _gps_position->fix_type > 1 && _buf.payload_pvt_geodetic.error == 0;
 
-		// Check boundaries and invalidate GPS velocities
-		// We're not just checking for the do-not-use value (-2*10^10) but for any value beyond the specified max values
-		if (fabsf(_buf.payload_pvt_geodetic.vn) > 600.0f || fabsf(_buf.payload_pvt_geodetic.ve) > 600.0f ||
-		    fabsf(_buf.payload_pvt_geodetic.vu) > 600.0f) {
-			_gps_position->vel_ned_valid = false;
-		}
+            // Check boundaries and invalidate GPS velocities
+            // We're not just checking for the do-not-use value (-2*10^10) but for any value beyond the specified max values
+            if (fabsf(_buf.payload_pvt_geodetic.vn) > 600.0f || fabsf(_buf.payload_pvt_geodetic.ve) > 600.0f ||
+                fabsf(_buf.payload_pvt_geodetic.vu) > 600.0f) {
+                _gps_position->vel_ned_valid = false;
+            }
 
-		// Check boundaries and invalidate position
-		// We're not just checking for the do-not-use value (-2*10^10) but for any value beyond the specified max values
-		if (fabs(_buf.payload_pvt_geodetic.latitude) > M_PI_2 || fabs(_buf.payload_pvt_geodetic.longitude) > M_PI ||
-		    fabs(_buf.payload_pvt_geodetic.height) > DNU|| fabsf(_buf.payload_pvt_geodetic.undulation) > (float) DNU) {
-			_gps_position->fix_type = 0;
-		}
+            // Check boundaries and invalidate position
+            // We're not just checking for the do-not-use value (-2*10^10) but for any value beyond the specified max values
+            if (fabs(_buf.payload_pvt_geodetic.latitude) > M_PI_2 || fabs(_buf.payload_pvt_geodetic.longitude) > M_PI ||
+                fabs(_buf.payload_pvt_geodetic.height) > DNU ||
+                fabsf(_buf.payload_pvt_geodetic.undulation) > (float) DNU) {
+                _gps_position->fix_type = 0;
+            }
 
-		if (_buf.payload_pvt_geodetic.nr_sv < 255) {  // 255 = do not use value
-			_gps_position->satellites_used = _buf.payload_pvt_geodetic.nr_sv;
+            if (_buf.payload_pvt_geodetic.nr_sv < 255) {  // 255 = do not use value
+                _gps_position->satellites_used = _buf.payload_pvt_geodetic.nr_sv;
 
-			if (_satellite_info) {
-				// Only fill in the satellite count for now (we could use the ChannelStatus message for the
-				// other data, but it's really large: >800B)
-				_satellite_info->timestamp = gps_absolute_time();
-				_satellite_info->count = _gps_position->satellites_used;
-				ret = 2;
-			}
-
-		} else {
-			_gps_position->satellites_used = 0;
-		}
-
-		_gps_position->lat = static_cast<int>(round(_buf.payload_pvt_geodetic.latitude * M_RAD_TO_DEG * 1e7));
-		_gps_position->lon = static_cast<int>(round(_buf.payload_pvt_geodetic.longitude * M_RAD_TO_DEG * 1e7));
-		_gps_position->alt_ellipsoid = static_cast<int>(round(_buf.payload_pvt_geodetic.height * 1000));
-		_gps_position->alt = static_cast<int>(round((_buf.payload_pvt_geodetic.height - static_cast<double>
-						      (_buf.payload_pvt_geodetic.undulation)) * 1000));
-
-		/* H and V accuracy are reported in 2DRMS, but based off the uBlox reporting we expect RMS.
-		 * Devide by 100 from cm to m and in addition divide by 2 to get RMS. */
-		_gps_position->eph = static_cast<float>(_buf.payload_pvt_geodetic.h_accuracy) / 200.0f;
-		_gps_position->epv = static_cast<float>(_buf.payload_pvt_geodetic.v_accuracy) / 200.0f;
-
-		_gps_position->vel_n_m_s = static_cast<float>(_buf.payload_pvt_geodetic.vn);
-		_gps_position->vel_e_m_s = static_cast<float>(_buf.payload_pvt_geodetic.ve);
-		_gps_position->vel_d_m_s = -1.0f * static_cast<float>(_buf.payload_pvt_geodetic.vu);
-		_gps_position->vel_m_s = sqrtf(_gps_position->vel_n_m_s * _gps_position->vel_n_m_s + _gps_position->vel_e_m_s *
-					       _gps_position->vel_e_m_s);
-
-		_gps_position->cog_rad = static_cast<float>(_buf.payload_pvt_geodetic.cog) * M_DEG_TO_RAD_F;
-		_gps_position->c_variance_rad = 1.0f * M_DEG_TO_RAD_F;
-
-		// _buf.payload_pvt_geodetic.cog is set to -2*10^10 for velocities below 0.1m/s
-		if (_buf.payload_pvt_geodetic.cog > 360.0f) {
-			_buf.payload_pvt_geodetic.cog = NAN;
-		}
-
-		_gps_position->time_utc_usec = 0;
-#ifndef NO_MKTIME
-		/* convert to unix timestamp */
-		memset(&timeinfo, 0, sizeof(timeinfo));
-
-		timeinfo.tm_year = 1980 - 1900;
-		timeinfo.tm_mon = 0;
-		timeinfo.tm_mday = 6 + _buf.WNc * 7;
-		timeinfo.tm_hour = 0;
-		timeinfo.tm_min = 0;
-		timeinfo.tm_sec = _buf.TOW / 1000;
-
-		epoch = mktime(&timeinfo);
-
-		if (epoch > GPS_EPOCH_SECS) {
-			// FMUv2+ boards have a hardware RTC, but GPS helps us to configure it
-			// and control its drift. Since we rely on the HRT for our monotonic
-			// clock, updating it from time to time is safe.
-
-			timespec ts;
-			memset(&ts, 0, sizeof(ts));
-			ts.tv_sec = epoch;
-			ts.tv_nsec = (_buf.TOW % 1000) * 1000 * 1000;
-			setClock(ts);
-
-			_gps_position->time_utc_usec = static_cast<uint64_t>(epoch) * 1000000ULL;
-			_gps_position->time_utc_usec += (_buf.TOW % 1000) * 1000;
-		}
-
-#endif
-		_gps_position->timestamp = gps_absolute_time();
-		_last_timestamp_time = _gps_position->timestamp;
-		_rate_count_vel++;
-		_rate_count_lat_lon++;
-		ret |= (_msg_status == 7) ? 1 : 0;
-			SBF_DEBUG("PVTGeodetic handled");
-		break;
-
-	case SBF_ID_VelCovGeodetic:
-		SBF_TRACE_RXMSG("Rx VelCovGeodetic");
-		_msg_status |= 2;
-		_gps_position->s_variance_m_s = _buf.payload_vel_col_geodetic.cov_ve_ve;
-
-		if (_gps_position->s_variance_m_s < _buf.payload_vel_col_geodetic.cov_vn_vn) {
-			_gps_position->s_variance_m_s = _buf.payload_vel_col_geodetic.cov_vn_vn;
-		}
-
-		if (_gps_position->s_variance_m_s < _buf.payload_vel_col_geodetic.cov_vu_vu) {
-			_gps_position->s_variance_m_s = _buf.payload_vel_col_geodetic.cov_vu_vu;
-		}
-			SBF_DEBUG("VelCovGeodetic handled");
-		break;
-
-	case SBF_ID_DOP:
-		SBF_TRACE_RXMSG("Rx DOP");
-		_msg_status |= 4;
-		_gps_position->hdop = _buf.payload_dop.hDOP * 0.01f;
-		_gps_position->vdop = _buf.payload_dop.vDOP * 0.01f;
-			SBF_DEBUG("DOP handled");
-		break;
-
-    case SBF_ID_AttEuler:
-        SBF_TRACE_RXMSG("Rx AttEuler");
-        if (!_buf.payload_att_euler.error_not_requested){
-
-            int error_aux1 = _buf.payload_att_euler.error_aux1;
-            int error_aux2 = _buf.payload_att_euler.error_aux2;
-            // SBF_DEBUG("Mode: %u", _buf.payload_att_euler.mode)
-            if (error_aux1 == 0 && error_aux2 == 0){
-                float heading = _buf.payload_att_euler.heading;
-
-                SBF_DEBUG("------Heading: %.3f deg", (double) heading)
-                heading *= M_PI_F / 180.0f; // deg to rad, now in range [0, 2pi]
-                heading -= _heading_offset; // range: [-pi, 3pi]
-
-                if (heading > M_PI_F) {
-                    heading -= 2.f * M_PI_F; // final range is [-pi, pi]
+                if (_satellite_info) {
+                    // Only fill in the satellite count for now (we could use the ChannelStatus message for the
+                    // other data, but it's really large: >800B)
+                    _satellite_info->timestamp = gps_absolute_time();
+                    _satellite_info->count = _gps_position->satellites_used;
+                    ret = 2;
                 }
 
-                _gps_position->heading = heading;
-                SBF_DEBUG("Heading: %.3f rad", (double)_gps_position->heading)
-                SBF_DEBUG("AttEuler handled");
-            } else if (error_aux1 != 0){
-                SBF_DEBUG("Error code for Main-Aux1 baseline: %u: Not enough measurements", error_aux1)
-            } else if (error_aux2 != 0){
-                SBF_DEBUG("Error code for Main-Aux2 baseline: %u: Not enough measurements", error_aux2)
+            } else {
+                _gps_position->satellites_used = 0;
             }
-        }
-            SBF_DEBUG("err_not_requested: %u", _buf.payload_att_euler.error_not_requested)
 
-        break;
+            _gps_position->lat = static_cast<int>(round(_buf.payload_pvt_geodetic.latitude * M_RAD_TO_DEG * 1e7));
+            _gps_position->lon = static_cast<int>(round(_buf.payload_pvt_geodetic.longitude * M_RAD_TO_DEG * 1e7));
+            _gps_position->alt_ellipsoid = static_cast<int>(round(_buf.payload_pvt_geodetic.height * 1000));
+            _gps_position->alt = static_cast<int>(round((_buf.payload_pvt_geodetic.height - static_cast<double>
+            (_buf.payload_pvt_geodetic.undulation)) * 1000));
 
-    case SBF_ID_AttCovEuler:
-        SBF_TRACE_RXMSG("Rx AttCovEuler");
-        if (!_buf.payload_att_cov_euler.error_not_requested){
-            int error_aux1 = _buf.payload_att_cov_euler.error_aux1;
-            int error_aux2 = _buf.payload_att_cov_euler.error_aux2;
+            /* H and V accuracy are reported in 2DRMS, but based off the uBlox reporting we expect RMS.
+             * Devide by 100 from cm to m and in addition divide by 2 to get RMS. */
+            _gps_position->eph = static_cast<float>(_buf.payload_pvt_geodetic.h_accuracy) / 200.0f;
+            _gps_position->epv = static_cast<float>(_buf.payload_pvt_geodetic.v_accuracy) / 200.0f;
 
-            if (error_aux1 == 0 && error_aux2 == 0){
-                float heading_acc = _buf.payload_att_cov_euler.cov_headhead;
-                heading_acc *= M_PI_F / 180.0f; // deg to rad, now in range [0, 2pi]
-                _gps_position->heading_accuracy = heading_acc;
-                SBF_DEBUG("Heading-Accuracy: %.3f rad", (double)_gps_position->heading_accuracy)
-                SBF_DEBUG("AttCovEuler handled");
-            } else if (error_aux1 != 0){
-                SBF_DEBUG("Error code for Main-Aux1 baseline: %u: Not enough measurements", error_aux1)
-            } else if (error_aux2 != 0) {
-                SBF_DEBUG("Error code for Main-Aux2 baseline: %u: Not enough measurements", error_aux2)
+            _gps_position->vel_n_m_s = static_cast<float>(_buf.payload_pvt_geodetic.vn);
+            _gps_position->vel_e_m_s = static_cast<float>(_buf.payload_pvt_geodetic.ve);
+            _gps_position->vel_d_m_s = -1.0f * static_cast<float>(_buf.payload_pvt_geodetic.vu);
+            _gps_position->vel_m_s = sqrtf(
+                    _gps_position->vel_n_m_s * _gps_position->vel_n_m_s + _gps_position->vel_e_m_s *
+                                                                          _gps_position->vel_e_m_s);
+
+            _gps_position->cog_rad = static_cast<float>(_buf.payload_pvt_geodetic.cog) * M_DEG_TO_RAD_F;
+            _gps_position->c_variance_rad = 1.0f * M_DEG_TO_RAD_F;
+
+            // _buf.payload_pvt_geodetic.cog is set to -2*10^10 for velocities below 0.1m/s
+            if (_buf.payload_pvt_geodetic.cog > 360.0f) {
+                _buf.payload_pvt_geodetic.cog = NAN;
             }
-        }
-        break;
 
-	default:
-		break;
-	}
+            _gps_position->time_utc_usec = 0;
+#ifndef NO_MKTIME
+            /* convert to unix timestamp */
+            memset(&timeinfo, 0, sizeof(timeinfo));
 
-	if (ret > 0) {
-		_gps_position->timestamp_time_relative = static_cast<int32_t>(_last_timestamp_time - _gps_position->timestamp);
-	}
+            timeinfo.tm_year = 1980 - 1900;
+            timeinfo.tm_mon = 0;
+            timeinfo.tm_mday = 6 + _buf.WNc * 7;
+            timeinfo.tm_hour = 0;
+            timeinfo.tm_min = 0;
+            timeinfo.tm_sec = _buf.TOW / 1000;
 
-	if (ret == 1) {
-		_msg_status &= ~1;
-	}
+            epoch = mktime(&timeinfo);
 
-	return ret;
+            if (epoch > GPS_EPOCH_SECS) {
+                // FMUv2+ boards have a hardware RTC, but GPS helps us to configure it
+                // and control its drift. Since we rely on the HRT for our monotonic
+                // clock, updating it from time to time is safe.
+
+                timespec ts;
+                memset(&ts, 0, sizeof(ts));
+                ts.tv_sec = epoch;
+                ts.tv_nsec = (_buf.TOW % 1000) * 1000 * 1000;
+                setClock(ts);
+
+                _gps_position->time_utc_usec = static_cast<uint64_t>(epoch) * 1000000ULL;
+                _gps_position->time_utc_usec += (_buf.TOW % 1000) * 1000;
+            }
+
+#endif
+            _gps_position->timestamp = gps_absolute_time();
+            _last_timestamp_time = _gps_position->timestamp;
+            _rate_count_vel++;
+            _rate_count_lat_lon++;
+            ret |= (_msg_status == 7) ? 1 : 0;
+            SBF_DEBUG("PVTGeodetic handled");
+            break;
+
+        case SBF_ID_VelCovGeodetic: SBF_TRACE_RXMSG("Rx VelCovGeodetic");
+            _msg_status |= 2;
+            _gps_position->s_variance_m_s = _buf.payload_vel_col_geodetic.cov_ve_ve;
+
+            if (_gps_position->s_variance_m_s < _buf.payload_vel_col_geodetic.cov_vn_vn) {
+                _gps_position->s_variance_m_s = _buf.payload_vel_col_geodetic.cov_vn_vn;
+            }
+
+            if (_gps_position->s_variance_m_s < _buf.payload_vel_col_geodetic.cov_vu_vu) {
+                _gps_position->s_variance_m_s = _buf.payload_vel_col_geodetic.cov_vu_vu;
+            }
+            SBF_DEBUG("VelCovGeodetic handled");
+            break;
+
+        case SBF_ID_DOP: SBF_TRACE_RXMSG("Rx DOP");
+            _msg_status |= 4;
+            _gps_position->hdop = _buf.payload_dop.hDOP * 0.01f;
+            _gps_position->vdop = _buf.payload_dop.vDOP * 0.01f;
+            SBF_DEBUG("DOP handled");
+            break;
+
+        case SBF_ID_AttEuler: SBF_TRACE_RXMSG("Rx AttEuler");
+            if (!_buf.payload_att_euler.error_not_requested) {
+
+                int error_aux1 = _buf.payload_att_euler.error_aux1;
+                int error_aux2 = _buf.payload_att_euler.error_aux2;
+                // SBF_DEBUG("Mode: %u", _buf.payload_att_euler.mode)
+                if (error_aux1 == 0 && error_aux2 == 0) {
+                    float heading = _buf.payload_att_euler.heading;
+                    heading *= M_PI_F / 180.0f; // deg to rad, now in range [0, 2pi]
+                    heading -= _heading_offset; // range: [-pi, 3pi]
+
+                    if (heading > M_PI_F) {
+                        heading -= 2.f * M_PI_F; // final range is [-pi, pi]
+                    }
+
+                    _gps_position->heading = heading;
+                    // SBF_DEBUG("Heading: %.3f rad", (double) _gps_position->heading)
+                    SBF_DEBUG("AttEuler handled");
+                } else if (error_aux1 != 0) {
+                    SBF_DEBUG("Error code for Main-Aux1 baseline: Not enough measurements");
+                } else if (error_aux2 != 0) {
+                    SBF_DEBUG("Error code for Main-Aux2 baseline: Not enough measurements");
+                }
+            } else {
+                SBF_DEBUG("AttEuler: attitude not requested by user");
+            }
+
+
+            break;
+
+        case SBF_ID_AttCovEuler: SBF_TRACE_RXMSG("Rx AttCovEuler");
+            if (!_buf.payload_att_cov_euler.error_not_requested) {
+                int error_aux1 = _buf.payload_att_cov_euler.error_aux1;
+                int error_aux2 = _buf.payload_att_cov_euler.error_aux2;
+
+                if (error_aux1 == 0 && error_aux2 == 0) {
+                    float heading_acc = _buf.payload_att_cov_euler.cov_headhead;
+                    heading_acc *= M_PI_F / 180.0f; // deg to rad, now in range [0, 2pi]
+                    _gps_position->heading_accuracy = heading_acc;
+                    // SBF_DEBUG("Heading-Accuracy: %.3f rad", (double) _gps_position->heading_accuracy)
+                    SBF_DEBUG("AttCovEuler handled");
+                } else if (error_aux1 != 0) {
+                    SBF_DEBUG("Error code for Main-Aux1 baseline: %u: Not enough measurements", error_aux1);
+                } else if (error_aux2 != 0) {
+                    SBF_DEBUG("Error code for Main-Aux2 baseline: %u: Not enough measurements", error_aux2);
+                }
+            } else {
+                SBF_DEBUG("AttCovEuler: attitude not requested by user");
+            }
+            break;
+
+        default:
+            break;
+    }
+
+    if (ret > 0) {
+        _gps_position->timestamp_time_relative = static_cast<int32_t>(_last_timestamp_time - _gps_position->timestamp);
+    }
+
+    if (ret == 1) {
+        _msg_status &= ~1;
+    }
+
+    return ret;
 }
 
-void GPSDriverSBF::decodeInit()
-{
-	_decode_state = SBF_DECODE_SYNC1;
-	_rx_payload_index = 0;
+void GPSDriverSBF::decodeInit() {
+    _decode_state = SBF_DECODE_SYNC1;
+    _rx_payload_index = 0;
 
-	if (_output_mode == OutputMode::GPSAndRTCM || _output_mode == OutputMode::RTCM) {
-		if (!_rtcm_parsing) {
-			_rtcm_parsing = new RTCMParsing();
-		}
+    if (_output_mode == OutputMode::GPSAndRTCM || _output_mode == OutputMode::RTCM) {
+        if (!_rtcm_parsing) {
+            _rtcm_parsing = new RTCMParsing();
+        }
 
-		if (_rtcm_parsing) {
-			_rtcm_parsing->reset();
-		}
-	}
+        if (_rtcm_parsing) {
+            _rtcm_parsing->reset();
+        }
+    }
 }
 
-int GPSDriverSBF::reset(GPSRestartType restart_type)
-{
-	bool res = false;
+int GPSDriverSBF::reset(GPSRestartType restart_type) {
+    bool res = false;
 
-	switch (restart_type) {
-	case GPSRestartType::Hot:
-		res = sendMessageAndWaitForAck(SBF_CONFIG_RESET_HOT, SBF_CONFIG_TIMEOUT);
-		break;
+    switch (restart_type) {
+        case GPSRestartType::Hot:
+            res = sendMessageAndWaitForAck(SBF_CONFIG_RESET_HOT, SBF_CONFIG_TIMEOUT);
+            break;
 
-	case GPSRestartType::Warm:
-		res = sendMessageAndWaitForAck(SBF_CONFIG_RESET_WARM, SBF_CONFIG_TIMEOUT);
-		break;
+        case GPSRestartType::Warm:
+            res = sendMessageAndWaitForAck(SBF_CONFIG_RESET_WARM, SBF_CONFIG_TIMEOUT);
+            break;
 
-	case GPSRestartType::Cold:
-		res = sendMessageAndWaitForAck(SBF_CONFIG_RESET_COLD, SBF_CONFIG_TIMEOUT);
-		break;
+        case GPSRestartType::Cold:
+            res = sendMessageAndWaitForAck(SBF_CONFIG_RESET_COLD, SBF_CONFIG_TIMEOUT);
+            break;
 
-	default:
-		break;
-	}
+        default:
+            break;
+    }
 
-	return (res) ? 0 : -2;
+    return (res) ? 0 : -2;
 }
