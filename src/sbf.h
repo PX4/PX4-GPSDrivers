@@ -298,7 +298,7 @@ typedef struct {
                                             2: Reserved
                                             3: Reserved */
     uint8_t error_aux2: 2;          /**< Bits 2-3: Error code for Main-Aux2 baseline, same definition as bit 0-1. */
-    uint8_t error_reserved: 2;      /**< Bits 4-6: Reserved */
+    uint8_t error_reserved: 3;      /**< Bits 4-6: Reserved */
     uint8_t error_not_requested: 1; /**< Bit 7: Set when GNSS-based attitude not requested by user. In that case, the other bits are all zero. */
 
     float cov_headhead;             /**< Variance of the heading estimate */
