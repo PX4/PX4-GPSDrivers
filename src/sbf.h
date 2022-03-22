@@ -37,7 +37,7 @@
  * Septentrio protocol as defined in PPSDK SBF Reference Guide 4.1.8
  *
  * @author Matej Franceskin <Matej.Franceskin@gmail.com>
- * @author Seppe Geuens <geuensseppe@gmail.com>
+ * @author <a href="https://github.com/SeppeG">Seppe Geuens</a>
  *
  */
 
