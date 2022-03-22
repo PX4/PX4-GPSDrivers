@@ -51,7 +51,7 @@
 #define SBF_CONFIG_TIMEOUT        500      // ms, timeout for waiting ACK
 #define SBF_PACKET_TIMEOUT        2        // ms, if now data during this delay assume that full update received
 #define DISABLE_MSG_INTERVAL    1000000  // us, try to disable message with this interval
-#define DNU                        100000.0 // Do-Not-Use value for PVTGeodetic  // commented to test without conversion
+#define DNU                        100000.0 // Do-Not-Use value for PVTGeodetic
 
 /**** Trace macros, disable for production builds */
 #define SBF_TRACE_PARSER(...)   {/*GPS_INFO(__VA_ARGS__);*/}    /* decoding progress in parse_char() */
@@ -88,12 +88,11 @@ int GPSDriverSBF::configure(unsigned &baudrate, const GPSConfig &config) {
         sendMessage(SBF_CONFIG_FORCE_INPUT);
     }
 
-    // Change the baud rate
+    // Change the baudrate
     char msg[64];
     snprintf(msg, sizeof(msg), SBF_CONFIG_BAUDRATE, baudrate);
 
     if (!sendMessage(msg)) {
-            SBF_DEBUG("Connection and/or baudrate detection failed (SBF_CONFIG_BAUDRATE)");
         return -1; // connection and/or baudrate detection failed
     }
 
@@ -102,13 +101,12 @@ int GPSDriverSBF::configure(unsigned &baudrate, const GPSConfig &config) {
     receive(50);
     decodeInit();
 
-    if (!sendMessage(SBF_CONFIG_RESET)) {
-            SBF_DEBUG("Connection and/or baudrate detection failed (SBF_CONFIG_RESET)");
+    if (!sendMessageAndWaitForAck(SBF_CONFIG_RESET, SBF_CONFIG_TIMEOUT)) {
         return -1; // connection and/or baudrate detection failed
     }
 
     // at this point we have correct baudrate on both ends
-        SBF_DEBUG("Correct baud rate on both ends");
+
     const char *config_cmds;
 
     if (_output_mode == OutputMode::RTCM) {
@@ -155,9 +153,9 @@ int GPSDriverSBF::configure(unsigned &baudrate, const GPSConfig &config) {
     if (_output_mode == OutputMode::RTCM) {
         if (_base_settings.type == BaseSettingsType::fixed_position) {
             snprintf(msg, sizeof(msg), SBF_CONFIG_RTCM_STATIC_COORDINATES,
-                 _base_settings.settings.fixed_position.latitude,
-                 _base_settings.settings.fixed_position.longitude,
-                 static_cast<double>(_base_settings.settings.fixed_position.altitude));
+                     _base_settings.settings.fixed_position.latitude,
+                     _base_settings.settings.fixed_position.longitude,
+                     static_cast<double>(_base_settings.settings.fixed_position.altitude));
             sendMessageAndWaitForAck(msg, SBF_CONFIG_TIMEOUT);
             snprintf(msg, sizeof(msg), SBF_CONFIG_RTCM_STATIC_OFFSET, 0.0, 0.0, 0.0);
             sendMessageAndWaitForAck(msg, SBF_CONFIG_TIMEOUT);
@@ -186,10 +184,9 @@ bool GPSDriverSBF::sendMessageAndWaitForAck(const char *msg, const int timeout) 
     int length = static_cast<int>(strlen(msg));
 
     if (write(msg, length) != length) {
-        SBF_DEBUG("Error writing to device");
         return false;
     }
-    SBF_DEBUG("Send successful, waiting for ack");
+
     // Wait for acknowledge
     // For all valid set -, get - and exe -commands, the first line of the reply is an exact copy
     // of the command as entered by the user, preceded with "$R:"
@@ -213,7 +210,7 @@ bool GPSDriverSBF::sendMessageAndWaitForAck(const char *msg, const int timeout) 
         buf[offset++] = '\0';
 
         if (!found_response && strstr(buf, "$R: ") != nullptr) {
-            SBF_DEBUG("READ %d: %s", (int) offset, buf);
+            SBF_DEBUG("READ %d: %s", (int)offset, buf);
             found_response = true;
         }
 
@@ -222,7 +219,7 @@ bool GPSDriverSBF::sendMessageAndWaitForAck(const char *msg, const int timeout) 
         }
 
     } while (time_started + 1000 * timeout > gps_absolute_time());
-    SBF_DEBUG("Found response: %d", found_response)
+
     return found_response;
 }
 

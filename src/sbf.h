@@ -65,7 +65,7 @@
     "setSatelliteTracking, All\n" \
     "setSatelliteUsage, All\n" \
     "setElevationMask, All, 10\n" \
-    "setSBFOutput, Stream1, COM1, DOP+VelCovGeodetic+PVTGeodetic, msec100\n"
+    "setSBFOutput, Stream1, COM1, DOP+VelCovGeodetic+PVTGeodetic+AttEuler+AttCovEuler, msec100\n"
 
 #define SBF_CONFIG_RTCM "" \
     "setDataInOut, USB1, Auto, RTCMv3+SBF\n" \
