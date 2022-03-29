@@ -1720,13 +1720,33 @@ GPSDriverUBX::payloadRxAddMonVer(const uint8_t b)
 			// Part 2 complete: decode Part 2 buffer
 			UBX_DEBUG("VER ext \" %30s\"", _buf.payload_rx_mon_ver_part2.extension);
 
-			// in case of u-blox9 family, check if it's an F9P
-			if (_board == Board::u_blox9) {
-				if (strstr((const char *)_buf.payload_rx_mon_ver_part2.extension, "MOD=") &&
-				    strstr((const char *)_buf.payload_rx_mon_ver_part2.extension, "F9P")) {
-					_board = Board::u_blox9_F9P;
-					UBX_DEBUG("F9P detected");
+			// "FWVER=" Firmware of product category and version
+			const char *fwver_str = strstr((const char *)_buf.payload_rx_mon_ver_part2.extension, "FWVER=");
+
+			if (fwver_str != nullptr) {
+				GPS_INFO("u-blox firmware version: %s", fwver_str + strlen("FWVER="));
+			}
+
+			// "PROTVER=" Supported protocol version.
+			const char *protver_str = strstr((const char *)_buf.payload_rx_mon_ver_part2.extension, "PROTVER=");
+
+			if (protver_str != nullptr) {
+				GPS_INFO("u-blox protocol version: %s", protver_str + strlen("PROTVER="));
+			}
+
+			// "MOD=" Module identification. Set in production.
+			const char *mod_str = strstr((const char *)_buf.payload_rx_mon_ver_part2.extension, "MOD=");
+
+			if (mod_str != nullptr) {
+				// in case of u-blox9 family, check if it's an F9P
+				if (_board == Board::u_blox9) {
+					if (strstr(mod_str, "F9P")) {
+						_board = Board::u_blox9_F9P;
+						UBX_DEBUG("F9P detected");
+					}
 				}
+
+				GPS_INFO("u-blox module: %s", mod_str + strlen("MOD="));
 			}
 		}
 	}
