@@ -113,7 +113,10 @@ GPSDriverUBX::configure(unsigned &baudrate, const GPSConfig &config)
 		unsigned desired_baudrate = auto_baudrate ? UBX_BAUDRATE_M8_AND_NEWER : baudrate;
 
 		if ((_mode == UBXMode::RoverWithMovingBaseUART1) || (_mode == UBXMode::MovingBaseUART1)) {
-			desired_baudrate = UART1_BAUDRATE_HEADING;
+			desired_baudrate = 921600;
+
+		} else if ((_mode == UBXMode::RoverWithMovingBase) || (_mode == UBXMode::MovingBase)) {
+			desired_baudrate = 460800; // as recommended by ZED-F9P Application note
 		}
 
 		for (baud_i = 0; baud_i < sizeof(baudrates) / sizeof(baudrates[0]); baud_i++) {
@@ -670,7 +673,7 @@ int GPSDriverUBX::configureDevice(const GNSSSystemsMask &gnssSystems)
 		}
 	}
 
-	int uart2_baudrate = 230400;
+	int uart2_baudrate = 460800;
 
 	if (_mode == UBXMode::RoverWithMovingBase) {
 		UBX_DEBUG("Configuring UART2 for rover");

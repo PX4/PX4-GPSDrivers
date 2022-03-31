@@ -65,8 +65,6 @@
 #define UBX_SYNC1             0xB5
 #define UBX_SYNC2             0x62
 
-#define UART1_BAUDRATE_HEADING 921600
-
 /* Message Classes */
 #define UBX_CLASS_NAV         0x01
 #define UBX_CLASS_RXM         0x02
