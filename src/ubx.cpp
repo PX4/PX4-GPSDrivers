@@ -51,6 +51,7 @@
  */
 
 #include <string.h>
+#include <math.h>
 
 #include "rtcm.h"
 #include "ubx.h"
@@ -2038,6 +2039,14 @@ GPSDriverUBX::payloadRxDone()
 			bool rel_pos_valid = _buf.payload_rx_nav_relposned.flags & (1 << 2);
 			(void)rel_length_acc;
 
+			// RTK float fix type is not accurate enough 
+			if (_gps_position->fix_type != 6)
+			{
+				heading_valid = false; 
+				_gps_position->heading = NAN;
+				_gps_position->heading_acc = NAN; 
+			}
+
 			if (heading_valid && rel_pos_valid && rel_length < 1000.f) { // validity & sanity checks
 				heading *= M_PI_F / 180.0f; // deg to rad, now in range [0, 2pi]
 				heading -= _heading_offset; // range: [-pi, 3pi]
@@ -2076,8 +2085,17 @@ GPSDriverUBX::payloadRxDone()
 			gps_rel.position_length = (_buf.payload_rx_nav_relposned.relPosLength
 						   + _buf.payload_rx_nav_relposned.relPosHPLength * 1e-2f) * 1e-2f;
 
-			gps_rel.heading = _buf.payload_rx_nav_relposned.relPosHeading * 1e-5f * (M_PI_F / 180.f);  // 1e-5 deg -> radians
-			gps_rel.heading_accuracy = _buf.payload_rx_nav_relposned.accHeading * 1e-5f * (M_PI_F / 180.f); // 1e-5 deg -> radians
+			// RTK float fix type is not accurate enough 
+			if (_gps_position->fix_type != 6)
+			{
+				gps_rel.heading = NAN;
+				gps_rel.heading_acc = NAN; 
+			}
+			else
+			{
+				gps_rel.heading = _buf.payload_rx_nav_relposned.relPosHeading * 1e-5f * (M_PI_F / 180.f);  // 1e-5 deg -> radians
+				gps_rel.heading_accuracy = _buf.payload_rx_nav_relposned.accHeading * 1e-5f * (M_PI_F / 180.f); // 1e-5 deg -> radians
+			}
 
 			// Accuracy of relative position in 0.1 mm
 			gps_rel.position_accuracy[0] = _buf.payload_rx_nav_relposned.accN * 1e-4f; // 0.1mm -> m
@@ -2096,6 +2114,11 @@ GPSDriverUBX::payloadRxDone()
 			gps_rel.reference_observations_miss  = _buf.payload_rx_nav_relposned.flags & (1 << 7);
 			gps_rel.heading_valid                = _buf.payload_rx_nav_relposned.flags & (1 << 8);
 			gps_rel.relative_position_normalized = _buf.payload_rx_nav_relposned.flags & (1 << 9);
+
+			if (_gps_position->fix_type != 6)
+			{
+				gps_rel.heading_valid = false; 
+			}
 
 			gotRelativePositionMessage(gps_rel);
 		}
