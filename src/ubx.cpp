@@ -2036,10 +2036,11 @@ GPSDriverUBX::payloadRxDone()
 			float rel_length_acc = _buf.payload_rx_nav_relposned.accLength * 1e-2f;
 			bool heading_valid = _buf.payload_rx_nav_relposned.flags & (1 << 8);
 			bool rel_pos_valid = _buf.payload_rx_nav_relposned.flags & (1 << 2);
+			bool carrier_solution_fixed = _buf.payload_rx_nav_relposned.flags & (1 << 4);
 			(void)rel_length_acc;
 
 			// RTK float fix type is not accurate enough 
-			if (_gps_position->fix_type != 6)
+			if (!carrier_solution_fixed)
 			{
 				heading_valid = false; 
 			}
@@ -2103,7 +2104,7 @@ GPSDriverUBX::payloadRxDone()
 			gps_rel.heading_valid                = _buf.payload_rx_nav_relposned.flags & (1 << 8);
 			gps_rel.relative_position_normalized = _buf.payload_rx_nav_relposned.flags & (1 << 9);
 
-			if (_gps_position->fix_type != 6)
+			if (!gps_rel.carrier_solution_fixed)
 			{
 				gps_rel.heading_valid = false; 
 			}
