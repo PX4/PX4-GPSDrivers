@@ -51,7 +51,6 @@
  */
 
 #include <string.h>
-#include <math.h>
 
 #include "rtcm.h"
 #include "ubx.h"
@@ -2084,7 +2083,7 @@ GPSDriverUBX::payloadRxDone()
 						   + _buf.payload_rx_nav_relposned.relPosHPLength * 1e-2f) * 1e-2f;
 
 			gps_rel.heading = _buf.payload_rx_nav_relposned.relPosHeading * 1e-5f * (M_PI_F / 180.f);  // 1e-5 deg -> radians
-			gps_rel.heading_accuracy = _buf.payload_rx_nav_relposned.accHeading * 1e-5f * (M_PI_F / 180.f); // 1e-5 deg -> radians		
+			gps_rel.heading_accuracy = _buf.payload_rx_nav_relposned.accHeading * 1e-5f * (M_PI_F / 180.f); // 1e-5 deg -> radians
 
 			// Accuracy of relative position in 0.1 mm
 			gps_rel.position_accuracy[0] = _buf.payload_rx_nav_relposned.accN * 1e-4f; // 0.1mm -> m
