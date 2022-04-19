@@ -2036,9 +2036,10 @@ GPSDriverUBX::payloadRxDone()
 			float rel_length_acc = _buf.payload_rx_nav_relposned.accLength * 1e-2f;
 			bool heading_valid = _buf.payload_rx_nav_relposned.flags & (1 << 8);
 			bool rel_pos_valid = _buf.payload_rx_nav_relposned.flags & (1 << 2);
+			bool carrier_solution_fixed = _buf.payload_rx_nav_relposned.flags & (1 << 4);
 			(void)rel_length_acc;
 
-			if (heading_valid && rel_pos_valid && rel_length < 1000.f) { // validity & sanity checks
+			if (heading_valid && rel_pos_valid && rel_length < 1000.f && carrier_solution_fixed) { // validity & sanity checks
 				heading *= M_PI_F / 180.0f; // deg to rad, now in range [0, 2pi]
 				heading -= _heading_offset; // range: [-pi, 3pi]
 
