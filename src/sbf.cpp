@@ -355,7 +355,7 @@ int GPSDriverSBF::parseChar(const uint8_t b)
 	case SBF_DECODE_SYNC1:
 		if (b == SBF_SYNC1) { // Sync1 found --> expecting Sync2
 			SBF_TRACE_PARSER("A");
-			ret = payloadRxAdd(b); // add a payload byte
+			payloadRxAdd(b); // add a payload byte
 			_decode_state = SBF_DECODE_SYNC2;
 
 		} else if (b == RTCM3_PREAMBLE && _rtcm_parsing) {
@@ -370,7 +370,7 @@ int GPSDriverSBF::parseChar(const uint8_t b)
 	case SBF_DECODE_SYNC2:
 		if (b == SBF_SYNC2) { // Sync2 found --> expecting CRC
 			SBF_TRACE_PARSER("B");
-			ret = payloadRxAdd(b); // add a payload byte
+			payloadRxAdd(b); // add a payload byte
 			_decode_state = SBF_DECODE_PAYLOAD;
 
 		} else { // Sync1 not followed by Sync2: reset parser
@@ -409,6 +409,9 @@ int GPSDriverSBF::parseChar(const uint8_t b)
 		}
 
 		break;
+
+    default:
+        break;
 	}
 
 	return ret;
