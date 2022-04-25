@@ -410,8 +410,8 @@ int GPSDriverSBF::parseChar(const uint8_t b)
 
 		break;
 
-    default:
-        break;
+	default:
+		break;
 	}
 
 	return ret;
