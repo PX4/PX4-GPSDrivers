@@ -463,8 +463,8 @@ int GPSDriverSBF::payloadRxDone()
 	time_t epoch;
 
 	if (_buf.length <= 4 ||
-		_buf.length > _rx_payload_index ||
-		_buf.crc16 != crc16(reinterpret_cast<uint8_t *>(&_buf) + 4, _buf.length - 4)) {
+	    _buf.length > _rx_payload_index ||
+	    _buf.crc16 != crc16(reinterpret_cast<uint8_t *>(&_buf) + 4, _buf.length - 4)) {
 		return 0;
 	}
 
