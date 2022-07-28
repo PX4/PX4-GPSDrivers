@@ -520,6 +520,8 @@ int GPSDriverUBX::configureDevice(const GNSSSystemsMask &gnssSystems)
 	cfgValset<uint8_t>(UBX_CFG_KEY_NAVSPG_UTCSTANDARD, 3 /* USNO (U.S. Naval Observatory derived from GPS) */,
 			   cfg_valset_msg_size);
 	cfgValset<uint8_t>(UBX_CFG_KEY_NAVSPG_DYNMODEL, _dyn_model, cfg_valset_msg_size);
+	// The rover will stop using RTCM corrections that are older than 2 seconds
+	cfgValset<uint8_t>(CFG_NAVSPG_CONSTR_DGNSSTO, 2, cfg_valset_msg_size);
 
 	// disable odometer & filtering
 	cfgValset<uint8_t>(UBX_CFG_KEY_ODO_USE_ODO, 0, cfg_valset_msg_size);
@@ -2196,7 +2198,7 @@ GPSDriverUBX::activateRTCMOutput(bool reduce_update_rate)
 			cfgValset<uint16_t>(UBX_CFG_KEY_RATE_MEAS, 1000, cfg_valset_msg_size);
 		}
 
-		cfgValsetPort(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1005_I2C, 5, cfg_valset_msg_size);
+		cfgValsetPort(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1005_I2C, 1, cfg_valset_msg_size);
 		cfgValsetPort(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1077_I2C, 1, cfg_valset_msg_size);
 		cfgValsetPort(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1087_I2C, 1, cfg_valset_msg_size);
 		cfgValsetPort(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1230_I2C, 1, cfg_valset_msg_size);

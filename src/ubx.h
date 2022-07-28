@@ -311,6 +311,7 @@
 #define UBX_CFG_KEY_NAVSPG_FIXMODE              0x20110011
 #define UBX_CFG_KEY_NAVSPG_UTCSTANDARD          0x2011001c
 #define UBX_CFG_KEY_NAVSPG_DYNMODEL             0x20110021
+#define CFG_NAVSPG_CONSTR_DGNSSTO             	0x201100c4
 
 #define UBX_CFG_KEY_ODO_USE_ODO                 0x10220001
 #define UBX_CFG_KEY_ODO_USE_COG                 0x10220002
