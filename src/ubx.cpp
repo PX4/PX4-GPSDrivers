@@ -513,7 +513,7 @@ int GPSDriverUBX::configureDevicePreV27(const GNSSSystemsMask &gnssSystems)
 	return 0;
 }
 
-int GPSDriverUBX::configureDevice(const GNSSSystemsMask &gnssSystems, int32_t uart2_baudrate)
+int GPSDriverUBX::configureDevice(const GNSSSystemsMask &gnssSystems, const int32_t uart2_baudrate)
 {
 	/* set configuration parameters */
 	int cfg_valset_msg_size = initCfgValset();
