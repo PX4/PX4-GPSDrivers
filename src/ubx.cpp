@@ -69,14 +69,15 @@
 
 GPSDriverUBX::GPSDriverUBX(Interface gpsInterface, GPSCallbackPtr callback, void *callback_user,
 			   sensor_gps_s *gps_position, satellite_info_s *satellite_info, uint8_t dynamic_model,
-			   float heading_offset, UBXMode mode) :
+			   float heading_offset, int32_t uart2_baudrate, UBXMode mode) :
 	GPSBaseStationSupport(callback, callback_user),
 	_interface(gpsInterface),
 	_gps_position(gps_position),
 	_satellite_info(satellite_info),
 	_dyn_model(dynamic_model),
 	_mode(mode),
-	_heading_offset(heading_offset)
+	_heading_offset(heading_offset),
+	_uart2_baudrate(uart2_baudrate)
 {
 	decodeInit();
 }
@@ -331,7 +332,7 @@ GPSDriverUBX::configure(unsigned &baudrate, const GPSConfig &config)
 	int ret;
 
 	if (_proto_ver_27_or_higher) {
-		ret = configureDevice(config.gnss_systems);
+		ret = configureDevice(config.gnss_systems, _uart2_baudrate);
 
 	} else {
 		ret = configureDevicePreV27(config.gnss_systems);
@@ -512,7 +513,7 @@ int GPSDriverUBX::configureDevicePreV27(const GNSSSystemsMask &gnssSystems)
 	return 0;
 }
 
-int GPSDriverUBX::configureDevice(const GNSSSystemsMask &gnssSystems)
+int GPSDriverUBX::configureDevice(const GNSSSystemsMask &gnssSystems, const int32_t uart2_baudrate)
 {
 	/* set configuration parameters */
 	int cfg_valset_msg_size = initCfgValset();
@@ -670,9 +671,7 @@ int GPSDriverUBX::configureDevice(const GNSSSystemsMask &gnssSystems)
 		}
 	}
 
-	int uart2_baudrate = 230400;
-
-	if (_mode == UBXMode::RoverWithMovingBase) {
+	if (_mode == UBXMode::RoverWithStaticBaseUart2 || _mode == UBXMode::RoverWithMovingBase) {
 		UBX_DEBUG("Configuring UART2 for rover");
 		cfg_valset_msg_size = initCfgValset();
 		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1OUTPROT_UBX, 1, cfg_valset_msg_size);

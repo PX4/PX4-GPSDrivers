@@ -910,6 +910,7 @@ class GPSDriverUBX : public GPSBaseStationSupport
 public:
 	enum class UBXMode : uint8_t {
 		Normal,                    ///< all non-heading configurations
+		RoverWithStaticBaseUart2,  ///< expect RTCM input on UART2 from a static base.
 		RoverWithMovingBase,       ///< expect RTCM input on UART2 from a moving base for heading output
 		MovingBase,                ///< RTCM output on UART2 to a rover (GPS is installed on the vehicle)
 		RoverWithMovingBaseUART1, ///< expect RTCM input on UART1 from a moving base for heading output
@@ -920,6 +921,7 @@ public:
 		     sensor_gps_s *gps_position, satellite_info_s *satellite_info,
 		     uint8_t dynamic_model = 7,
 		     float heading_offset = 0.f,
+		     int32_t uart2_baudrate = 57600,
 		     UBXMode mode = UBXMode::Normal);
 
 	virtual ~GPSDriverUBX();
@@ -975,9 +977,10 @@ private:
 	/**
 	 * Send configuration values and desired message rates
 	 * @param gnssSystems Set of GNSS systems to use
+	 * @param uart2_baudrate Baudrate of F9P's UART2 port
 	 * @return 0 on success, <0 on error
 	 */
-	int configureDevice(const GNSSSystemsMask &gnssSystems);
+	int configureDevice(const GNSSSystemsMask &gnssSystems, const int32_t uart2_baudrate);
 	/**
 	 * Send configuration values and desired message rates (for protocol version < 27)
 	 * @param gnssSystems Set of GNSS systems to use
@@ -1107,6 +1110,7 @@ private:
 
 	const UBXMode _mode;
 	const float _heading_offset;
+	const int32_t _uart2_baudrate;
 };
 
 
