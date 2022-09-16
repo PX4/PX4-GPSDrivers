@@ -95,6 +95,14 @@ enum class GPSCallbackType {
 	gotRelativePositionMessage,
 
 	/**
+	 * Got a spectrum message from the device.
+	 * data1: pointer to the message
+	 * data2: message length
+	 * return: ignored
+	 */
+	gotSpectrumMessage,
+
+	/**
 	 * message about current survey-in status
 	 * data1: points to a SurveyInStatus struct
 	 * data2: ignored
@@ -283,6 +291,12 @@ protected:
 	void gotRelativePositionMessage(sensor_gnss_relative_s &gnss_relative)
 	{
 		_callback(GPSCallbackType::gotRelativePositionMessage, &gnss_relative, sizeof(sensor_gnss_relative_s), _callback_user);
+	}
+
+	/** got a spectrum message from the device */
+	void gotSpectrumMessage(sensor_gnss_spectrum_s &gnss_spectrum)
+	{
+		_callback(GPSCallbackType::gotSpectrumMessage, &gnss_spectrum, sizeof(sensor_gnss_spectrum_s), _callback_user);
 	}
 
 	void setClock(timespec &t)

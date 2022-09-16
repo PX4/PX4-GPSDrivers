@@ -78,6 +78,7 @@
 
 /* Message IDs */
 #define UBX_ID_NAV_POSLLH     0x02
+#define UBX_ID_NAV_STATUS     0x03
 #define UBX_ID_NAV_DOP        0x04
 #define UBX_ID_NAV_SOL        0x06
 #define UBX_ID_NAV_PVT        0x07
@@ -109,6 +110,7 @@
 #define UBX_ID_CFG_VALDEL     0x8C
 #define UBX_ID_MON_VER        0x04
 #define UBX_ID_MON_HW         0x09 // deprecated in protocol version >= 27 -> use MON_RF
+#define UBX_ID_MON_SPAN       0x31
 #define UBX_ID_MON_RF         0x38
 
 /* UBX ID for RTCM3 output messages */
@@ -130,6 +132,7 @@
 /* Message Classes & IDs */
 #define UBX_MSG_NAV_POSLLH    ((UBX_CLASS_NAV) | UBX_ID_NAV_POSLLH << 8)
 #define UBX_MSG_NAV_SOL       ((UBX_CLASS_NAV) | UBX_ID_NAV_SOL << 8)
+#define UBX_MSG_NAV_STATUS    ((UBX_CLASS_NAV) | UBX_ID_NAV_STATUS << 8)
 #define UBX_MSG_NAV_DOP       ((UBX_CLASS_NAV) | UBX_ID_NAV_DOP << 8)
 #define UBX_MSG_NAV_PVT       ((UBX_CLASS_NAV) | UBX_ID_NAV_PVT << 8)
 #define UBX_MSG_NAV_VELNED    ((UBX_CLASS_NAV) | UBX_ID_NAV_VELNED << 8)
@@ -160,6 +163,7 @@
 #define UBX_MSG_CFG_VALDEL    ((UBX_CLASS_CFG) | UBX_ID_CFG_VALDEL << 8)
 #define UBX_MSG_MON_HW        ((UBX_CLASS_MON) | UBX_ID_MON_HW << 8)
 #define UBX_MSG_MON_VER       ((UBX_CLASS_MON) | UBX_ID_MON_VER << 8)
+#define UBX_MSG_MON_SPAN      ((UBX_CLASS_MON) | UBX_ID_MON_SPAN << 8)
 #define UBX_MSG_MON_RF        ((UBX_CLASS_MON) | UBX_ID_MON_RF << 8)
 #define UBX_MSG_RTCM3_1005    ((UBX_CLASS_RTCM3) | UBX_ID_RTCM3_1005 << 8)
 #define UBX_MSG_RTCM3_1077    ((UBX_CLASS_RTCM3) | UBX_ID_RTCM3_1077 << 8)
@@ -353,6 +357,8 @@
 #define UBX_CFG_KEY_MSGOUT_UBX_NAV_RELPOSNED_UART1 0x2091008e
 #define UBX_CFG_KEY_MSGOUT_UBX_NAV_RELPOSNED_UART2 0x2091008f
 
+#define UBX_CFG_KEY_MSGOUT_UBX_MON_SPAN_UART1 0x2091038c
+
 #define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE4072_0_UART1  0x209102ff
 #define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE4072_1_UART1  0x20910382
 #define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1077_UART1    0x209102cd
@@ -437,6 +443,17 @@ typedef struct {
 	uint32_t hAcc;   /**< Horizontal accuracy estimate [mm] */
 	uint32_t vAcc;   /**< Vertical accuracy estimate [mm] */
 } ubx_payload_rx_nav_posllh_t;
+
+/* Rx NAV-STATUS */
+typedef struct {
+	uint32_t iTOW;  /**< GPS Time of Week [ms] */
+	uint8_t gpsFix; /**< GPSfix Type, this value does not qualify a fix as valid and within the limits. See note on flag gpsFixOk below. */
+	uint8_t flags;  /**< Navigation Status Flags */
+	uint8_t fixStat;/**< Fix Status Information */
+	uint8_t flags2; /**< further information about navigation output */
+	uint32_t ttff;  /**< Time to first fix (millisecond time tag) */
+	uint32_t msss;  /**< Milliseconds since Startup / Reset */
+} ubx_payload_rx_nav_status_t;
 
 /* Rx NAV-DOP */
 typedef struct {
@@ -661,6 +678,24 @@ typedef struct {
 	ubx_payload_rx_mon_rf_block_t block[1]; ///< only read out the first block
 } ubx_payload_rx_mon_rf_t;
 
+/* Rx MON-SPAN */
+typedef struct {
+	uint8_t version;
+	uint8_t numRfBlocks;         /**< Number of RF blocks included */
+	uint8_t reserved0[2];
+
+	struct ubx_payload_rx_mon_span_block_t {
+		uint8_t spectrum[256];  /**< dB Spectrum data (number of points = span/res) */
+		uint32_t span;          /**< Hz Spectrum span */
+		uint32_t res;           /**< Hz Resolution of the spectrum */
+		uint32_t center;        /**< Hz Center of spectrum span */
+		uint8_t pga;            /**< dB Programmable gain amplifier */
+		uint8_t reserved1[3];   /**< Reserved */
+	};
+
+	ubx_payload_rx_mon_span_block_t block[2]; ///< handle up to 2 blocks
+} ubx_payload_rx_mon_span_t;
+
 /* Rx MON-VER Part 1 */
 typedef struct {
 	uint8_t swVersion[30];
@@ -843,6 +878,7 @@ typedef union {
 	ubx_payload_rx_nav_pvt_t          payload_rx_nav_pvt;
 	ubx_payload_rx_nav_posllh_t       payload_rx_nav_posllh;
 	ubx_payload_rx_nav_sol_t          payload_rx_nav_sol;
+	ubx_payload_rx_nav_status_t       payload_rx_nav_status;
 	ubx_payload_rx_nav_dop_t          payload_rx_nav_dop;
 	ubx_payload_rx_nav_timeutc_t      payload_rx_nav_timeutc;
 	ubx_payload_rx_nav_svinfo_part1_t payload_rx_nav_svinfo_part1;
@@ -854,6 +890,7 @@ typedef union {
 	ubx_payload_rx_mon_hw_ubx6_t      payload_rx_mon_hw_ubx6;
 	ubx_payload_rx_mon_hw_ubx7_t      payload_rx_mon_hw_ubx7;
 	ubx_payload_rx_mon_rf_t           payload_rx_mon_rf;
+	ubx_payload_rx_mon_span_t         payload_rx_mon_span;
 	ubx_payload_rx_mon_ver_part1_t    payload_rx_mon_ver_part1;
 	ubx_payload_rx_mon_ver_part2_t    payload_rx_mon_ver_part2;
 	ubx_payload_rx_ack_ack_t          payload_rx_ack_ack;
@@ -920,6 +957,7 @@ public:
 	GPSDriverUBX(Interface gpsInterface, GPSCallbackPtr callback, void *callback_user,
 		     sensor_gps_s *gps_position, satellite_info_s *satellite_info,
 		     uint8_t dynamic_model = 7,
+		     bool spectrum_analyzer = false,
 		     float heading_offset = 0.f,
 		     int32_t uart2_baudrate = 57600,
 		     UBXMode mode = UBXMode::Normal);
@@ -1092,6 +1130,7 @@ private:
 	uint8_t _rx_ck_a{0};
 	uint8_t _rx_ck_b{0};
 	uint8_t _dyn_model{7};  ///< ublox Dynamic platform model default 7: airborne with <2g acceleration
+	bool _spectrum_analyzer{false};
 
 	uint16_t _ack_waiting_msg{0};
 	uint16_t _rx_msg{};
