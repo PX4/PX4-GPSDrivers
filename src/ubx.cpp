@@ -1020,23 +1020,22 @@ GPSDriverUBX::receive(unsigned timeout)
 	while (true) {
 		bool ready_to_return = _configured ? (_got_posllh && _got_velned) : handled;
 
+		/* return success if ready */
+		if (ready_to_return) {
+			_got_posllh = false;
+			_got_velned = false;
+			return handled;
+		}
+
 		/* Wait for only UBX_PACKET_TIMEOUT if something already received. */
-		int ret = read(buf, sizeof(buf), ready_to_return ? UBX_PACKET_TIMEOUT : timeout);
+		int ret = read(buf, sizeof(buf), (_got_posllh || _got_velned) ? UBX_PACKET_TIMEOUT : timeout);
 
 		if (ret < 0) {
 			/* something went wrong when polling or reading */
 			UBX_WARN("ubx poll_or_read err");
 			return -1;
 
-		} else if (ret == 0) {
-			/* return success if ready */
-			if (ready_to_return) {
-				_got_posllh = false;
-				_got_velned = false;
-				return handled;
-			}
-
-		} else {
+		} else if (ret > 0) {
 			//UBX_DEBUG("read %d bytes", ret);
 
 			/* pass received bytes to the packet decoder */
