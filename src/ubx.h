@@ -1116,7 +1116,7 @@ private:
 	uint8_t _rx_ck_a{0};
 	uint8_t _rx_ck_b{0};
 	uint8_t _dyn_model{7};  ///< ublox Dynamic platform model default 7: airborne with <2g acceleration
-	bool _spectrum_analyzer{false};
+	const bool _spectrum_analyzer;
 
 	uint16_t _ack_waiting_msg{0};
 	uint16_t _rx_msg{};

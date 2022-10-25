@@ -785,7 +785,7 @@ int GPSDriverUBX::configureDevice(const GNSSSystemsMask &gnssSystems, const int3
 		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_UBX_MON_SPAN_UART1, value, cfg_valset_msg_size);
 
 		if (!sendMessage(UBX_MSG_CFG_VALSET, (uint8_t *)&_buf, cfg_valset_msg_size)) {
-			fprintf(stderr, "configuring UBX_MSG_MON_SPAN FAILED\n");
+			UBX_WARN("configuring UBX_MSG_MON_SPAN FAILED");
 			return -1;
 		}
 
