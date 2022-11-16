@@ -910,11 +910,11 @@ class GPSDriverUBX : public GPSBaseStationSupport
 public:
 	enum class UBXMode : uint8_t {
 		Normal,                    ///< all non-heading configurations
-		RoverWithStaticBaseUart2,  ///< expect RTCM input on UART2 from a static base.
 		RoverWithMovingBase,       ///< expect RTCM input on UART2 from a moving base for heading output
 		MovingBase,                ///< RTCM output on UART2 to a rover (GPS is installed on the vehicle)
 		RoverWithMovingBaseUART1, ///< expect RTCM input on UART1 from a moving base for heading output
 		MovingBaseUART1,          ///< RTCM output on UART1 to a rover (GPS is installed on the vehicle)
+		RoverWithStaticBaseUart2,  ///< expect RTCM input on UART2 from a static base.
 	};
 
 	GPSDriverUBX(Interface gpsInterface, GPSCallbackPtr callback, void *callback_user,
