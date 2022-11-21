@@ -411,9 +411,9 @@ int GPSDriverAshtech::handleMessage(int len)
 			lon = -lon;
 		}
 
-		_gps_position->lat = static_cast<int>((static_cast<int>(lat * 0.01) + static_cast<int>(lat * 0.01 - int(
+		_gps_position->lat = static_cast<int>((static_cast<int>(lat * 0.01) + (lat * 0.01 - static_cast<int>(
 				lat * 0.01)) * 100.0 / 60.0) * 10000000);
-		_gps_position->lon = static_cast<int>((static_cast<int>(lon * 0.01) + static_cast<int>(lon * 0.01 - int(
+		_gps_position->lon = static_cast<int>((static_cast<int>(lon * 0.01) + (lon * 0.01 - static_cast<int>(
 				lon * 0.01)) * 100.0 / 60.0) * 10000000);
 		_gps_position->alt = static_cast<int>(alt * 1000);
 		_gps_position->hdop = static_cast<float>(hdop);
