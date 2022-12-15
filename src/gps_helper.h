@@ -184,9 +184,19 @@ public:
 		ENABLE_GLONASS =    1 << 4
 	};
 
+	enum class InterfaceProtocolsMask : int32_t {
+		ALL_DISABLED =       0,
+		I2C_IN_PROT_UBX =    1 << 0,
+		I2C_IN_PROT_NMEA =   1 << 1,
+		I2C_IN_PROT_RTCM3X = 1 << 2,
+		I2C_OUT_PROT_UBX =   1 << 3,
+		I2C_OUT_PROT_NMEA =  1 << 4
+	};
+
 	struct GPSConfig {
 		OutputMode output_mode;
 		GNSSSystemsMask gnss_systems;
+		InterfaceProtocolsMask interface_protocols;
 	};
 
 
@@ -315,6 +325,11 @@ protected:
 };
 
 inline bool operator&(GPSHelper::GNSSSystemsMask a, GPSHelper::GNSSSystemsMask b)
+{
+	return static_cast<int32_t>(a) & static_cast<int32_t>(b);
+}
+
+inline bool operator&(GPSHelper::InterfaceProtocolsMask a, GPSHelper::InterfaceProtocolsMask b)
 {
 	return static_cast<int32_t>(a) & static_cast<int32_t>(b);
 }

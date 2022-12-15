@@ -332,7 +332,7 @@ GPSDriverUBX::configure(unsigned &baudrate, const GPSConfig &config)
 	int ret;
 
 	if (_proto_ver_27_or_higher) {
-		ret = configureDevice(config.gnss_systems, _uart2_baudrate);
+		ret = configureDevice(config, _uart2_baudrate);
 
 	} else {
 		ret = configureDevicePreV27(config.gnss_systems);
@@ -513,7 +513,7 @@ int GPSDriverUBX::configureDevicePreV27(const GNSSSystemsMask &gnssSystems)
 	return 0;
 }
 
-int GPSDriverUBX::configureDevice(const GNSSSystemsMask &gnssSystems, const int32_t uart2_baudrate)
+int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_baudrate)
 {
 	/* set configuration parameters */
 	int cfg_valset_msg_size = initCfgValset();
@@ -566,11 +566,11 @@ int GPSDriverUBX::configureDevice(const GNSSSystemsMask &gnssSystems, const int3
 	waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, false);
 
 	// configure active GNSS systems (leave signal bands as is)
-	if (static_cast<int32_t>(gnssSystems) != 0) {
+	if (static_cast<int32_t>(config.gnss_systems) != 0) {
 		cfg_valset_msg_size = initCfgValset();
 
 		// GPS and QZSS should always be enabled and disabled together, according to uBlox
-		if (gnssSystems & GNSSSystemsMask::ENABLE_GPS) {
+		if (config.gnss_systems & GNSSSystemsMask::ENABLE_GPS) {
 			UBX_DEBUG("GNSS Systems: Use GPS + QZSS");
 			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GPS_ENA, 1, cfg_valset_msg_size);
 			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_QZSS_ENA, 1, cfg_valset_msg_size);
@@ -580,7 +580,7 @@ int GPSDriverUBX::configureDevice(const GNSSSystemsMask &gnssSystems, const int3
 			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_QZSS_ENA, 0, cfg_valset_msg_size);
 		}
 
-		if (gnssSystems & GNSSSystemsMask::ENABLE_GALILEO) {
+		if (config.gnss_systems & GNSSSystemsMask::ENABLE_GALILEO) {
 			UBX_DEBUG("GNSS Systems: Use Galileo");
 			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GAL_ENA, 1, cfg_valset_msg_size);
 
@@ -589,7 +589,7 @@ int GPSDriverUBX::configureDevice(const GNSSSystemsMask &gnssSystems, const int3
 		}
 
 
-		if (gnssSystems & GNSSSystemsMask::ENABLE_BEIDOU) {
+		if (config.gnss_systems & GNSSSystemsMask::ENABLE_BEIDOU) {
 			UBX_DEBUG("GNSS Systems: Use BeiDou");
 			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_BDS_ENA, 1, cfg_valset_msg_size);
 
@@ -597,7 +597,7 @@ int GPSDriverUBX::configureDevice(const GNSSSystemsMask &gnssSystems, const int3
 			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_BDS_ENA, 0, cfg_valset_msg_size);
 		}
 
-		if (gnssSystems & GNSSSystemsMask::ENABLE_GLONASS) {
+		if (config.gnss_systems & GNSSSystemsMask::ENABLE_GLONASS) {
 			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GLO_ENA, 1, cfg_valset_msg_size);
 
 		} else {
@@ -616,7 +616,7 @@ int GPSDriverUBX::configureDevice(const GNSSSystemsMask &gnssSystems, const int3
 		// send SBAS config separately, because it seems to be buggy (with u-center, too)
 		cfg_valset_msg_size = initCfgValset();
 
-		if (gnssSystems & GNSSSystemsMask::ENABLE_SBAS) {
+		if (config.gnss_systems & GNSSSystemsMask::ENABLE_SBAS) {
 			UBX_DEBUG("GNSS Systems: Use SBAS");
 			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_SBAS_ENA, 1, cfg_valset_msg_size);
 			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_SBAS_L1CA_ENA, 1, cfg_valset_msg_size);
@@ -649,14 +649,21 @@ int GPSDriverUBX::configureDevice(const GNSSSystemsMask &gnssSystems, const int3
 		return -1;
 	}
 
-	if (_interface == Interface::UART) {
-		// Disable GPS protocols at I2C
+	if (_interface == Interface::UART || _interface == Interface::SPI) {
+
+		// Enable/Disable GPS protocols at I2C interface
 		cfg_valset_msg_size = initCfgValset();
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_I2CINPROT_UBX, 0, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_I2CINPROT_NMEA, 0, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_I2CINPROT_RTCM3X, 0, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_I2COUTPROT_UBX, 0, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_I2COUTPROT_NMEA, 0, cfg_valset_msg_size);
+
+		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_I2CINPROT_UBX,
+				   config.interface_protocols & InterfaceProtocolsMask::I2C_IN_PROT_UBX, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_I2CINPROT_NMEA,
+				   config.interface_protocols & InterfaceProtocolsMask::I2C_IN_PROT_NMEA, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_I2CINPROT_RTCM3X,
+				   config.interface_protocols & InterfaceProtocolsMask::I2C_IN_PROT_RTCM3X, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_I2COUTPROT_UBX,
+				   config.interface_protocols & InterfaceProtocolsMask::I2C_OUT_PROT_UBX, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_I2COUTPROT_NMEA,
+				   config.interface_protocols & InterfaceProtocolsMask::I2C_OUT_PROT_NMEA, cfg_valset_msg_size);
 
 		if (_board == Board::u_blox9_F9P) {
 			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_I2COUTPROT_RTCM3X, 0, cfg_valset_msg_size);
