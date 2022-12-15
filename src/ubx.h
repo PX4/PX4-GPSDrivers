@@ -976,11 +976,11 @@ private:
 
 	/**
 	 * Send configuration values and desired message rates
-	 * @param gnssSystems Set of GNSS systems to use
+	 * @param config The configuration includes GNSS systems to use and protocol for interfaces
 	 * @param uart2_baudrate Baudrate of F9P's UART2 port
 	 * @return 0 on success, <0 on error
 	 */
-	int configureDevice(const GNSSSystemsMask &gnssSystems, const int32_t uart2_baudrate);
+	int configureDevice(const GPSConfig &config, const int32_t uart2_baudrate);
 	/**
 	 * Send configuration values and desired message rates (for protocol version < 27)
 	 * @param gnssSystems Set of GNSS systems to use
