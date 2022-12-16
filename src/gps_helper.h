@@ -185,12 +185,13 @@ public:
 	};
 
 	enum class InterfaceProtocolsMask : int32_t {
-		ALL_DISABLED =       0,
-		I2C_IN_PROT_UBX =    1 << 0,
-		I2C_IN_PROT_NMEA =   1 << 1,
-		I2C_IN_PROT_RTCM3X = 1 << 2,
-		I2C_OUT_PROT_UBX =   1 << 3,
-		I2C_OUT_PROT_NMEA =  1 << 4
+		ALL_DISABLED =        0,
+		I2C_IN_PROT_UBX =     1 << 0,
+		I2C_IN_PROT_NMEA =    1 << 1,
+		I2C_IN_PROT_RTCM3X =  1 << 2,
+		I2C_OUT_PROT_UBX =    1 << 3,
+		I2C_OUT_PROT_NMEA =   1 << 4,
+		I2C_OUT_PROT_RTCM3X = 1 << 5
 	};
 
 	struct GPSConfig {
