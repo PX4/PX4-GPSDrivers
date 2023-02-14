@@ -452,12 +452,12 @@ int GPSDriverUBX::configureDevicePreV27(const GNSSSystemsMask &gnssSystems)
 
 		// send message
 		if (!sendMessage(UBX_MSG_CFG_GNSS, (uint8_t *)&_buf, sizeof(_buf.payload_tx_cfg_gnss))) {
-			GPS_ERR("UBX CFG-GNSS message send failed");
+			UBX_DEBUG("UBX CFG-GNSS message send failed");
 			return -1;
 		}
 
 		if (waitForAck(UBX_MSG_CFG_GNSS, UBX_CONFIG_TIMEOUT, true) < 0) {
-			GPS_ERR("UBX CFG-GNSS message ACK failed");
+			UBX_DEBUG("UBX CFG-GNSS message ACK failed");
 			return -1;
 		}
 	}
@@ -605,7 +605,7 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 		}
 
 		if (!sendMessage(UBX_MSG_CFG_VALSET, (uint8_t *)&_buf, cfg_valset_msg_size)) {
-			GPS_ERR("UBX GNSS config send failed");
+			UBX_DEBUG("UBX GNSS config send failed");
 			return -1;
 		}
 
