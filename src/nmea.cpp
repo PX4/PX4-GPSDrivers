@@ -1024,7 +1024,7 @@ int GPSDriverNMEA::configure(unsigned &baudrate, const GPSConfig &config)
 	}
 
 	// If we haven't found the GPS with the defined baudrate, we try other rates
-	const unsigned baudrates_to_try[] = {9600, 19200, 38400, 57600, 115200};
+	const unsigned baudrates_to_try[] = {9600, 19200, 38400, 57600, 115200, 230400};
 	unsigned test_baudrate;
 
 	for (unsigned int baud_i = 0; !_POS_received
