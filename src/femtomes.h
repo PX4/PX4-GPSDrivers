@@ -177,12 +177,6 @@ public:
 private:
 
 	/**
-	 * caculate the frame crc value
-	 */
-	uint32_t crc32Value(uint32_t icrc);
-	uint32_t calculateBlockCRC32(uint32_t length, uint8_t *buffer, uint32_t crc);
-
-	/**
 	 * when Constructor is work, initialize parameters
 	 */
 	void decodeInit(void);
