@@ -147,7 +147,9 @@ bool UnicoreParser::extractHeading()
 
 		} else if (i == 2) {
 			_heading.heading_deg = strtof(ptr, NULL);
-			break;
+
+		} else if (i == 5) {
+			_heading.heading_stddev_deg = strtof(ptr, NULL);
 		}
 
 		++i;
