@@ -61,11 +61,10 @@ public:
 
 
 private:
+	void reset();
 	bool crcCorrect() const;
 	bool isHeading() const;
 	bool extractHeading();
-
-
 
 	// We have seen buffers with 154 bytes.
 	char _buffer[256];
