@@ -43,8 +43,6 @@ UnicoreParser::Result UnicoreParser::parseChar(char c)
 	case State::Uninit:
 		if (c == '#') {
 			_state = State::GotHashtag;
-			_buffer_pos = 0;
-			_buffer_crc_pos = 0;
 		}
 
 		break;
@@ -58,7 +56,7 @@ UnicoreParser::Result UnicoreParser::parseChar(char c)
 
 		} else {
 			if (_buffer_pos >= sizeof(_buffer)) {
-				_state = State::Uninit;
+				reset();
 				return Result::None;
 			}
 
@@ -70,7 +68,7 @@ UnicoreParser::Result UnicoreParser::parseChar(char c)
 	case State::GotStar:
 		_buffer_crc[_buffer_crc_pos++] = c;
 
-		if (_buffer_crc_pos == 8) {
+		if (_buffer_crc_pos >= 8) {
 
 			// Make sure the CRC buffer is zero terminated.
 			_buffer_crc[_buffer_crc_pos] = '\0';
@@ -81,13 +79,16 @@ UnicoreParser::Result UnicoreParser::parseChar(char c)
 
 			if (isHeading()) {
 				if (extractHeading()) {
+					reset();
 					return Result::GotHeading;
 
 				} else {
+					reset();
 					return Result::WrongStructure;
 				}
 
 			} else {
+				reset();
 				return Result::UnknownSentence;
 			}
 		}
@@ -96,6 +97,13 @@ UnicoreParser::Result UnicoreParser::parseChar(char c)
 	}
 
 	return Result::None;
+}
+
+void UnicoreParser::reset()
+{
+	_state = State::Uninit;
+	_buffer_pos = 0;
+	_buffer_crc_pos = 0;
 }
 
 bool UnicoreParser::crcCorrect() const
