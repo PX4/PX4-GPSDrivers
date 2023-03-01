@@ -46,6 +46,7 @@
 
 #include "gps_helper.h"
 #include "../../definitions.h"
+#include "unicore.h"
 
 class RTCMParsing;
 
@@ -69,6 +70,10 @@ public:
 	int configure(unsigned &baudrate, const GPSConfig &config) override;
 
 private:
+	void handleHeading(float heading_deg, float heading_stddev_deg);
+
+	UnicoreParser _unicore_parser;
+
 	enum class NMEADecodeState {
 		uninit,
 		got_sync1,
