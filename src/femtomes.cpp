@@ -396,9 +396,9 @@ int GPSDriverFemto::parseChar(uint8_t temp)
 				_femto_msg.crc += (uint32_t)(temp << 24);
 				_decode_state = FemtoDecodeState::pream_ble1;
 
-				uint32_t crc = calculateBlockCRC32((uint32_t)_femto_msg.header.femto_header.headerlength,
-								   (uint8_t *)&_femto_msg.header.data, (uint32_t)0);
-				crc = calculateBlockCRC32((uint32_t)_femto_msg.header.femto_header.messagelength, (uint8_t *)&_femto_msg.data[0], crc);
+				uint32_t crc = calculateCRC32((uint32_t)_femto_msg.header.femto_header.headerlength,
+							      (uint8_t *)&_femto_msg.header.data, (uint32_t)0);
+				crc = calculateCRC32((uint32_t)_femto_msg.header.femto_header.messagelength, (uint8_t *)&_femto_msg.data[0], crc);
 
 				if (_femto_msg.crc == crc) {
 					iRet = _femto_msg.read;

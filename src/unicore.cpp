@@ -108,7 +108,7 @@ void UnicoreParser::reset()
 
 bool UnicoreParser::crcCorrect() const
 {
-	const uint32_t crc_calculated = calculateBlockCRC32(_buffer_pos, (uint8_t *)_buffer, 0);
+	const uint32_t crc_calculated = calculateCRC32(_buffer_pos, (uint8_t *)_buffer, 0);
 	const uint32_t crc_parsed = (uint32_t)strtoul(_buffer_crc, NULL, 16);
 	return (crc_calculated == crc_parsed);
 }

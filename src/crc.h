@@ -35,4 +35,4 @@
 
 #include <cstdint>
 
-uint32_t calculateBlockCRC32(uint32_t length, uint8_t *buffer, uint32_t crc);
+uint32_t calculateCRC32(uint32_t length, uint8_t *buffer, uint32_t crc);
