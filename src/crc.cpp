@@ -33,16 +33,19 @@
 
 #include "crc.h"
 
-// The CRC algorithm is extracted from the Femtomes driver.
+// According to https://en.wikipedia.org/wiki/Cyclic_redundancy_check
+//
+// the CRC is based on the CRC-32 ISO 3309 / ANSI X3.66
+// implementetation, and the polynomial is supplied as "Reversed".
+//
+// The CRC algorithm was extracted from the Femtomes driver.
+//
 
-static constexpr uint32_t CRC32_POLYNOMIAL = 0xEDB88320L;
+static constexpr uint32_t CRC32_POLYNOMIAL = 0xEDB88320;
 
-uint32_t crc32Value(uint32_t icrc)
+static uint32_t crc32Value(uint32_t crc)
 {
-	int i;
-	uint32_t crc = icrc;
-
-	for (i = 8 ; i > 0; i--) {
+	for (int i = 8 ; i > 0; i--) {
 		if (crc & 1) {
 			crc = (crc >> 1) ^ CRC32_POLYNOMIAL;
 
@@ -55,11 +58,11 @@ uint32_t crc32Value(uint32_t icrc)
 }
 
 uint32_t
-calculateBlockCRC32(uint32_t length, uint8_t *buffer, uint32_t crc)
+calculateCRC32(uint32_t length, uint8_t *buffer, uint32_t crc)
 {
 	while (length-- != 0) {
 		crc = ((crc >> 8) & 0x00FFFFFFL) ^ (crc32Value(((uint32_t) crc ^ *buffer++) & 0xff));
 	}
 
-	return (crc);
+	return crc;
 }
