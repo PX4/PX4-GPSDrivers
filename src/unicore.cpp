@@ -55,7 +55,7 @@ UnicoreParser::Result UnicoreParser::parseChar(char c)
 			_buffer[_buffer_pos] = '\0';
 
 		} else {
-			if (_buffer_pos >= sizeof(_buffer)) {
+			if (_buffer_pos >= sizeof(_buffer) - 1) {
 				reset();
 				return Result::None;
 			}
@@ -117,11 +117,7 @@ bool UnicoreParser::isHeading() const
 {
 	const char header[] = "UNIHEADINGA";
 
-	if (strncmp(header, _buffer, strlen(header)) != 0) {
-		return false;
-	}
-
-	return true;
+	return strncmp(header, _buffer, strlen(header)) == 0;
 }
 
 bool UnicoreParser::extractHeading()
@@ -142,6 +138,10 @@ bool UnicoreParser::extractHeading()
 	while (ptr != NULL) {
 		ptr = strtok(NULL, ",");
 
+		if (ptr == NULL) {
+			return false;
+		}
+
 		if (i == 1) {
 			_heading.baseline_m = strtof(ptr, NULL);
 
@@ -150,10 +150,11 @@ bool UnicoreParser::extractHeading()
 
 		} else if (i == 5) {
 			_heading.heading_stddev_deg = strtof(ptr, NULL);
+			return true;
 		}
 
 		++i;
 	}
 
-	return true;
+	return false;
 }
