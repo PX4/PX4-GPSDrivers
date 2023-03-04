@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (c) 2012-2015 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2012-2023 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -496,6 +496,10 @@ int GPSDriverUBX::configureDevicePreV27(const GNSSSystemsMask &gnssSystems)
 		if (!configureMessageRateAndAck(UBX_MSG_NAV_VELNED, 1, true)) {
 			return -1;
 		}
+	}
+
+	if (!configureMessageRateAndAck(UBX_MSG_NAV_STATUS, 1, true)) {
+		return -1;
 	}
 
 	if (!configureMessageRateAndAck(UBX_MSG_NAV_DOP, 1, true)) {
@@ -1282,6 +1286,19 @@ GPSDriverUBX::payloadRxInit()
 
 		break;
 
+	case UBX_MSG_NAV_STATUS:
+		if (_rx_payload_length != sizeof(ubx_payload_rx_nav_status_t)) {
+			_rx_state = UBX_RXMSG_ERROR_LENGTH;
+
+		} else if (!_configured) {
+			_rx_state = UBX_RXMSG_IGNORE;        // ignore if not _configured
+
+		} else if (_use_nav_pvt) {
+			_rx_state = UBX_RXMSG_DISABLE;        // disable if using NAV-PVT instead
+		}
+
+		break;
+
 	case UBX_MSG_NAV_DOP:
 		if (_rx_payload_length != sizeof(ubx_payload_rx_nav_dop_t)) {
 			_rx_state = UBX_RXMSG_ERROR_LENGTH;
@@ -1918,6 +1935,15 @@ GPSDriverUBX::payloadRxDone()
 		_gps_position->fix_type		= _buf.payload_rx_nav_sol.gpsFix;
 		_gps_position->s_variance_m_s	= static_cast<float>(_buf.payload_rx_nav_sol.sAcc) * 1e-2f;	// from cm to m
 		_gps_position->satellites_used	= _buf.payload_rx_nav_sol.numSV;
+
+		ret = 1;
+		break;
+
+	case UBX_MSG_NAV_STATUS:
+		UBX_TRACE_RXMSG("Rx NAV-STATUS");
+
+		_gps_position->spoofing_state = (_buf.payload_rx_nav_status.flags2 & UBX_RX_NAV_STATUS_SPOOFDETSTATE_MASK) >>
+						UBX_RX_NAV_STATUS_SPOOFDETSTATE_SHIFT;
 
 		ret = 1;
 		break;
