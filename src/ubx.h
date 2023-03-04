@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (c) 2012-2018 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2012-2023 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -85,6 +85,7 @@
 #define UBX_ID_NAV_TIMEUTC    0x21
 #define UBX_ID_NAV_SVINFO     0x30
 #define UBX_ID_NAV_SAT        0x35
+#define UBX_ID_NAV_STATUS     0x03
 #define UBX_ID_NAV_SVIN       0x3B
 #define UBX_ID_NAV_RELPOSNED  0x3C
 #define UBX_ID_RXM_SFRBX      0x13
@@ -136,6 +137,7 @@
 #define UBX_MSG_NAV_TIMEUTC   ((UBX_CLASS_NAV) | UBX_ID_NAV_TIMEUTC << 8)
 #define UBX_MSG_NAV_SVINFO    ((UBX_CLASS_NAV) | UBX_ID_NAV_SVINFO << 8)
 #define UBX_MSG_NAV_SAT       ((UBX_CLASS_NAV) | UBX_ID_NAV_SAT << 8)
+#define UBX_MSG_NAV_STATUS    ((UBX_CLASS_NAV) | UBX_ID_NAV_STATUS << 8)
 #define UBX_MSG_NAV_SVIN      ((UBX_CLASS_NAV) | UBX_ID_NAV_SVIN << 8)
 #define UBX_MSG_NAV_RELPOSNED ((UBX_CLASS_NAV) | UBX_ID_NAV_RELPOSNED << 8)
 #define UBX_MSG_RXM_SFRBX     ((UBX_CLASS_RXM) | UBX_ID_RXM_SFRBX << 8)
@@ -172,6 +174,11 @@
 #define UBX_MSG_RTCM3_1127    ((UBX_CLASS_RTCM3) | UBX_ID_RTCM3_1127 << 8)
 #define UBX_MSG_RTCM3_1230    ((UBX_CLASS_RTCM3) | UBX_ID_RTCM3_1230 << 8)
 #define UBX_MSG_RTCM3_4072    ((UBX_CLASS_RTCM3) | UBX_ID_RTCM3_4072 << 8)
+
+/* RX NAV_STATUS message content details */
+/*   Bitfield "flags" masks */
+#define UBX_RX_NAV_STATUS_SPOOFDETSTATE_MASK    0b00011000 /**< spoofDetState (Spoofing detection state) */
+#define UBX_RX_NAV_STATUS_SPOOFDETSTATE_SHIFT   3
 
 /* RX NAV-PVT message content details */
 /*   Bitfield "valid" masks */
@@ -560,6 +567,17 @@ typedef struct {
 	uint32_t flags;
 } ubx_payload_rx_nav_sat_part2_t;
 
+/* Rx NAV-STATUS */
+typedef struct {
+	uint32_t iTOW;           /**< GPS Time of Week [ms] */
+	uint8_t  gpsFix;         /**< GPSfix Type, range 0..5 */
+	uint8_t  flags;          /**< Fix Status Flags */
+	uint8_t  fixStat;        /**< Fix Status Information */
+	uint8_t  flags2;         /**< Additional Flags */
+	uint32_t ttff;           /**< Time to first fix [ms] */
+	uint32_t msss;           /**< Milliseconds since startup/reset */
+} ubx_payload_rx_nav_status_t;
+
 /* Rx NAV-SVIN (survey-in info) */
 typedef struct {
 	uint8_t  version;
@@ -849,6 +867,7 @@ typedef union {
 	ubx_payload_rx_nav_svinfo_part2_t payload_rx_nav_svinfo_part2;
 	ubx_payload_rx_nav_sat_part1_t    payload_rx_nav_sat_part1;
 	ubx_payload_rx_nav_sat_part2_t    payload_rx_nav_sat_part2;
+	ubx_payload_rx_nav_status_t       payload_rx_nav_status;
 	ubx_payload_rx_nav_svin_t         payload_rx_nav_svin;
 	ubx_payload_rx_nav_velned_t       payload_rx_nav_velned;
 	ubx_payload_rx_mon_hw_ubx6_t      payload_rx_mon_hw_ubx6;
