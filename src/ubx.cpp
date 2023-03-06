@@ -643,6 +643,7 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 	_use_nav_pvt = true;
 	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_DOP_I2C, 1, cfg_valset_msg_size);
 	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_SAT_I2C, (_satellite_info != nullptr) ? 10 : 0, cfg_valset_msg_size);
+	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_STATUS_I2C, 1, cfg_valset_msg_size);
 	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_MON_RF_I2C, 1, cfg_valset_msg_size);
 
 	if (!sendMessage(UBX_MSG_CFG_VALSET, (uint8_t *)&_buf, cfg_valset_msg_size)) {
@@ -1293,8 +1294,6 @@ GPSDriverUBX::payloadRxInit()
 		} else if (!_configured) {
 			_rx_state = UBX_RXMSG_IGNORE;        // ignore if not _configured
 
-		} else if (_use_nav_pvt) {
-			_rx_state = UBX_RXMSG_DISABLE;        // disable if using NAV-PVT instead
 		}
 
 		break;
