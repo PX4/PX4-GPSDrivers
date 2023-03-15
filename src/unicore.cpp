@@ -109,7 +109,7 @@ void UnicoreParser::reset()
 bool UnicoreParser::crcCorrect() const
 {
 	const uint32_t crc_calculated = calculateCRC32(_buffer_pos, (uint8_t *)_buffer, 0);
-	const uint32_t crc_parsed = (uint32_t)strtoul(_buffer_crc, NULL, 16);
+	const uint32_t crc_parsed = (uint32_t)strtoul(_buffer_crc, nullptr, 16);
 	return (crc_calculated == crc_parsed);
 }
 
@@ -127,7 +127,7 @@ bool UnicoreParser::extractHeading()
 	// Skip to ;
 	char *ptr = strchr(_buffer, ';');
 
-	if (ptr == NULL) {
+	if (ptr == nullptr) {
 		return false;
 	}
 
@@ -135,21 +135,21 @@ bool UnicoreParser::extractHeading()
 
 	unsigned i = 0;
 
-	while (ptr != NULL) {
-		ptr = strtok(NULL, ",");
+	while (ptr != nullptr) {
+		ptr = strtok(nullptr, ",");
 
-		if (ptr == NULL) {
+		if (ptr == nullptr) {
 			return false;
 		}
 
 		if (i == 1) {
-			_heading.baseline_m = strtof(ptr, NULL);
+			_heading.baseline_m = strtof(ptr, nullptr);
 
 		} else if (i == 2) {
-			_heading.heading_deg = strtof(ptr, NULL);
+			_heading.heading_deg = strtof(ptr, nullptr);
 
 		} else if (i == 5) {
-			_heading.heading_stddev_deg = strtof(ptr, NULL);
+			_heading.heading_stddev_deg = strtof(ptr, nullptr);
 			return true;
 		}
 
