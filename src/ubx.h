@@ -960,6 +960,7 @@ public:
 		u_blox8 = 8, ///< M8N or M8P
 		u_blox9 = 9, ///< M9N, or any F9*, except F9P
 		u_blox9_F9P = 10, ///< F9P
+		u_blox10 = 11,
 	};
 
 	const Board &board() const { return _board; }
