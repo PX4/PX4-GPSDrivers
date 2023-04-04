@@ -856,7 +856,7 @@ bool GPSDriverUBX::cfgValsetPort(uint32_t key_id, uint8_t value, int &msg_size)
 			return false;
 		}
 
-		// M10 has no UART2
+		// M10 has no USB
 		if (_board != Board::u_blox10) {
 			if (!cfgValset<uint8_t>(key_id + 3, value, msg_size)) {
 				return false;
