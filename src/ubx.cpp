@@ -145,6 +145,8 @@ GPSDriverUBX::configure(unsigned &baudrate, const GPSConfig &config)
 			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1OUTPROT_NMEA, 0, cfg_valset_msg_size);
 			// TODO: are we ever connected to UART2?
 
+			// Note: USB protocol settings are handled later in the configureDevice function.
+
 			bool cfg_valset_success = false;
 
 			if (sendMessage(UBX_MSG_CFG_VALSET, (uint8_t *)&_buf, cfg_valset_msg_size)) {
