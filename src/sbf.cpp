@@ -459,8 +459,10 @@ uint16_t crc16(const uint8_t *data_p, uint32_t length)
 int GPSDriverSBF::payloadRxDone()
 {
 	int ret = 0;
+#ifndef NO_MKTIME
 	struct tm timeinfo;
 	time_t epoch;
+#endif
 
 	if (_buf.length <= 4 ||
 	    _buf.length > _rx_payload_index ||
@@ -501,7 +503,8 @@ int GPSDriverSBF::payloadRxDone()
 
 		// Check boundaries and invalidate position
 		// We're not just checking for the do-not-use value (-2*10^10) but for any value beyond the specified max values
-		if (fabs(_buf.payload_pvt_geodetic.latitude) > M_PI_2 || fabs(_buf.payload_pvt_geodetic.longitude) > M_PI ||
+		if (fabs(_buf.payload_pvt_geodetic.latitude) > (double) M_PI_2_F ||
+		    fabs(_buf.payload_pvt_geodetic.longitude) > (double) M_PI_F ||
 		    fabs(_buf.payload_pvt_geodetic.height) > DNU ||
 		    fabsf(_buf.payload_pvt_geodetic.undulation) > (float) DNU) {
 			_gps_position->fix_type = 0;
