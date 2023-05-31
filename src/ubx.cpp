@@ -721,6 +721,8 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 		// heading output period 1 second
 		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_UBX_NAV_RELPOSNED_UART1, 1, cfg_valset_msg_size);
 		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_UBX_NAV_RELPOSNED_USB, 1, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_UBX_NAV_HPPOSLLH_UART1, 1, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_UBX_NAV_HPPOSLLH_USB, 1, cfg_valset_msg_size);
 		// enable RTCM input on uart2 + set baudrate
 		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2_STOPBITS, 1, cfg_valset_msg_size);
 		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2_DATABITS, 0, cfg_valset_msg_size);
@@ -781,6 +783,8 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1OUTPROT_RTCM3X, 0, cfg_valset_msg_size);
 		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_UBX_NAV_RELPOSNED_UART1, 1, cfg_valset_msg_size);
 		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_UBX_NAV_RELPOSNED_USB, 1, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_UBX_NAV_HPPOSLLH_UART1, 1, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_UBX_NAV_HPPOSLLH_USB, 1, cfg_valset_msg_size);
 
 		if (!sendMessage(UBX_MSG_CFG_VALSET, (uint8_t *)&_buf, cfg_valset_msg_size)) {
 			return -1;
@@ -802,6 +806,8 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 
 		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_UBX_NAV_RELPOSNED_UART1, 0, cfg_valset_msg_size);
 		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_UBX_NAV_RELPOSNED_UART2, 0, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_UBX_NAV_HPPOSLLH_UART1, 0, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_UBX_NAV_HPPOSLLH_UART2, 0, cfg_valset_msg_size);
 
 		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE4072_0_UART1, 1, cfg_valset_msg_size);
 		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1230_UART1, 1, cfg_valset_msg_size);
@@ -1064,21 +1070,23 @@ GPSDriverUBX::receive(unsigned timeout)
 	int handled = 0;
 
 	while (true) {
-		bool ready_to_return = _configured ? (_got_posllh && _got_velned) : handled;
+		bool ready_to_return = _configured ? ((_got_posllh || _got_hpposllh) && _got_velned) : handled;
 
 		/* return success if ready */
 		if (ready_to_return) {
 			_got_posllh = false;
+			_got_hpposllh = false;
 			_got_velned = false;
 			return handled;
 		}
 
 		/* Wait for only UBX_PACKET_TIMEOUT if something already received. */
-		int ret = read(buf, sizeof(buf), (_got_posllh || _got_velned) ? UBX_PACKET_TIMEOUT : timeout);
+		int ret = read(buf, sizeof(buf), (_got_posllh || _got_hpposllh || _got_velned) ? UBX_PACKET_TIMEOUT : timeout);
 
 		if (ret < 0) {
 			/* something went wrong when polling or reading */
 			UBX_WARN("ubx poll_or_read err");
+			PX4_WARN("ubx poll_or_read err");
 			return -1;
 
 		} else if (ret > 0) {
@@ -1094,6 +1102,7 @@ GPSDriverUBX::receive(unsigned timeout)
 				if (buf[ret - 1] == 0xff) {
 					if (ready_to_return) {
 						_got_posllh = false;
+						_got_hpposllh = false;
 						_got_velned = false;
 						return handled;
 					}
@@ -1962,6 +1971,26 @@ GPSDriverUBX::payloadRxDone()
 
 		_rate_count_lat_lon++;
 		_got_posllh = true;
+
+		ret = 1;
+		break;
+
+	case UBX_MSG_NAV_HPPOSLLH:
+		PX4_WARN("Rx NAV-HPPOSLLH");
+		UBX_TRACE_RXMSG("Rx NAV-HPPOSLLH");
+
+		_gps_position->lat	= _buf.payload_rx_nav_hpposllh.lat;
+		_gps_position->lon	= _buf.payload_rx_nav_hpposllh.lon;
+		_gps_position->alt	= _buf.payload_rx_nav_hpposllh.hMSL;
+		_gps_position->eph	= static_cast<float>(_buf.payload_rx_nav_hpposllh.hAcc) * 1e-3f; // from mm to m
+		_gps_position->epv	= static_cast<float>(_buf.payload_rx_nav_hpposllh.vAcc) * 1e-3f; // from mm to m
+		//_gps_position->alt_ellipsoid = _buf.payload_rx_nav_hpposllh.height;
+		_gps_position->alt_ellipsoid = (_buf.payload_rx_nav_hpposllh.latHp << 16) + _buf.payload_rx_nav_hpposllh.lonHp;	// hide high precision components here
+
+		_gps_position->timestamp = gps_absolute_time();
+
+		_rate_count_lat_lon++;
+		_got_hpposllh = true;
 
 		ret = 1;
 		break;

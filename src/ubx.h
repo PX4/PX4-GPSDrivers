@@ -82,6 +82,7 @@
 #define UBX_ID_NAV_SOL        0x06
 #define UBX_ID_NAV_PVT        0x07
 #define UBX_ID_NAV_VELNED     0x12
+#define UBX_ID_NAV_HPPOSLLH   0x14
 #define UBX_ID_NAV_TIMEUTC    0x21
 #define UBX_ID_NAV_SVINFO     0x30
 #define UBX_ID_NAV_SAT        0x35
@@ -134,6 +135,7 @@
 #define UBX_MSG_NAV_DOP       ((UBX_CLASS_NAV) | UBX_ID_NAV_DOP << 8)
 #define UBX_MSG_NAV_PVT       ((UBX_CLASS_NAV) | UBX_ID_NAV_PVT << 8)
 #define UBX_MSG_NAV_VELNED    ((UBX_CLASS_NAV) | UBX_ID_NAV_VELNED << 8)
+#define UBX_MSG_NAV_HPPOSLLH  ((UBX_CLASS_NAV) | UBX_ID_NAV_HPPOSLLH << 8)
 #define UBX_MSG_NAV_TIMEUTC   ((UBX_CLASS_NAV) | UBX_ID_NAV_TIMEUTC << 8)
 #define UBX_MSG_NAV_SVINFO    ((UBX_CLASS_NAV) | UBX_ID_NAV_SVINFO << 8)
 #define UBX_MSG_NAV_SAT       ((UBX_CLASS_NAV) | UBX_ID_NAV_SAT << 8)
@@ -361,6 +363,10 @@
 #define UBX_CFG_KEY_MSGOUT_UBX_NAV_RELPOSNED_UART1 0x2091008e
 #define UBX_CFG_KEY_MSGOUT_UBX_NAV_RELPOSNED_UART2 0x2091008f
 #define UBX_CFG_KEY_MSGOUT_UBX_NAV_RELPOSNED_USB   0x20910090
+
+#define UBX_CFG_KEY_MSGOUT_UBX_NAV_HPPOSLLH_UART1 0x20910034
+#define UBX_CFG_KEY_MSGOUT_UBX_NAV_HPPOSLLH_UART2 0x20910035
+#define UBX_CFG_KEY_MSGOUT_UBX_NAV_HPPOSLLH_USB   0x20910036
 
 #define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE4072_0_UART1  0x209102ff
 #define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE4072_1_UART1  0x20910382
@@ -858,10 +864,29 @@ typedef struct {
 	uint32_t    flags;
 } ubx_payload_rx_nav_relposned_t;
 
+/* NAV HPPOSLLH (protocol version 27+) */
+typedef struct {
+	uint8_t     version;         /**< message version (expected 0x00) */
+	uint8_t     reserved1[2];
+	int8_t      flags;           /**<  invalidLlh: 1 = Invalid lon, lat, height, hMSL, lonHp, latHp, heightHp and hMSLHp */
+	uint32_t    iTOW;            /**<  [ms] GPS time of week of the navigation epoch */
+	int32_t     lon;             /**<  [1e-7 deg] Longitude */
+	int32_t     lat;             /**<  [1e-7 deg] Latitude */
+	int32_t     height;          /**<  [mm] Height above Ellipsoid */
+	int32_t     hMSL;            /**<  [mm] Height above mean sea level */
+	int8_t      lonHp;           /**<  [1e-9 deg] Longitude high precision component, -99 to +99 */
+	int8_t      latHp;           /**<  [1e-9 deg] Latitude high precision component, -99 to +99 */
+	int8_t      heightHp;        /**<  [0.1 mm] high precision component of height above Ellipsoid, -9 to +9 */
+	int8_t      hMSLHp;          /**<  [0.1 mm] high precision component of height above mean sea level, -9 to +9 */
+	uint32_t    hAcc;            /**<  [0.1 mm] Horizontal Accuracy Estimate */
+	uint32_t    vAcc;            /**<  [0.1 mm] Vertical Accuracy Estimate */
+} ubx_payload_rx_nav_hpposllh_t;
+
 /* General message and payload buffer union */
 typedef union {
 	ubx_payload_rx_nav_pvt_t          payload_rx_nav_pvt;
 	ubx_payload_rx_nav_posllh_t       payload_rx_nav_posllh;
+	ubx_payload_rx_nav_hpposllh_t     payload_rx_nav_hpposllh;
 	ubx_payload_rx_nav_sol_t          payload_rx_nav_sol;
 	ubx_payload_rx_nav_dop_t          payload_rx_nav_dop;
 	ubx_payload_rx_nav_timeutc_t      payload_rx_nav_timeutc;
@@ -1107,6 +1132,7 @@ private:
 
 	bool _configured{false};
 	bool _got_posllh{false};
+	bool _got_hpposllh{false};
 	bool _got_velned{false};
 	bool _proto_ver_27_or_higher{false}; ///< true if protocol version 27 or higher detected
 	bool _use_nav_pvt{false};
