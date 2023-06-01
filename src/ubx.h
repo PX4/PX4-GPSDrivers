@@ -1132,7 +1132,6 @@ private:
 
 	bool _configured{false};
 	bool _got_posllh{false};
-	bool _got_hpposllh{false};
 	bool _got_velned{false};
 	bool _proto_ver_27_or_higher{false}; ///< true if protocol version 27 or higher detected
 	bool _use_nav_pvt{false};
