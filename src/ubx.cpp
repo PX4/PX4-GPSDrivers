@@ -1962,8 +1962,8 @@ GPSDriverUBX::payloadRxDone()
 		_rate_count_vel++;
 		_rate_count_lat_lon++;
 
-		_got_velned = true;
 		_got_posllh = true;
+		_got_velned = true;
 		ret = 1;
 
 		break;
