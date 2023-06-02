@@ -1964,8 +1964,8 @@ GPSDriverUBX::payloadRxDone()
 
 		_got_posllh = true;
 		_got_velned = true;
-		ret = 1;
 
+		ret = 1;
 		break;
 
 	case UBX_MSG_INF_DEBUG:
