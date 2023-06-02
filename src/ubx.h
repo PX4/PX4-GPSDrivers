@@ -91,6 +91,7 @@
 #define UBX_ID_NAV_RELPOSNED  0x3C
 #define UBX_ID_RXM_SFRBX      0x13
 #define UBX_ID_RXM_RAWX       0x15
+#define UBX_ID_RXM_RTCM	      0x32
 #define UBX_ID_INF_DEBUG      0x04
 #define UBX_ID_INF_ERROR      0x00
 #define UBX_ID_INF_NOTICE     0x02
@@ -144,6 +145,7 @@
 #define UBX_MSG_NAV_RELPOSNED ((UBX_CLASS_NAV) | UBX_ID_NAV_RELPOSNED << 8)
 #define UBX_MSG_RXM_SFRBX     ((UBX_CLASS_RXM) | UBX_ID_RXM_SFRBX << 8)
 #define UBX_MSG_RXM_RAWX      ((UBX_CLASS_RXM) | UBX_ID_RXM_RAWX << 8)
+#define UBX_MSG_RXM_RTCM      ((UBX_CLASS_RXM) | UBX_ID_RXM_RTCM << 8)
 #define UBX_MSG_INF_DEBUG     ((UBX_CLASS_INF) | UBX_ID_INF_DEBUG << 8)
 #define UBX_MSG_INF_ERROR     ((UBX_CLASS_INF) | UBX_ID_INF_ERROR << 8)
 #define UBX_MSG_INF_NOTICE    ((UBX_CLASS_INF) | UBX_ID_INF_NOTICE << 8)
@@ -201,6 +203,12 @@
 #define UBX_RX_NAV_TIMEUTC_VALID_VALIDKWN       0x02    /**< validWKN (1 = Valid Week Number) */
 #define UBX_RX_NAV_TIMEUTC_VALID_VALIDUTC       0x04    /**< validUTC (1 = Valid UTC Time) */
 #define UBX_RX_NAV_TIMEUTC_VALID_UTCSTANDARD    0xF0    /**< utcStandard (0..15 = UTC standard identifier) */
+
+/* RX RXM-RTCM message content details */
+/*   Bitfield "flags" masks */
+#define UBX_RX_RXM_RTCM_CRCFAILED_MASK          0b00000001 /**< crcFailed (0 = RTCM received and passed crc, 1 = failed)*/
+#define UBX_RX_RXM_RTCM_MSGUSED_MASK            0b00000110 /**< msgUsed (0 = do not know, 1 = not used, 2 = RTCM message used successfully)*/
+#define UBX_RX_RXM_RTCM_MSGUSED_SHIFT           1
 
 /* TX CFG-PRT message contents
  * Note: not used with protocol version 27+ anymore
@@ -353,6 +361,7 @@
 #define UBX_CFG_KEY_MSGOUT_UBX_NAV_RELPOSNED_I2C 0x2091008d
 #define UBX_CFG_KEY_MSGOUT_UBX_RXM_SFRBX_I2C     0x20910231
 #define UBX_CFG_KEY_MSGOUT_UBX_RXM_RAWX_I2C      0x209102a4
+#define UBX_CFG_KEY_MSGOUT_UBX_RXM_RTCM_I2C      0x20910268
 #define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1005_I2C  0x209102bd
 #define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1077_I2C  0x209102cc
 #define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1087_I2C  0x209102d1
@@ -698,6 +707,14 @@ typedef struct {
 	uint8_t extension[30];
 } ubx_payload_rx_mon_ver_part2_t;
 
+/* Rx RXM-RTCM */
+typedef struct {
+	uint8_t  version;
+	uint8_t  flags;
+	uint16_t subType;
+	uint16_t refStationID;
+} ubx_payload_rx_rxm_rtcm_t;
+
 /* Rx ACK-ACK */
 typedef union {
 	uint16_t msg;
@@ -902,6 +919,7 @@ typedef union {
 	ubx_payload_rx_mon_rf_t           payload_rx_mon_rf;
 	ubx_payload_rx_mon_ver_part1_t    payload_rx_mon_ver_part1;
 	ubx_payload_rx_mon_ver_part2_t    payload_rx_mon_ver_part2;
+	ubx_payload_rx_rxm_rtcm_t	  payload_rx_rxm_rtcm;
 	ubx_payload_rx_ack_ack_t          payload_rx_ack_ack;
 	ubx_payload_rx_ack_nak_t          payload_rx_ack_nak;
 	ubx_payload_tx_cfg_prt_t          payload_tx_cfg_prt;
