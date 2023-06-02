@@ -1087,7 +1087,6 @@ GPSDriverUBX::receive(unsigned timeout)
 		if (ret < 0) {
 			/* something went wrong when polling or reading */
 			UBX_WARN("ubx poll_or_read err");
-			PX4_WARN("ubx poll_or_read err");
 			return -1;
 
 		} else if (ret > 0) {
@@ -1364,17 +1363,13 @@ GPSDriverUBX::payloadRxInit()
 		break;
 
 	case UBX_MSG_NAV_HPPOSLLH:
-		//PX4_WARN("case UBX_MSG_NAV_HPPOSLLH");
 		if (_rx_payload_length != sizeof(ubx_payload_rx_nav_hpposllh_t)) {
-			PX4_WARN("case UBX_MSG_NAV_HPPOSLLH - wrong length");
 			_rx_state = UBX_RXMSG_ERROR_LENGTH;
 
 		} else if (!_configured) {
-			PX4_WARN("case UBX_MSG_NAV_HPPOSLLH - ignore if not _configured");
 			_rx_state = UBX_RXMSG_IGNORE;        // ignore if not _configured
 
 		}
-		//PX4_WARN("OK: case UBX_MSG_NAV_HPPOSLLH");
 
 		break;
 
@@ -1488,7 +1483,6 @@ GPSDriverUBX::payloadRxInit()
 
 	case UBX_RXMSG_DISABLE:	// disable unexpected messages
 		UBX_DEBUG("ubx msg 0x%04x len %u unexpected", SWAP16((unsigned)_rx_msg), (unsigned)_rx_payload_length);
-		PX4_WARN("ubx msg 0x%04x len %u unexpected", SWAP16((unsigned)_rx_msg), (unsigned)_rx_payload_length);
 
 		if (_proto_ver_27_or_higher) {
 			uint32_t key_id = 0;
@@ -1535,13 +1529,11 @@ GPSDriverUBX::payloadRxInit()
 
 	case UBX_RXMSG_ERROR_LENGTH:	// error: invalid length
 		UBX_WARN("ubx msg 0x%04x invalid len %u", SWAP16((unsigned)_rx_msg), (unsigned)_rx_payload_length);
-		PX4_WARN("ubx msg 0x%04x invalid len %u", SWAP16((unsigned)_rx_msg), (unsigned)_rx_payload_length);
 		ret = -1;	// return error, abort handling this message
 		break;
 
 	default:	// invalid message state
 		UBX_WARN("ubx internal err1");
-		PX4_WARN("ubx internal err1");
 		ret = -1;	// return error, abort handling this message
 		break;
 	}
@@ -2001,20 +1993,20 @@ GPSDriverUBX::payloadRxDone()
 
 		if(_buf.payload_rx_nav_hpposllh.flags == 0 && _gps_position->fix_type == 6)
 		{
-			_gps_position->lat	= _buf.payload_rx_nav_hpposllh.lat;  // regular precision components
+			_gps_position->lat	= _buf.payload_rx_nav_hpposllh.lat;  // regular precision lat/lon (1e-7f)
 			_gps_position->lon	= _buf.payload_rx_nav_hpposllh.lon;
 
-			_gps_position->lat_hp = _buf.payload_rx_nav_hpposllh.latHp;	// high precision components
+			_gps_position->lat_hp = _buf.payload_rx_nav_hpposllh.latHp;	// high precision lat/lon components (1e-9f)
 			_gps_position->lon_hp = _buf.payload_rx_nav_hpposllh.lonHp;
 
-			_gps_position->alt = _buf.payload_rx_nav_hpposllh.hMSL;
+			_gps_position->alt = _buf.payload_rx_nav_hpposllh.hMSL;			// regular precision altitude, mm
 			_gps_position->alt_ellipsoid = _buf.payload_rx_nav_hpposllh.height;
 
-			_gps_position->alt_hp = _buf.payload_rx_nav_hpposllh.hMSLHp;	// high precision components of altitude
+			_gps_position->alt_hp = _buf.payload_rx_nav_hpposllh.hMSLHp;	// high precision components of altitude, 0.1 mm
 			_gps_position->alt_ellipsoid_hp = _buf.payload_rx_nav_hpposllh.heightHp;
 
-			_gps_position->eph	= static_cast<float>(_buf.payload_rx_nav_hpposllh.hAcc) * 1e-4f; // from 0.1 mm to m
-			_gps_position->epv	= static_cast<float>(_buf.payload_rx_nav_hpposllh.vAcc) * 1e-4f; // from 0.1 mm to m
+			_gps_position->eph	= static_cast<float>(_buf.payload_rx_nav_hpposllh.hAcc) * 1e-4f; // Accuracy estimates, convert from 0.1 mm to m
+			_gps_position->epv	= static_cast<float>(_buf.payload_rx_nav_hpposllh.vAcc) * 1e-4f;
 
 			_gps_position->timestamp = gps_absolute_time();
 
@@ -2022,10 +2014,6 @@ GPSDriverUBX::payloadRxDone()
 			_got_posllh = true;
 
 			ret = 1;
-
-			//PX4_WARN("HPPOSLLH: alt_el: 0x%08x (%d) h: %d eph: %f epv: %f hAcc: %d vAcc: %d",
-			//		 _gps_position->alt_ellipsoid, _gps_position->alt_ellipsoid, _buf.payload_rx_nav_hpposllh.height, (double)_gps_position->eph, (double)_gps_position->epv,
-			//		 _buf.payload_rx_nav_hpposllh.hAcc, _buf.payload_rx_nav_hpposllh.vAcc);
 		}
 		break;
 
