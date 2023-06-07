@@ -1413,8 +1413,9 @@ GPSDriverUBX::payloadRxInit()
 		break;		// unconditionally handle this message
 
 	case UBX_MSG_MON_HW:
-		if ((_rx_payload_length != sizeof(ubx_payload_rx_mon_hw_ubx6_t))	/* u-blox 6 msg format */
-		    && (_rx_payload_length != sizeof(ubx_payload_rx_mon_hw_ubx7_t))) {	/* u-blox 7+ msg format */
+		if ((_rx_payload_length != sizeof(ubx_payload_rx_mon_hw_ubx6_t))
+		    && (_rx_payload_length != sizeof(ubx_payload_rx_mon_hw_ubx7_t))
+		    && (_rx_payload_length != sizeof(ubx_payload_rx_mon_hw_deprecated_t))) {
 			_rx_state = UBX_RXMSG_ERROR_LENGTH;
 
 		} else if (!_configured) {
@@ -2216,6 +2217,10 @@ GPSDriverUBX::payloadRxDone()
 			_gps_position->jamming_indicator	= _buf.payload_rx_mon_hw_ubx7.jamInd;
 
 			ret = 1;
+			break;
+
+		case sizeof(ubx_payload_rx_mon_hw_deprecated_t):	/* u-blox 27+ deprecated, ignore */
+			ret = 0;
 			break;
 
 		default:		// unexpected payload size:
