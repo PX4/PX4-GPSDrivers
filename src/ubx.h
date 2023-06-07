@@ -635,6 +635,10 @@ typedef struct {
 	uint32_t pullL;
 } ubx_payload_rx_mon_hw_ubx7_t;
 
+typedef struct {
+	uint8_t reserved0[56];
+} ubx_payload_rx_mon_hw_deprecated_t;
+
 /* Rx MON-RF (replaces MON-HW, protocol 27+) */
 typedef struct {
 	uint8_t version;
@@ -853,6 +857,7 @@ typedef union {
 	ubx_payload_rx_nav_velned_t       payload_rx_nav_velned;
 	ubx_payload_rx_mon_hw_ubx6_t      payload_rx_mon_hw_ubx6;
 	ubx_payload_rx_mon_hw_ubx7_t      payload_rx_mon_hw_ubx7;
+	ubx_payload_rx_mon_hw_deprecated_t ubx_payload_rx_mon_hw_deprecated;
 	ubx_payload_rx_mon_rf_t           payload_rx_mon_rf;
 	ubx_payload_rx_mon_ver_part1_t    payload_rx_mon_ver_part1;
 	ubx_payload_rx_mon_ver_part2_t    payload_rx_mon_ver_part2;
