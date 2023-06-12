@@ -1510,6 +1510,10 @@ GPSDriverUBX::payloadRxInit()
 			case UBX_MSG_RXM_SFRBX:
 				key_id = UBX_CFG_KEY_MSGOUT_UBX_RXM_SFRBX_I2C;
 				break;
+
+			case UBX_MSG_NAV_TIMEGPS:
+				key_id = UBX_CFG_KEY_MSGOUT_UBX_NAV_TIMEGPS_I2C;
+				break;
 			}
 
 			if (key_id != 0) {

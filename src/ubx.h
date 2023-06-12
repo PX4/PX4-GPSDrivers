@@ -82,6 +82,7 @@
 #define UBX_ID_NAV_SOL        0x06
 #define UBX_ID_NAV_PVT        0x07
 #define UBX_ID_NAV_VELNED     0x12
+#define UBX_ID_NAV_TIMEGPS    0x20
 #define UBX_ID_NAV_HPPOSLLH   0x14
 #define UBX_ID_NAV_TIMEUTC    0x21
 #define UBX_ID_NAV_SVINFO     0x30
@@ -138,6 +139,7 @@
 #define UBX_MSG_NAV_VELNED    ((UBX_CLASS_NAV) | UBX_ID_NAV_VELNED << 8)
 #define UBX_MSG_NAV_HPPOSLLH  ((UBX_CLASS_NAV) | UBX_ID_NAV_HPPOSLLH << 8)
 #define UBX_MSG_NAV_TIMEUTC   ((UBX_CLASS_NAV) | UBX_ID_NAV_TIMEUTC << 8)
+#define UBX_MSG_NAV_TIMEGPS   ((UBX_CLASS_NAV) | UBX_ID_NAV_TIMEGPS << 8)
 #define UBX_MSG_NAV_SVINFO    ((UBX_CLASS_NAV) | UBX_ID_NAV_SVINFO << 8)
 #define UBX_MSG_NAV_SAT       ((UBX_CLASS_NAV) | UBX_ID_NAV_SAT << 8)
 #define UBX_MSG_NAV_STATUS    ((UBX_CLASS_NAV) | UBX_ID_NAV_STATUS << 8)
@@ -368,6 +370,7 @@
 #define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1097_I2C  0x20910318
 #define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1127_I2C  0x209102d6
 #define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1230_I2C  0x20910303
+#define UBX_CFG_KEY_MSGOUT_UBX_NAV_TIMEGPS_I2C   0x20910047
 
 #define UBX_CFG_KEY_MSGOUT_UBX_NAV_RELPOSNED_UART1 0x2091008e
 #define UBX_CFG_KEY_MSGOUT_UBX_NAV_RELPOSNED_UART2 0x2091008f
@@ -924,7 +927,7 @@ typedef union {
 	ubx_payload_rx_mon_rf_t           payload_rx_mon_rf;
 	ubx_payload_rx_mon_ver_part1_t    payload_rx_mon_ver_part1;
 	ubx_payload_rx_mon_ver_part2_t    payload_rx_mon_ver_part2;
-	ubx_payload_rx_rxm_rtcm_t	  payload_rx_rxm_rtcm;
+	ubx_payload_rx_rxm_rtcm_t         payload_rx_rxm_rtcm;
 	ubx_payload_rx_ack_ack_t          payload_rx_ack_ack;
 	ubx_payload_rx_ack_nak_t          payload_rx_ack_nak;
 	ubx_payload_tx_cfg_prt_t          payload_tx_cfg_prt;
