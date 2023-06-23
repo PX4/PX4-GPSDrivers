@@ -266,11 +266,11 @@ int GPSDriverNMEA::handleMessage(int len)
 		}
 
 		/* convert from degrees, minutes and seconds to degrees */
-		_gps_position->lon = static_cast<int>((int(lon * 0.01) + (lon * 0.01 - int(lon * 0.01)) * 100.0 / 60.0) * 10000000);
-		_gps_position->lat = static_cast<int>((int(lat * 0.01) + (lat * 0.01 - int(lat * 0.01)) * 100.0 / 60.0) * 10000000);
+		_gps_position->longitude_deg = int(lon * 0.01) + (lon * 0.01 - int(lon * 0.01)) * 100.0 / 60.0;
+		_gps_position->latitude_deg = int(lat * 0.01) + (lat * 0.01 - int(lat * 0.01)) * 100.0 / 60.0;
 		_gps_position->hdop = hdop;
-		_gps_position->alt = static_cast<int>(alt * 1000);
-		_gps_position->alt_ellipsoid = _gps_position->alt + static_cast<int>(geoid_h * 1000);
+		_gps_position->altitude_msl_m = alt;
+		_gps_position->altitude_ellipsoid_m = alt + geoid_h;
 		_sat_num_gga = static_cast<int>(num_of_sv);
 
 
@@ -392,10 +392,10 @@ int GPSDriverNMEA::handleMessage(int len)
 		}
 
 		/* convert from degrees, minutes and seconds to degrees */
-		_gps_position->lat = static_cast<int>((int(lat * 0.01) + (lat * 0.01 - int(lat * 0.01)) * 100.0 / 60.0) * 10000000);
-		_gps_position->lon = static_cast<int>((int(lon * 0.01) + (lon * 0.01 - int(lon * 0.01)) * 100.0 / 60.0) * 10000000);
+		_gps_position->latitude_deg = int(lat * 0.01) + (lat * 0.01 - int(lat * 0.01)) * 100.0 / 60.0;
+		_gps_position->longitude_deg = int(lon * 0.01) + (lon * 0.01 - int(lon * 0.01)) * 100.0 / 60.0;
 		_gps_position->hdop = hdop;
-		_gps_position->alt = static_cast<int>(alt * 1000);
+		_gps_position->altitude_msl_m = alt;
 		_sat_num_gns = static_cast<int>(num_of_sv);
 
 		if (!_POS_received && (_last_POS_timeUTC < utc_time)) {
@@ -488,8 +488,8 @@ int GPSDriverNMEA::handleMessage(int len)
 		int nmea_mth = static_cast<int>((nmea_date - nmea_day * 10000) / 100);
 		int nmea_year = static_cast<int>(nmea_date - nmea_day * 10000 - nmea_mth * 100);
 		/* convert from degrees, minutes and seconds to degrees */
-		_gps_position->lat = static_cast<int>((int(lat * 0.01) + (lat * 0.01 - int(lat * 0.01)) * 100.0 / 60.0) * 10000000);
-		_gps_position->lon = static_cast<int>((int(lon * 0.01) + (lon * 0.01 - int(lon * 0.01)) * 100.0 / 60.0) * 10000000);
+		_gps_position->latitude_deg = int(lat * 0.01) + (lat * 0.01 - int(lat * 0.01)) * 100.0 / 60.0;
+		_gps_position->longitude_deg = int(lon * 0.01) + (lon * 0.01 - int(lon * 0.01)) * 100.0 / 60.0;
 
 		_gps_position->vel_m_s = velocity_ms;
 		_gps_position->vel_n_m_s = velocity_north;

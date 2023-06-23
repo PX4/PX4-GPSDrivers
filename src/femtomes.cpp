@@ -98,10 +98,10 @@ int GPSDriverFemto::handleMessage(int len)
 		memcpy(&_femto_uav_gps, _femto_msg.data, sizeof(femto_uav_gps_t));
 
 		_gps_position->time_utc_usec = _femto_uav_gps.time_utc_usec;
-		_gps_position->lat = _femto_uav_gps.lat;
-		_gps_position->lon = _femto_uav_gps.lon;
-		_gps_position->alt = _femto_uav_gps.alt;
-		_gps_position->alt_ellipsoid = _femto_uav_gps.alt_ellipsoid;
+		_gps_position->latitude_deg = _femto_uav_gps.lat / 1e7;
+		_gps_position->longitude_deg = _femto_uav_gps.lon / 1e7;
+		_gps_position->altitude_msl_m = _femto_uav_gps.alt / 1e3;
+		_gps_position->altitude_ellipsoid_m = _femto_uav_gps.alt_ellipsoid / 1e3;
 		_gps_position->s_variance_m_s = _femto_uav_gps.s_variance_m_s;
 		_gps_position->c_variance_rad = _femto_uav_gps.c_variance_rad;
 		_gps_position->eph = _femto_uav_gps.eph;

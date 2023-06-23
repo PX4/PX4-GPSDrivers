@@ -725,6 +725,8 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 		// heading output period 1 second
 		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_UBX_NAV_RELPOSNED_UART1, 1, cfg_valset_msg_size);
 		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_UBX_NAV_RELPOSNED_USB, 1, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_UBX_NAV_HPPOSLLH_UART1, 1, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_UBX_NAV_HPPOSLLH_USB, 1, cfg_valset_msg_size);
 		// enable RTCM input on uart2 + set baudrate
 		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2_STOPBITS, 1, cfg_valset_msg_size);
 		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2_DATABITS, 0, cfg_valset_msg_size);
@@ -757,6 +759,7 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2OUTPROT_UBX, 0, cfg_valset_msg_size);
 		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2OUTPROT_RTCM3X, 1, cfg_valset_msg_size);
 		cfgValset<uint32_t>(UBX_CFG_KEY_CFG_UART2_BAUDRATE, uart2_baudrate, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_UBX_NAV_HPPOSLLH_USB, 1, cfg_valset_msg_size);
 
 		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE4072_0_UART2, 1, cfg_valset_msg_size);
 		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1230_UART2, 1, cfg_valset_msg_size);
@@ -785,6 +788,8 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1OUTPROT_RTCM3X, 0, cfg_valset_msg_size);
 		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_UBX_NAV_RELPOSNED_UART1, 1, cfg_valset_msg_size);
 		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_UBX_NAV_RELPOSNED_USB, 1, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_UBX_NAV_HPPOSLLH_UART1, 1, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_UBX_NAV_HPPOSLLH_USB, 1, cfg_valset_msg_size);
 
 		if (!sendMessage(UBX_MSG_CFG_VALSET, (uint8_t *)&_buf, cfg_valset_msg_size)) {
 			return -1;
@@ -806,6 +811,9 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 
 		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_UBX_NAV_RELPOSNED_UART1, 0, cfg_valset_msg_size);
 		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_UBX_NAV_RELPOSNED_UART2, 0, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_UBX_NAV_HPPOSLLH_UART1, 0, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_UBX_NAV_HPPOSLLH_UART2, 0, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_UBX_NAV_HPPOSLLH_USB, 1, cfg_valset_msg_size);
 
 		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE4072_0_UART1, 1, cfg_valset_msg_size);
 		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1230_UART1, 1, cfg_valset_msg_size);
@@ -1358,6 +1366,17 @@ GPSDriverUBX::payloadRxInit()
 
 		break;
 
+	case UBX_MSG_NAV_HPPOSLLH:
+		if (_rx_payload_length != sizeof(ubx_payload_rx_nav_hpposllh_t)) {
+			_rx_state = UBX_RXMSG_ERROR_LENGTH;
+
+		} else if (!_configured) {
+			_rx_state = UBX_RXMSG_IGNORE;        // ignore if not _configured
+
+		}
+
+		break;
+
 	case UBX_MSG_NAV_TIMEUTC:
 		if (_rx_payload_length != sizeof(ubx_payload_rx_nav_timeutc_t)) {
 			_rx_state = UBX_RXMSG_ERROR_LENGTH;
@@ -1413,8 +1432,8 @@ GPSDriverUBX::payloadRxInit()
 		break;		// unconditionally handle this message
 
 	case UBX_MSG_MON_HW:
-		if ((_rx_payload_length != sizeof(ubx_payload_rx_mon_hw_ubx6_t))
-		    && (_rx_payload_length != sizeof(ubx_payload_rx_mon_hw_ubx7_t))
+		if ((_rx_payload_length != sizeof(ubx_payload_rx_mon_hw_ubx6_t))	/* u-blox 6 msg format */
+		    && (_rx_payload_length != sizeof(ubx_payload_rx_mon_hw_ubx7_t))	/* u-blox 7+ msg format */
 		    && (_rx_payload_length != sizeof(ubx_payload_rx_mon_hw_deprecated_t))) {
 			_rx_state = UBX_RXMSG_ERROR_LENGTH;
 
@@ -1882,13 +1901,17 @@ GPSDriverUBX::payloadRxDone()
 
 		_gps_position->satellites_used	= _buf.payload_rx_nav_pvt.numSV;
 
-		_gps_position->lat		= _buf.payload_rx_nav_pvt.lat;
-		_gps_position->lon		= _buf.payload_rx_nav_pvt.lon;
-		_gps_position->alt		= _buf.payload_rx_nav_pvt.hMSL;
-		_gps_position->alt_ellipsoid	= _buf.payload_rx_nav_pvt.height;
+		if(_gps_position->fix_type < 6)
+		{
+			// When RTK is active and solid (fix=6), these values will be filled by HPPOSLLH:
+			_gps_position->latitude_deg		= _buf.payload_rx_nav_pvt.lat * 1e-7;
+			_gps_position->longitude_deg		= _buf.payload_rx_nav_pvt.lon * 1e-7;
+			_gps_position->altitude_msl_m		= _buf.payload_rx_nav_pvt.hMSL * 1e-3;
+			_gps_position->altitude_ellipsoid_m	= _buf.payload_rx_nav_pvt.height * 1e-3;
 
-		_gps_position->eph		= static_cast<float>(_buf.payload_rx_nav_pvt.hAcc) * 1e-3f;
-		_gps_position->epv		= static_cast<float>(_buf.payload_rx_nav_pvt.vAcc) * 1e-3f;
+			_gps_position->eph		= static_cast<float>(_buf.payload_rx_nav_pvt.hAcc) * 1e-3f;
+			_gps_position->epv		= static_cast<float>(_buf.payload_rx_nav_pvt.vAcc) * 1e-3f;
+		}
 		_gps_position->s_variance_m_s	= static_cast<float>(_buf.payload_rx_nav_pvt.sAcc) * 1e-3f;
 
 		_gps_position->vel_m_s		= static_cast<float>(_buf.payload_rx_nav_pvt.gSpeed) * 1e-3f;
@@ -1970,12 +1993,12 @@ GPSDriverUBX::payloadRxDone()
 	case UBX_MSG_NAV_POSLLH:
 		UBX_TRACE_RXMSG("Rx NAV-POSLLH");
 
-		_gps_position->lat	= _buf.payload_rx_nav_posllh.lat;
-		_gps_position->lon	= _buf.payload_rx_nav_posllh.lon;
-		_gps_position->alt	= _buf.payload_rx_nav_posllh.hMSL;
+		_gps_position->latitude_deg	= _buf.payload_rx_nav_posllh.lat * 1e-7;
+		_gps_position->longitude_deg	= _buf.payload_rx_nav_posllh.lon * 1e-7;
+		_gps_position->altitude_msl_m	= _buf.payload_rx_nav_posllh.hMSL * 1e-3;
+		_gps_position->altitude_ellipsoid_m = _buf.payload_rx_nav_posllh.height * 1e-3;
 		_gps_position->eph	= static_cast<float>(_buf.payload_rx_nav_posllh.hAcc) * 1e-3f; // from mm to m
 		_gps_position->epv	= static_cast<float>(_buf.payload_rx_nav_posllh.vAcc) * 1e-3f; // from mm to m
-		_gps_position->alt_ellipsoid = _buf.payload_rx_nav_posllh.height;
 
 		_gps_position->timestamp = gps_absolute_time();
 
@@ -1983,6 +2006,27 @@ GPSDriverUBX::payloadRxDone()
 		_got_posllh = true;
 
 		ret = 1;
+		break;
+
+	case UBX_MSG_NAV_HPPOSLLH:
+		UBX_TRACE_RXMSG("Rx NAV-HPPOSLLH");
+
+		if(_buf.payload_rx_nav_hpposllh.flags == 0 && _gps_position->fix_type == 6)
+		{
+			_gps_position->latitude_deg	= _buf.payload_rx_nav_hpposllh.lat * 1e-7 + _buf.payload_rx_nav_hpposllh.latHp * 1e-9;  // regular precision lat/lon (1e7), plus high precision (1e9)
+			_gps_position->longitude_deg	= _buf.payload_rx_nav_hpposllh.lon * 1e-7 + _buf.payload_rx_nav_hpposllh.lonHp * 1e-9;
+			_gps_position->altitude_msl_m = _buf.payload_rx_nav_hpposllh.hMSL * 1e-3 + _buf.payload_rx_nav_hpposllh.hMSLHp * 1e-4;	// regular precision altitude, mm, plus high precision components of altitude, 0.1 mm
+			_gps_position->altitude_ellipsoid_m = _buf.payload_rx_nav_hpposllh.height * 1e-3 + _buf.payload_rx_nav_hpposllh.heightHp * 1e-4;
+			_gps_position->eph	= static_cast<float>(_buf.payload_rx_nav_hpposllh.hAcc) * 1e-4f; // Accuracy estimates, convert from 0.1 mm to m
+			_gps_position->epv	= static_cast<float>(_buf.payload_rx_nav_hpposllh.vAcc) * 1e-4f;
+
+			_gps_position->timestamp = gps_absolute_time();
+
+			_rate_count_lat_lon++;
+			_got_posllh = true;
+
+			ret = 1;
+		}
 		break;
 
 	case UBX_MSG_NAV_SOL:
