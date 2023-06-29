@@ -1901,8 +1901,7 @@ GPSDriverUBX::payloadRxDone()
 
 		_gps_position->satellites_used	= _buf.payload_rx_nav_pvt.numSV;
 
-		if(_gps_position->fix_type < 6)
-		{
+		if (_gps_position->fix_type < 6) {
 			// When RTK is active and solid (fix=6), these values will be filled by HPPOSLLH:
 			_gps_position->latitude_deg		= _buf.payload_rx_nav_pvt.lat * 1e-7;
 			_gps_position->longitude_deg		= _buf.payload_rx_nav_pvt.lon * 1e-7;
@@ -1912,6 +1911,7 @@ GPSDriverUBX::payloadRxDone()
 			_gps_position->eph		= static_cast<float>(_buf.payload_rx_nav_pvt.hAcc) * 1e-3f;
 			_gps_position->epv		= static_cast<float>(_buf.payload_rx_nav_pvt.vAcc) * 1e-3f;
 		}
+
 		_gps_position->s_variance_m_s	= static_cast<float>(_buf.payload_rx_nav_pvt.sAcc) * 1e-3f;
 
 		_gps_position->vel_m_s		= static_cast<float>(_buf.payload_rx_nav_pvt.gSpeed) * 1e-3f;
@@ -2011,13 +2011,16 @@ GPSDriverUBX::payloadRxDone()
 	case UBX_MSG_NAV_HPPOSLLH:
 		UBX_TRACE_RXMSG("Rx NAV-HPPOSLLH");
 
-		if(_buf.payload_rx_nav_hpposllh.flags == 0 && _gps_position->fix_type == 6)
-		{
-			_gps_position->latitude_deg	= _buf.payload_rx_nav_hpposllh.lat * 1e-7 + _buf.payload_rx_nav_hpposllh.latHp * 1e-9;  // regular precision lat/lon (1e7), plus high precision (1e9)
+		if (_buf.payload_rx_nav_hpposllh.flags == 0 && _gps_position->fix_type == 6) {
+			_gps_position->latitude_deg	= _buf.payload_rx_nav_hpposllh.lat * 1e-7 + _buf.payload_rx_nav_hpposllh.latHp *
+							  1e-9;  // regular precision lat/lon (1e7), plus high precision (1e9)
 			_gps_position->longitude_deg	= _buf.payload_rx_nav_hpposllh.lon * 1e-7 + _buf.payload_rx_nav_hpposllh.lonHp * 1e-9;
-			_gps_position->altitude_msl_m = _buf.payload_rx_nav_hpposllh.hMSL * 1e-3 + _buf.payload_rx_nav_hpposllh.hMSLHp * 1e-4;	// regular precision altitude, mm, plus high precision components of altitude, 0.1 mm
-			_gps_position->altitude_ellipsoid_m = _buf.payload_rx_nav_hpposllh.height * 1e-3 + _buf.payload_rx_nav_hpposllh.heightHp * 1e-4;
-			_gps_position->eph	= static_cast<float>(_buf.payload_rx_nav_hpposllh.hAcc) * 1e-4f; // Accuracy estimates, convert from 0.1 mm to m
+			_gps_position->altitude_msl_m = _buf.payload_rx_nav_hpposllh.hMSL * 1e-3 + _buf.payload_rx_nav_hpposllh.hMSLHp *
+							1e-4;	// regular precision altitude, mm, plus high precision components of altitude, 0.1 mm
+			_gps_position->altitude_ellipsoid_m = _buf.payload_rx_nav_hpposllh.height * 1e-3 + _buf.payload_rx_nav_hpposllh.heightHp
+							      * 1e-4;
+			_gps_position->eph	= static_cast<float>(_buf.payload_rx_nav_hpposllh.hAcc) *
+						  1e-4f; // Accuracy estimates, convert from 0.1 mm to m
 			_gps_position->epv	= static_cast<float>(_buf.payload_rx_nav_hpposllh.vAcc) * 1e-4f;
 
 			_gps_position->timestamp = gps_absolute_time();
@@ -2027,6 +2030,7 @@ GPSDriverUBX::payloadRxDone()
 
 			ret = 1;
 		}
+
 		break;
 
 	case UBX_MSG_NAV_SOL:

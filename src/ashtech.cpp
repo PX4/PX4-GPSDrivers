@@ -242,7 +242,8 @@ int GPSDriverAshtech::handleMessage(int len)
 
 		/* convert from degrees, minutes and seconds to degrees * 1e7 */
 		_gps_position->latitude_deg = static_cast<int>(lat * 0.01) + (lat * 0.01 - static_cast<int>(lat * 0.01)) * 100.0 / 60.0;
-		_gps_position->longitude_deg = static_cast<int>(lon * 0.01) + (lon * 0.01 - static_cast<int>(lon * 0.01)) * 100.0 / 60.0;
+		_gps_position->longitude_deg = static_cast<int>(lon * 0.01) + (lon * 0.01 - static_cast<int>
+					       (lon * 0.01)) * 100.0 / 60.0;
 		_gps_position->altitude_msl_m = alt;
 		_rate_count_lat_lon++;
 
@@ -412,7 +413,8 @@ int GPSDriverAshtech::handleMessage(int len)
 		}
 
 		_gps_position->latitude_deg = static_cast<int>(lat * 0.01) + (lat * 0.01 - static_cast<int>(lat * 0.01)) * 100.0 / 60.0;
-		_gps_position->longitude_deg = static_cast<int>(lon * 0.01) + (lon * 0.01 - static_cast<int>(lon * 0.01)) * 100.0 / 60.0;
+		_gps_position->longitude_deg = static_cast<int>(lon * 0.01) + (lon * 0.01 - static_cast<int>
+					       (lon * 0.01)) * 100.0 / 60.0;
 		_gps_position->altitude_msl_m = alt;
 		_gps_position->hdop = static_cast<float>(hdop);
 		_gps_position->vdop = static_cast<float>(vdop);
