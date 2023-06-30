@@ -269,8 +269,8 @@ int GPSDriverNMEA::handleMessage(int len)
 		_gps_position->longitude_deg = int(lon * 0.01) + (lon * 0.01 - int(lon * 0.01)) * 100.0 / 60.0;
 		_gps_position->latitude_deg = int(lat * 0.01) + (lat * 0.01 - int(lat * 0.01)) * 100.0 / 60.0;
 		_gps_position->hdop = hdop;
-		_gps_position->altitude_msl_m = alt;
-		_gps_position->altitude_ellipsoid_m = alt + geoid_h;
+		_gps_position->altitude_msl_m = (double)alt;
+		_gps_position->altitude_ellipsoid_m = (double)(alt + geoid_h);
 		_sat_num_gga = static_cast<int>(num_of_sv);
 
 
@@ -395,7 +395,7 @@ int GPSDriverNMEA::handleMessage(int len)
 		_gps_position->latitude_deg = int(lat * 0.01) + (lat * 0.01 - int(lat * 0.01)) * 100.0 / 60.0;
 		_gps_position->longitude_deg = int(lon * 0.01) + (lon * 0.01 - int(lon * 0.01)) * 100.0 / 60.0;
 		_gps_position->hdop = hdop;
-		_gps_position->altitude_msl_m = alt;
+		_gps_position->altitude_msl_m = (double)alt;
 		_sat_num_gns = static_cast<int>(num_of_sv);
 
 		if (!_POS_received && (_last_POS_timeUTC < utc_time)) {
