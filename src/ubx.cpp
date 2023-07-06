@@ -664,6 +664,7 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 	// Send a new CFG-VALSET message to make sure it does not get too large
 	cfg_valset_msg_size = initCfgValset();
 	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_PVT_I2C, 1, cfg_valset_msg_size);
+	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_HPPOSLLH_I2C, 1, cfg_valset_msg_size);
 	_use_nav_pvt = true;
 	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_DOP_I2C, 1, cfg_valset_msg_size);
 	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_SAT_I2C, (_satellite_info != nullptr) ? 10 : 0, cfg_valset_msg_size);
@@ -1910,6 +1911,9 @@ GPSDriverUBX::payloadRxDone()
 
 			_gps_position->eph		= static_cast<float>(_buf.payload_rx_nav_pvt.hAcc) * 1e-3f;
 			_gps_position->epv		= static_cast<float>(_buf.payload_rx_nav_pvt.vAcc) * 1e-3f;
+
+			_rate_count_lat_lon++;
+			_got_posllh = true;
 		}
 
 		_gps_position->s_variance_m_s	= static_cast<float>(_buf.payload_rx_nav_pvt.sAcc) * 1e-3f;
@@ -1966,9 +1970,6 @@ GPSDriverUBX::payloadRxDone()
 		_last_timestamp_time = _gps_position->timestamp;
 
 		_rate_count_vel++;
-		_rate_count_lat_lon++;
-
-		_got_posllh = true;
 		_got_velned = true;
 
 		ret = 1;
