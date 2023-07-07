@@ -665,6 +665,7 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 	cfg_valset_msg_size = initCfgValset();
 	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_PVT_I2C, 1, cfg_valset_msg_size);
 	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_HPPOSLLH_I2C, 1, cfg_valset_msg_size);
+	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_RELPOSNED_I2C, 1, cfg_valset_msg_size);
 	_use_nav_pvt = true;
 	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_DOP_I2C, 1, cfg_valset_msg_size);
 	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_SAT_I2C, (_satellite_info != nullptr) ? 10 : 0, cfg_valset_msg_size);
@@ -723,11 +724,6 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 		cfg_valset_msg_size = initCfgValset();
 		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1OUTPROT_UBX, 1, cfg_valset_msg_size);
 		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1OUTPROT_RTCM3X, 0, cfg_valset_msg_size);
-		// heading output period 1 second
-		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_UBX_NAV_RELPOSNED_UART1, 1, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_UBX_NAV_RELPOSNED_USB, 1, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_UBX_NAV_HPPOSLLH_UART1, 1, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_UBX_NAV_HPPOSLLH_USB, 1, cfg_valset_msg_size);
 		// enable RTCM input on uart2 + set baudrate
 		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2_STOPBITS, 1, cfg_valset_msg_size);
 		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2_DATABITS, 0, cfg_valset_msg_size);
@@ -760,7 +756,6 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2OUTPROT_UBX, 0, cfg_valset_msg_size);
 		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2OUTPROT_RTCM3X, 1, cfg_valset_msg_size);
 		cfgValset<uint32_t>(UBX_CFG_KEY_CFG_UART2_BAUDRATE, uart2_baudrate, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_UBX_NAV_HPPOSLLH_USB, 1, cfg_valset_msg_size);
 
 		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE4072_0_UART2, 1, cfg_valset_msg_size);
 		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1230_UART2, 1, cfg_valset_msg_size);
@@ -787,10 +782,6 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1INPROT_NMEA, 0, cfg_valset_msg_size);
 		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1OUTPROT_UBX, 1, cfg_valset_msg_size);
 		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1OUTPROT_RTCM3X, 0, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_UBX_NAV_RELPOSNED_UART1, 1, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_UBX_NAV_RELPOSNED_USB, 1, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_UBX_NAV_HPPOSLLH_UART1, 1, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_UBX_NAV_HPPOSLLH_USB, 1, cfg_valset_msg_size);
 
 		if (!sendMessage(UBX_MSG_CFG_VALSET, (uint8_t *)&_buf, cfg_valset_msg_size)) {
 			return -1;
@@ -809,13 +800,6 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1INPROT_NMEA, 0, cfg_valset_msg_size);
 		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1OUTPROT_UBX, 1, cfg_valset_msg_size);
 		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1OUTPROT_RTCM3X, 1, cfg_valset_msg_size);
-
-		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_UBX_NAV_RELPOSNED_UART1, 0, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_UBX_NAV_RELPOSNED_UART2, 0, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_UBX_NAV_HPPOSLLH_UART1, 0, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_UBX_NAV_HPPOSLLH_UART2, 0, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_UBX_NAV_HPPOSLLH_USB, 1, cfg_valset_msg_size);
-
 		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE4072_0_UART1, 1, cfg_valset_msg_size);
 		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1230_UART1, 1, cfg_valset_msg_size);
 		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1074_UART1, 1, cfg_valset_msg_size);
