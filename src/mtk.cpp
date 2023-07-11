@@ -217,17 +217,17 @@ void
 GPSDriverMTK::handleMessage(gps_mtk_packet_t &packet)
 {
 	if (_mtk_revision == 16) {
-		_gps_position->lat = packet.latitude * 10; // from degrees*1e6 to degrees*1e7
-		_gps_position->lon = packet.longitude * 10; // from degrees*1e6 to degrees*1e7
+		_gps_position->latitude_deg = packet.latitude / 1e6;   // from degrees*1e6 to degrees
+		_gps_position->longitude_deg = packet.longitude / 1e6; // from degrees*1e6 to degrees
 
 	} else if (_mtk_revision == 19) {
-		_gps_position->lat = packet.latitude; // both degrees*1e7
-		_gps_position->lon = packet.longitude; // both degrees*1e7
+		_gps_position->latitude_deg = packet.latitude / 1e7;   // from degrees*1e7 to degrees
+		_gps_position->longitude_deg = packet.longitude / 1e7; // from degrees*1e7 to degrees
 
 	} else {
 		GPS_WARN("mtk: unknown revision");
-		_gps_position->lat = 0;
-		_gps_position->lon = 0;
+		_gps_position->latitude_deg = 0.0;
+		_gps_position->longitude_deg = 0.0;
 
 		// Indicate this data is not usable and bail out
 		_gps_position->eph = 1000.0f;
@@ -236,7 +236,7 @@ GPSDriverMTK::handleMessage(gps_mtk_packet_t &packet)
 		return;
 	}
 
-	_gps_position->alt = (int32_t)(packet.msl_altitude * 10); // from cm to mm
+	_gps_position->altitude_msl_m = packet.msl_altitude / 100.0; // from cm to meters
 	_gps_position->fix_type = packet.fix_type;
 	_gps_position->eph = packet.hdop / 100.0f; // from cm to m
 	_gps_position->epv = _gps_position->eph; // unknown in mtk custom mode, so we cheat with eph
