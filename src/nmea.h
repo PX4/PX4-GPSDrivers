@@ -74,7 +74,7 @@ private:
 	void request_unicore_heading_message();
 
 	UnicoreParser _unicore_parser;
-	hrt_abstime _unicore_heading_received_last;
+	gps_abstime _unicore_heading_received_last;
 
 	enum class NMEADecodeState {
 		uninit,

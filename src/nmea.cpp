@@ -893,7 +893,7 @@ int GPSDriverNMEA::receive(unsigned timeout)
 
 				if (result == UnicoreParser::Result::GotHeading) {
 					++handled;
-					_unicore_heading_received_last = hrt_absolute_time();
+					_unicore_heading_received_last = gps_absolute_time();
 
 					// Unicore seems to publish heading and standard deviation of 0
 					// to signal that it has not initialized the heading yet.
@@ -920,7 +920,7 @@ int GPSDriverNMEA::receive(unsigned timeout)
 
 					// We don't use anything of that message at this point.
 
-					if (hrt_elapsed_time(&_unicore_heading_received_last) > 1000000) {
+					if (gps_absolute_time() - _unicore_heading_received_last > 1000000) {
 						request_unicore_heading_message();
 					}
 				}
@@ -961,8 +961,7 @@ void GPSDriverNMEA::request_unicore_heading_message()
 {
 	// Configure heading message on serial port at 5 Hz. Don't save it though.
 	uint8_t buf[] = "UNIHEADINGA COM1 0.2\r\n";
-	write(buf, sizeof(buf));
-
+	write(buf, sizeof(buf) - 1);
 }
 
 #define HEXDIGIT_CHAR(d) ((char)((d) + (((d) < 0xA) ? '0' : 'A'-0xA)))
