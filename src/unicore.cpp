@@ -87,6 +87,16 @@ UnicoreParser::Result UnicoreParser::parseChar(char c)
 					return Result::WrongStructure;
 				}
 
+			} else if (isAgrica()) {
+				if (extractAgrica()) {
+					reset();
+					return Result::GotAgrica;
+
+				} else {
+					reset();
+					return Result::WrongStructure;
+				}
+
 			} else {
 				reset();
 				return Result::UnknownSentence;
@@ -116,6 +126,13 @@ bool UnicoreParser::crcCorrect() const
 bool UnicoreParser::isHeading() const
 {
 	const char header[] = "UNIHEADINGA";
+
+	return strncmp(header, _buffer, strlen(header)) == 0;
+}
+
+bool UnicoreParser::isAgrica() const
+{
+	const char header[] = "AGRICA";
 
 	return strncmp(header, _buffer, strlen(header)) == 0;
 }
@@ -157,4 +174,9 @@ bool UnicoreParser::extractHeading()
 	}
 
 	return false;
+}
+
+bool UnicoreParser::extractAgrica()
+{
+	return true;
 }

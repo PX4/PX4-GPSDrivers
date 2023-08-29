@@ -112,6 +112,30 @@ void test_uniheadinga_twice()
 	assert(num_parsed == 2);
 }
 
+void test_agrica()
+{
+	const char str[] =
+		"#AGRICA,68,GPS,FINE,2063,454587000,0,0,18,38;GNSS,236,19,7,26,6,16,9,4,4,12,10,"
+		"9,306.7191,10724.0176,-"
+		"16.4796,0.0089,0.0070,0.0181,67.9651,29.3584,0.0000,0.003,0.003,0.001,-"
+		"0.002,0.021,0.039,0.025,40.07896719907,116.23652055432,67.3108,-"
+		"2160482.7849,4383625.2350,4084735.7632,0.0140,0.0125,0.0296,0.0107,0.0198,0.012"
+		"8,40.07627310896,116.11079363322,65.3740,0.00000000000,0.00000000000,0.0000,4"
+		"54587000,38.000,16.723207,-9.406086,0.000000,0.000000,8,0,0,0*e9402e02";
+
+	UnicoreParser unicore_parser;
+
+	for (unsigned i = 0; i < sizeof(str); ++i) {
+		auto result = unicore_parser.parseChar(str[i]);
+
+		if (result == UnicoreParser::Result::GotAgrica) {
+			return;
+		}
+	}
+
+	assert(false);
+}
+
 void test_unicore()
 {
 	test_empty();
@@ -120,6 +144,7 @@ void test_unicore()
 	test_uniheadinga_wrong_crc();
 	test_uniheadinga();
 	test_uniheadinga_twice();
+	test_agrica();
 }
 
 int main(int, char **)
