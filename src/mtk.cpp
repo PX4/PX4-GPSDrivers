@@ -246,6 +246,7 @@ GPSDriverMTK::handleMessage(gps_mtk_packet_t &packet)
 	_gps_position->cog_rad = ((float)packet.heading) * M_DEG_TO_RAD_F * 1e-2f; //from deg *100 to rad
 	_gps_position->satellites_used = packet.satellites;
 
+#ifndef NO_MKTIME
 	/* convert time and date information to unix timestamp */
 	struct tm timeinfo = {};
 	uint32_t timeinfo_conversion_temp;
@@ -264,7 +265,6 @@ GPSDriverMTK::handleMessage(gps_mtk_packet_t &packet)
 
 	timeinfo.tm_isdst = 0;
 
-#ifndef NO_MKTIME
 
 	time_t epoch = mktime(&timeinfo);
 
