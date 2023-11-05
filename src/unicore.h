@@ -44,6 +44,7 @@ public:
 		WrongCrc,
 		WrongStructure,
 		GotHeading,
+		GotAgrica,
 		UnknownSentence,
 	};
 
@@ -55,9 +56,17 @@ public:
 		float baseline_m;
 	};
 
+	struct Agrica {
+	};
+
 	Heading heading() const
 	{
 		return _heading;
+	}
+
+	Agrica agrica() const
+	{
+		return _agrica;
 	}
 
 
@@ -65,10 +74,12 @@ private:
 	void reset();
 	bool crcCorrect() const;
 	bool isHeading() const;
+	bool isAgrica() const;
 	bool extractHeading();
+	bool extractAgrica();
 
-	// We have seen buffers with 154 bytes.
-	char _buffer[256];
+	// We have seen buffers with 540 bytes for AGRICA.
+	char _buffer[600];
 	unsigned _buffer_pos {0};
 	char _buffer_crc[9];
 	unsigned _buffer_crc_pos {0};
@@ -80,4 +91,5 @@ private:
 	} _state {State::Uninit};
 
 	Heading _heading{};
+	Agrica _agrica{};
 };

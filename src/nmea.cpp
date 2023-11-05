@@ -889,8 +889,11 @@ int GPSDriverNMEA::receive(unsigned timeout)
 					handled |= handleMessage(l);
 				}
 
-				if (_unicore_parser.parseChar(buf[i]) == UnicoreParser::Result::GotHeading) {
+				UnicoreParser::Result result = _unicore_parser.parseChar(buf[i]);
+
+				if (result == UnicoreParser::Result::GotHeading) {
 					++handled;
+					_unicore_heading_received_last = gps_absolute_time();
 
 					// Unicore seems to publish heading and standard deviation of 0
 					// to signal that it has not initialized the heading yet.
@@ -911,6 +914,17 @@ int GPSDriverNMEA::receive(unsigned timeout)
 						   (double)_unicore_parser.heading().heading_deg,
 						   (double)_unicore_parser.heading().heading_stddev_deg,
 						   (double)_unicore_parser.heading().baseline_m);
+
+				} else if (result == UnicoreParser::Result::GotAgrica) {
+					++handled;
+
+					// We don't use anything of that message at this point, however, this
+					// allows to determine whether we are talking to a UM982 and hence
+					// request the heading (UNIHEADINGA) message that we actually require.
+
+					if (gps_absolute_time() - _unicore_heading_received_last > 1000000) {
+						request_unicore_heading_message();
+					}
 				}
 			}
 
@@ -943,6 +957,13 @@ void GPSDriverNMEA::handleHeading(float heading_deg, float heading_stddev_deg)
 
 	const float heading_stddev_rad = heading_stddev_deg * M_PI_F / 180.0f;
 	_gps_position->heading_accuracy = heading_stddev_rad;
+}
+
+void GPSDriverNMEA::request_unicore_heading_message()
+{
+	// Configure heading message on serial port at 5 Hz. Don't save it though.
+	uint8_t buf[] = "UNIHEADINGA COM1 0.2\r\n";
+	write(buf, sizeof(buf) - 1);
 }
 
 #define HEXDIGIT_CHAR(d) ((char)((d) + (((d) < 0xA) ? '0' : 'A'-0xA)))
