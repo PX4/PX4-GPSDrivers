@@ -2469,24 +2469,33 @@ GPSDriverUBX::sendMessage(const uint16_t msg, const uint8_t *payload, const uint
 	// Calculate checksum
 	calcChecksum(((uint8_t *)&header) + 2, sizeof(header) - 2, &checksum); // skip 2 sync bytes
 
+	int size = 0;
+	uint8_t *buffer = new uint8_t[sizeof(header) + sizeof(checksum) + length];
+
+	if (!buffer) {
+		return false;
+	}
+
+	memcpy(buffer, &header, sizeof(header));
+	size = sizeof(header);
+
 	if (payload != nullptr) {
 		calcChecksum(payload, length, &checksum);
+		memcpy(&buffer[size], payload, length);
+		size += length;
 	}
 
-	// Send message
-	if (write((void *)&header, sizeof(header)) != sizeof(header)) {
-		return false;
+	memcpy(&buffer[size], &checksum, sizeof(checksum));
+	size += sizeof(checksum);
+
+	bool rv = true;
+
+	if (write((void *)buffer, size) != size) {
+		rv = false;
 	}
 
-	if (payload && write((void *)payload, length) != length) {
-		return false;
-	}
-
-	if (write((void *)&checksum, sizeof(checksum)) != sizeof(checksum)) {
-		return false;
-	}
-
-	return true;
+	delete buffer;
+	return rv;
 }
 
 uint32_t
