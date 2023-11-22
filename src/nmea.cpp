@@ -496,7 +496,7 @@ int GPSDriverNMEA::handleMessage(int len)
 		_gps_position->s_variance_m_s = 0;
 		_gps_position->timestamp = gps_absolute_time();
 		_last_timestamp_time = gps_absolute_time();
-		
+
 #ifndef NO_MKTIME
 		int utc_hour = static_cast<int>(utc_time / 10000);
 		int utc_minute = static_cast<int>((utc_time - utc_hour * 10000) / 100);
