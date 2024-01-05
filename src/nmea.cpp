@@ -60,7 +60,7 @@
 
 /**** Warning macros, disable to save memory */
 #define NMEA_WARN(...)         {GPS_WARN(__VA_ARGS__);}
-#define NMEA_DEBUG(...)        {/*GPS_WARN(__VA_ARGS__);*/}
+#define NMEA_DEBUG(...)        {GPS_WARN(__VA_ARGS__);}
 
 GPSDriverNMEA::GPSDriverNMEA(GPSCallbackPtr callback, void *callback_user,
 			     sensor_gps_s *gps_position,
@@ -1084,7 +1084,7 @@ int GPSDriverNMEA::configure(unsigned &baudrate, const GPSConfig &config)
 	}
 
 	// If we haven't found the GPS with the defined baudrate, we try other rates
-	const unsigned baudrates_to_try[] = {9600, 19200, 38400, 57600, 115200, 230400};
+	const unsigned baudrates_to_try[] = {9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600};
 	unsigned test_baudrate;
 
 	for (unsigned int baud_i = 0; !_POS_received
@@ -1101,6 +1101,10 @@ int GPSDriverNMEA::configure(unsigned &baudrate, const GPSConfig &config)
 
 		// If a valid POS message is received we have GPS
 		if (_POS_received || ret > 0) {
+			NMEA_DEBUG("baudrate found: %i", test_baudrate);
+
+			baudrate = test_baudrate;
+
 			return 0;
 		}
 	}
