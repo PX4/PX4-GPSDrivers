@@ -53,7 +53,7 @@
 
 #define SBF_CONFIG_BAUDRATE "setCOMSettings, %s, baud%d\n"
 
-#define SBF_CONFIG_RESET "setSBFOutput, all, %s, none, off\n"
+#define SBF_CONFIG_RESET "setSBFOutput, Stream1, %s, none, off\n"
 
 #define SBF_CONFIG_RECEIVER_DYNAMICS "setReceiverDynamics, %s, UAV\n"
 
