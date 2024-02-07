@@ -503,7 +503,7 @@ int GPSDriverSBF::payloadRxDone()
 
 		// Check boundaries and invalidate position
 		// We're not just checking for the do-not-use value (-2*10^10) but for any value beyond the specified max values
-		if (fabs(_buf.payload_pvt_geodetic.latitude) > (double) M_PI_2_F ||
+		if (fabs(_buf.payload_pvt_geodetic.latitude) > (double) (M_PI_F/2.0f) ||
 		    fabs(_buf.payload_pvt_geodetic.longitude) > (double) M_PI_F ||
 		    fabs(_buf.payload_pvt_geodetic.height) > DNU ||
 		    fabsf(_buf.payload_pvt_geodetic.undulation) > (float) DNU) {
