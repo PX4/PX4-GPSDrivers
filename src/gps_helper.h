@@ -181,7 +181,8 @@ public:
 		ENABLE_SBAS =       1 << 1,
 		ENABLE_GALILEO =    1 << 2,
 		ENABLE_BEIDOU =     1 << 3,
-		ENABLE_GLONASS =    1 << 4
+		ENABLE_GLONASS =    1 << 4,
+		ENABLE_NAVIC =      1 << 5
 	};
 
 	enum class InterfaceProtocolsMask : int32_t {
