@@ -1012,9 +1012,9 @@ public:
 		u_blox7 = 7,
 		u_blox8 = 8, ///< M8N or M8P
 		u_blox9 = 9, ///< M9N, or any F9*, except F9P
-		u_blox9_F9P = 10, ///< F9P
+		u_blox9_F9P_L1L2 = 10, ///< F9P
 		u_blox10 = 11,
-		u_blox9_F9P_15B = 12, ///< ZED-F9P-15B
+		u_blox9_F9P_L1L5 = 12, ///< ZED-F9P-15B
 	};
 
 	const Board &board() const { return _board; }
