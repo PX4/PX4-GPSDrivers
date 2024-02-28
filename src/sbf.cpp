@@ -78,11 +78,6 @@ GPSDriverSBF::~GPSDriverSBF()
 
 int GPSDriverSBF::configure(unsigned &baudrate, const GPSConfig &config)
 {
-	if (!config.configure_device) {
-		_configured = true;
-		return 0;
-	}
-
 	_configured = false;
 
 	setBaudrate(SBF_TX_CFG_PRT_BAUDRATE);
@@ -145,6 +140,11 @@ int GPSDriverSBF::configure(unsigned &baudrate, const GPSConfig &config)
 	} else {
 		SBF_WARN("No COM port detected")
 		return -1;
+	}
+
+	if (!config.configure_device) {
+		_configured = true;
+		return 0;
 	}
 
 	// Delete all sbf outputs on current COM port to remove clutter data
