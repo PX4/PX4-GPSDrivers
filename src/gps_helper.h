@@ -198,6 +198,7 @@ public:
 		OutputMode output_mode;
 		GNSSSystemsMask gnss_systems;
 		InterfaceProtocolsMask interface_protocols;
+		bool configure_device = true;					///< automatically configure the attached receiver
 	};
 
 

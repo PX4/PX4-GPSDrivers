@@ -78,6 +78,11 @@ GPSDriverSBF::~GPSDriverSBF()
 
 int GPSDriverSBF::configure(unsigned &baudrate, const GPSConfig &config)
 {
+	if (!config.configure_device) {
+		_configured = true;
+		return 0;
+	}
+
 	_configured = false;
 
 	setBaudrate(SBF_TX_CFG_PRT_BAUDRATE);
