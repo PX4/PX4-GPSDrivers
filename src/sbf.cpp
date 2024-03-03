@@ -235,6 +235,8 @@ int GPSDriverSBF::configure(unsigned &baudrate, const GPSConfig &config)
 			sendMessageAndWaitForAck(msg, SBF_CONFIG_TIMEOUT);
 			sendMessageAndWaitForAck(SBF_CONFIG_RTCM_STATIC1, SBF_CONFIG_TIMEOUT);
 			sendMessageAndWaitForAck(SBF_CONFIG_RTCM_STATIC2, SBF_CONFIG_TIMEOUT);
+		} else {
+			sendMessageAndWaitForAck(SBF_CONFIG_RTCM, SBF_CONFIG_TIMEOUT);
 		}
 	}
 
