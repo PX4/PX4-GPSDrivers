@@ -150,12 +150,14 @@ int GPSDriverSBF::configure(unsigned &baudrate, const GPSConfig &config)
 		return -1; // connection and/or baudrate detection failed
 	}
 
-	// Set baut rate
-	snprintf(msg, sizeof(msg), SBF_CONFIG_BAUDRATE, com_port, baudrate);
+	// Set baudrate, unless we're connected over USB
+	if (strncmp(com_port, "USB1", 4) != 0 && strncmp(com_port, "USB2", 4) != 0) {
+		snprintf(msg, sizeof(msg), SBF_CONFIG_BAUDRATE, com_port, baudrate);
 
-	if (!sendMessageAndWaitForAck(msg, SBF_CONFIG_TIMEOUT)) {
-		SBF_DEBUG("Connection and/or baudrate detection failed (SBF_CONFIG_BAUDRATE)");
-		return -1; // connection and/or baudrate detection failed
+		if (!sendMessageAndWaitForAck(msg, SBF_CONFIG_TIMEOUT)) {
+			SBF_DEBUG("Connection and/or baudrate detection failed (SBF_CONFIG_BAUDRATE)");
+			return -1; // connection and/or baudrate detection failed
+		}
 	}
 
 	// Flush input and wait for at least 50 ms silence
