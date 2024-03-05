@@ -142,6 +142,11 @@ int GPSDriverSBF::configure(unsigned &baudrate, const GPSConfig &config)
 		return -1;
 	}
 
+	if (!config.configure_device) {
+		_configured = true;
+		return 0;
+	}
+
 	// Delete all sbf outputs on current COM port to remove clutter data
 	char msg[MSG_SIZE];
 	snprintf(msg, sizeof(msg), SBF_CONFIG_RESET, com_port);
