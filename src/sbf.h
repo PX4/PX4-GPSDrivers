@@ -65,6 +65,27 @@
 
 #define SBF_CONFIG "setSBFOutput, Stream1, %s, PVTGeodetic+VelCovGeodetic+DOP+AttEuler+AttCovEuler, msec100\n"
 
+/**
+ * Configure logging on stream 4.
+ * The first argument %s defines overwrite behavior.
+ * The second argument %s are the blocks that should be output.
+ * The third argument %s is the frequency at which they need to be output.
+ */
+#define SBF_CONFIG_LOGGING "setSBFOutput, Stream4, DSK1, %s%s, %s\n"
+
+#define SBF_LOGGING_LITE    "Comment+ReceiverStatus";
+#define SBF_LOGGING_BASIC   "Comment+ReceiverStatus+PostProcess+Event";
+#define SBF_LOGGING_DEFAULT "Comment+ReceiverStatus+PostProcess+Event+Support";
+#define SBF_LOGGING_FULL    "Comment+ReceiverStatus+PostProcess+Event+Support+BBSamples";
+
+#define SBF_0_1_HZ  "sec10";
+#define SBF_0_2_HZ  "sec5";
+#define SBF_0_5_HZ  "sec2";
+#define SBF_1_0_HZ  "sec1";
+#define SBF_2_0_HZ  "msec500";
+#define SBF_5_0_HZ  "msec200";
+#define SBF_10_0_HZ "msec100";
+#define SBF_20_0_HZ "msec50";
 
 #define SBF_CONFIG_RTCM "" \
 	"setDataInOut, USB1, Auto, RTCMv3+SBF\n" \
