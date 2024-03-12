@@ -194,10 +194,27 @@ public:
 		I2C_OUT_PROT_RTCM3X = 1 << 5
 	};
 
+	enum class LoggingLevel : int8_t {
+		LITE = 0,
+		BASIC,
+		DEFAULT,
+		FULL
+	};
+
+	/**
+	 * GNSS receiver logging configuration.
+	 */
+	struct LoggingConfig {
+		float frequency;
+		LoggingLevel level;
+		bool overwrite;
+	};
+
 	struct GPSConfig {
 		OutputMode output_mode;
 		GNSSSystemsMask gnss_systems;
 		InterfaceProtocolsMask interface_protocols;
+		LoggingConfig logging_configuration;
 	};
 
 

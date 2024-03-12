@@ -53,6 +53,7 @@
 #define DISABLE_MSG_INTERVAL    1000000  // us, try to disable message with this interval
 #define DNU                        100000.0 // Do-Not-Use value for PVTGeodetic
 #define MSG_SIZE                    100 // size of the message to be sent to the receiver.
+#define LOG_MSG_SIZE		    200 // size of log message to be sent to the receiver.
 
 /**** Trace macros, disable for production builds */
 #define SBF_TRACE_PARSER(...)   {/*GPS_INFO(__VA_ARGS__);*/}    /* decoding progress in parse_char() */
@@ -220,7 +221,59 @@ int GPSDriverSBF::configure(unsigned &baudrate, const GPSConfig &config)
 		}
 	} while (i < 5 && !response_detected);
 
+	if (config.logging_configuration.frequency <= 0.f) {
+		if (config.logging_configuration.overwrite) {
+			// hard-disable logging, clear existing stream
+			sendMessageAndWaitForAck("setSBFOutput,Stream4,none,none,off\n", SBF_CONFIG_TIMEOUT);
+		} else {
+			// soft-disable logging, keep existing stream
+			sendMessageAndWaitForAck("setSBFOutput,Stream4,,,off\n", SBF_CONFIG_TIMEOUT);
+		}
+	} else {
+		const char* logging_frequency;
+		const char* logging_blocks;
+		char logging_msg[LOG_MSG_SIZE];
 
+		switch (config.logging_configuration.level) {
+			case GPSHelper::LoggingLevel::LITE:
+				logging_blocks = SBF_LOGGING_LITE;
+				break;
+			case GPSHelper::LoggingLevel::BASIC:
+				logging_blocks = SBF_LOGGING_BASIC;
+				break;
+			default:
+			case GPSHelper::LoggingLevel::DEFAULT:
+				logging_blocks = SBF_LOGGING_DEFAULT
+				break;
+			case GPSHelper::LoggingLevel::FULL:
+				logging_blocks = SBF_LOGGING_FULL;
+				break;
+		}
+
+		if (config.logging_configuration.frequency <= 0.1f) {
+			logging_frequency = SBF_0_1_HZ;
+		} else if (config.logging_configuration.frequency <= 0.2f) {
+			logging_frequency = SBF_0_2_HZ;
+		} else if (config.logging_configuration.frequency <= 0.5f) {
+			logging_frequency = SBF_0_5_HZ;
+		} else if (config.logging_configuration.frequency <= 1.0f) {
+			logging_frequency = SBF_1_0_HZ;
+		} else if (config.logging_configuration.frequency <= 2.0f) {
+			logging_frequency = SBF_2_0_HZ;
+		} else if (config.logging_configuration.frequency <= 5.0f) {
+			logging_frequency = SBF_5_0_HZ;
+		} else if (config.logging_configuration.frequency <= 10.0f) {
+			logging_frequency = SBF_10_0_HZ;
+		} else {
+			logging_frequency = SBF_20_0_HZ;
+		}
+
+		snprintf(logging_msg, sizeof(logging_msg), SBF_CONFIG_LOGGING,
+			config.logging_configuration.overwrite ? "" : "+",
+			logging_blocks,
+			logging_frequency);
+		sendMessageAndWaitForAck(logging_msg, SBF_CONFIG_TIMEOUT);
+	}
 
 	if (_output_mode == OutputMode::RTCM) {
 		if (_base_settings.type == BaseSettingsType::fixed_position) {
