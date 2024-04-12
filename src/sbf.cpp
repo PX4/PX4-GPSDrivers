@@ -78,17 +78,29 @@ GPSDriverSBF::~GPSDriverSBF()
 
 int GPSDriverSBF::configure(unsigned &baudrate, const GPSConfig &config)
 {
+	char buf[GPS_READ_BUFFER_SIZE];
+	char msg[MSG_SIZE];
+
 	_configured = false;
 
 	setBaudrate(SBF_TX_CFG_PRT_BAUDRATE);
 	baudrate = SBF_TX_CFG_PRT_BAUDRATE;
 	_output_mode = config.output_mode;
 
+	// Make sure we can send commands to the receiver
 	sendMessage(SBF_CONFIG_FORCE_INPUT);
 
-	char buf[GPS_READ_BUFFER_SIZE];
-	char com_port[5] {};
+	// Disable previous output for now so we can detect the COM port
+	for (int i = 1; i <= 2; i++) {
+		snprintf(msg, sizeof(msg), SBF_CONFIG_DISABLE_OUTPUT, "COM", i);
+		sendMessageAndWaitForAck(msg, SBF_CONFIG_TIMEOUT);
+	}
+	for (int i = 1; i <= 4; i++) {
+		snprintf(msg, sizeof(msg), SBF_CONFIG_DISABLE_OUTPUT, "USB", i);
+		sendMessageAndWaitForAck(msg, SBF_CONFIG_TIMEOUT);
+	}
 
+	char com_port[5] {};
 	size_t offset = 1;
 	bool response_detected = false;
 	gps_abstime time_started = gps_absolute_time();
@@ -134,7 +146,6 @@ int GPSDriverSBF::configure(unsigned &baudrate, const GPSConfig &config)
 	}
 
 	// Delete all sbf outputs on current COM port to remove clutter data
-	char msg[MSG_SIZE];
 	snprintf(msg, sizeof(msg), SBF_CONFIG_RESET, com_port);
 
 	if (!sendMessageAndWaitForAck(msg, SBF_CONFIG_TIMEOUT)) {
@@ -185,12 +196,13 @@ int GPSDriverSBF::configure(unsigned &baudrate, const GPSConfig &config)
 		}
 
 		sendMessageAndWaitForAck(msg, SBF_CONFIG_TIMEOUT);
+		
+		snprintf(msg, sizeof(msg), SBF_CONFIG, com_port);
+
+		sendMessageAndWaitForAck(msg, SBF_CONFIG_TIMEOUT);
 	}
 
-	// Output a set of SBF blocks on a given connection at a regular interval.
 	int i = 0;
-	snprintf(msg, sizeof(msg), SBF_CONFIG, com_port);
-
 	do {
 		++i;
 
@@ -282,21 +294,25 @@ bool GPSDriverSBF::sendMessageAndWaitForAck(const char *msg, const int timeout)
 	return found_response;
 }
 
-// -1 = error, 0 = no message handled, 1 = message handled, 2 = sat info message handled
+// return value:
+// 0b1111_1111 = an error occurred
+// 0b0000_0000 = no message handled (not set up yet)
+// 0b0000_0001 = message handled
+// 0b0000_0010 = sat info message handled
 int GPSDriverSBF::receive(unsigned timeout)
 {
+	int handled = 0;
+	gps_abstime time_started;
+	uint8_t buf[GPS_READ_BUFFER_SIZE];
+
 	// Do not receive messages until we're configured
 	if (!_configured) {
 		gps_usleep(timeout * 1000);
 		return 0;
 	}
 
-	uint8_t buf[GPS_READ_BUFFER_SIZE];
-
-	// timeout additional to read timeout
-	gps_abstime time_started = gps_absolute_time();
-
-	int handled = 0;
+	// Timeout after not receiving a complete message for a certain time
+	time_started = gps_absolute_time();
 
 	while (true) {
 		// Wait for only SBF_PACKET_TIMEOUT if something already received.
@@ -329,7 +345,10 @@ int GPSDriverSBF::receive(unsigned timeout)
 	}
 }
 
-// 0 = decoding, 1 = message handled, 2 = sat info message handled
+// return value:
+// 0b0000_0000 = still decoding
+// 0b0000_0001 = message handled
+// 0b0000_0010 = sat info message handled
 int GPSDriverSBF::parseChar(const uint8_t b)
 {
 	int ret = 0;
@@ -388,9 +407,11 @@ int GPSDriverSBF::parseChar(const uint8_t b)
 
 	case SBF_DECODE_RTCM3:
 		if (_rtcm_parsing->addByte(b)) {
+			// Complete message received
 			SBF_DEBUG("got RTCM message with length %i", (int) _rtcm_parsing->messageLength());
 			gotRTCMMessage(_rtcm_parsing->message(), _rtcm_parsing->messageLength());
 			decodeInit();
+			ret |= 1;
 		}
 
 		break;
