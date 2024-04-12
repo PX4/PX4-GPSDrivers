@@ -65,19 +65,11 @@
 
 #define SBF_CONFIG "setSBFOutput, Stream1, %s, PVTGeodetic+VelCovGeodetic+DOP+AttEuler+AttCovEuler, msec100\n"
 
+#define SBF_CONFIG_DISABLE_OUTPUT "setDataInOut,%s%d,,-RTCMv3\n"
 
 #define SBF_CONFIG_RTCM "" \
-	"setDataInOut, USB1, Auto, RTCMv3+SBF\n" \
-	"setPVTMode, Rover, All, auto\n" \
-	"setSatelliteTracking, All\n" \
-	"setSatelliteUsage, All\n" \
-	"setElevationMask, All, 10\n" \
-	"setReceiverDynamics, Moderate, Automotive\n" \
-	"setSBFOutput, Stream1, DSK1, Support, msec100\n" \
-	"setSBFOutput, Stream2, USB1, DOP+VelCovGeodetic, sec1\n" \
-	"setSBFOutput, Stream3, USB1, PVTGeodetic, msec200\n" \
-	"setFileNaming, DSK1, Incremental\n" \
-	"setFileNaming, DSK1, , 'px4rtcm'\n"
+	"setDataInOut, USB1, Auto, RTCMv3\n" \
+	"setPVTMode, Static, All, auto\n"
 
 #define SBF_CONFIG_RTCM_STATIC1 "" \
 	"setReceiverDynamics, Low, Static\n"
