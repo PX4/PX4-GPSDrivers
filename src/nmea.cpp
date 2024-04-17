@@ -273,7 +273,6 @@ int GPSDriverNMEA::handleMessage(int len)
 		_gps_position->altitude_ellipsoid_m = (double)(alt + geoid_h);
 		_sat_num_gga = static_cast<int>(num_of_sv);
 
-
 		if (fix_quality <= 0) {
 			_gps_position->fix_type = 0;
 
@@ -291,6 +290,18 @@ int GPSDriverNMEA::handleMessage(int len)
 		}
 
 		if (!_POS_received && (_last_POS_timeUTC < utc_time)) {
+
+			// calculate the vertical velocity by the difference of the altitude in the last and current message in NED
+			// amsl is positive upwards
+			// on NED, positive z is downwards
+			// so we have to invert the sign
+			if(_last_altitude > 0.0f && _last_POS_timeUTC > 0.0) {
+				_gps_position->vel_d_m_s = -1.0 * static_cast<double>(alt - _last_altitude) / (utc_time - _last_POS_timeUTC);
+			}
+
+			// update the last altitude
+			_last_altitude = alt;
+
 			_last_POS_timeUTC = utc_time;
 			_POS_received = true;
 		}

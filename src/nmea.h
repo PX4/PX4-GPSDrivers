@@ -97,6 +97,9 @@ private:
 	double _last_FIX_timeUTC{0};
 	uint64_t _last_timestamp_time{0};
 
+	// variable to compute vertical velocity from altitude difference
+	float _last_altitude{0.0f};
+
 	uint8_t _sat_num_gga{0};
 	uint8_t _sat_num_gns{0};
 	uint8_t _sat_num_gsv{0};
