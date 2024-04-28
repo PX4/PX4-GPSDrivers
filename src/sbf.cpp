@@ -304,7 +304,7 @@ int GPSDriverSBF::receive(unsigned timeout)
 
 		if (ret < 0) {
 			// something went wrong when reading
-			SBF_WARN("ubx read err");
+			SBF_WARN("sbf read err");
 			return -1;
 
 		} else {
