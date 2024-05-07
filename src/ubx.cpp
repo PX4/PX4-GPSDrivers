@@ -2562,8 +2562,7 @@ GPSDriverUBX::sendMessage(const uint16_t msg, const uint8_t *payload, const uint
 	}
 
 	if (total_packet_length > (int) sizeof(_tx_packet)) {
-		// UBX_DEBUG("VOXL_GPS: CRITICAL: tx msg too large: %u", total_packet_length);
-		PX4_ERR("VOXL_GPS: CRITICAL: tx msg too large: %u", total_packet_length);
+		UBX_DEBUG("Tx msg too large: %u", total_packet_length);
 		return false;
 	}
 
@@ -2580,12 +2579,11 @@ GPSDriverUBX::sendMessage(const uint16_t msg, const uint8_t *payload, const uint
 		b += length;
 	}
 
+	memcpy(b, &checksum, sizeof(checksum));
+
 	// Send the packet
 	if (write((void *) _tx_packet, total_packet_length) != total_packet_length) {
-		PX4_ERR("VOXL_GPS: Failed to send packet");
 		return false;
-	} else {
-		PX4_INFO("UBX send succeeded");
 	}
 
 	return true;
