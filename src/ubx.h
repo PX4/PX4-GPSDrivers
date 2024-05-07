@@ -1186,6 +1186,8 @@ private:
 	const UBXMode _mode;
 	const float _heading_offset;
 	const int32_t _uart2_baudrate;
+
+	uint8_t _tx_packet[sizeof(ubx_header_t) + sizeof(ubx_buf_t) + sizeof(ubx_checksum_t)];
 };
 
 
