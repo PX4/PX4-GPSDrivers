@@ -2553,16 +2553,36 @@ GPSDriverUBX::sendMessage(const uint16_t msg, const uint8_t *payload, const uint
 		calcChecksum(payload, length, &checksum);
 	}
 
-	// Send message
-	if (write((void *)&header, sizeof(header)) != sizeof(header)) {
+	// Figure out total packet length and make sure there is enough buffer space
+	// available for it
+	int total_packet_length = (int)(sizeof(ubx_header_t) + sizeof(ubx_checksum_t));
+
+	if (payload) {
+		total_packet_length += (int) length;
+	}
+
+	if (total_packet_length > (int) sizeof(_tx_packet)) {
+		UBX_DEBUG("Tx msg too large: %u", total_packet_length);
 		return false;
 	}
 
-	if (payload && write((void *)payload, length) != length) {
-		return false;
+	// Coalesce the packet elements into the transmission buffer. Some UARTs have
+	// too long of a period in between transmissions and it will cause the GPS
+	// unit to assume that the packet was lost if it is sent in multiple parts
+	// (e.g. Send header, then payload, then checksum)
+	uint8_t *b = _tx_packet;
+	memcpy(b, &header, sizeof(header));
+	b += sizeof(header);
+
+	if (payload) {
+		memcpy(b, payload, length);
+		b += length;
 	}
 
-	if (write((void *)&checksum, sizeof(checksum)) != sizeof(checksum)) {
+	memcpy(b, &checksum, sizeof(checksum));
+
+	// Send the packet
+	if (write((void *) _tx_packet, total_packet_length) != total_packet_length) {
 		return false;
 	}
 

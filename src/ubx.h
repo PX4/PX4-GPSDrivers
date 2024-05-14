@@ -1173,6 +1173,8 @@ private:
 	uint16_t _rx_payload_index{0};
 	uint16_t _rx_payload_length{0};
 
+	uint8_t _tx_packet[sizeof(ubx_header_t) + sizeof(ubx_buf_t) + sizeof(ubx_checksum_t)];
+
 	uint32_t _ubx_version{0};
 
 	uint64_t _last_timestamp_time{0};
