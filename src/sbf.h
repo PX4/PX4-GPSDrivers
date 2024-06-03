@@ -377,6 +377,15 @@ public:
 
 	int receive(unsigned timeout) override;
 
+	/**
+	 * @brief Try to detect the serial port used on the receiver side.
+	 *
+	 * @param port_name A string with a length of 5 to store the result
+	 *
+	 * @return `PX4_OK` on success, `PX4_ERROR` on error
+	*/
+	int detectSerialPort(char *const port_name);
+
 	int configure(unsigned &baudrate, const GPSConfig &config) override;
 
 	int reset(GPSRestartType restart_type) override;
