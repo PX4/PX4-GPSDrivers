@@ -76,6 +76,72 @@ GPSDriverSBF::~GPSDriverSBF()
 	delete _rtcm_parsing;
 }
 
+int GPSDriverSBF::detectSerialPort(char* const port_name) {
+	// Read buffer to get the COM port
+	char buf[GPS_READ_BUFFER_SIZE];
+	size_t buffer_offset = 0;   // The offset into the string where the next data should be read to.
+	hrt_abstime timeout_time = hrt_absolute_time() + 5 * 1000 * 200;
+	bool response_detected = false;
+
+	// Receiver prints prompt after a message.
+	if (!sendMessage("gecm\n")) {
+		return PX4_ERROR;
+	}
+
+	do {
+		// Read at most the amount of available bytes in the buffer after the current offset, -1 because we need '\0' at the end for a valid string.
+		int read_result = read(reinterpret_cast<uint8_t *>(buf) + buffer_offset, sizeof(buf) - buffer_offset - 1, 200);
+
+		if (read_result < 0) {
+			SBF_WARN("SBF read error");
+			return PX4_ERROR;
+		}
+
+		// Sanitize the data so it doesn't contain any `0` values.
+		for (size_t i = buffer_offset; i < buffer_offset + read_result; i++) {
+			if (buf[i] == 0) {
+				buf[i] = 1;
+			}
+		}
+
+		buffer_offset += read_result;
+
+		// Make sure the current buffer is a valid string.
+		buf[buffer_offset] = '\0';
+
+		char* port_name_address = strstr(buf, ">");
+
+		// Check if we found a port candidate.
+		if (buffer_offset > 4 && port_name_address != nullptr) {
+			size_t port_name_offset = reinterpret_cast<size_t>(port_name_address) - reinterpret_cast<size_t>(buf) - 4;
+			for (size_t i = 0; i < 4; i++) {
+				port_name[i] = buf[port_name_offset + i];
+			}
+			// NOTE: This limits the ports to serial and USB ports only. Otherwise the detection doesn't work correctly.
+			if (strstr(port_name, "COM") != nullptr || strstr(port_name, "USB") != nullptr) {
+				response_detected = true;
+				break;
+			}
+		}
+
+		if (buffer_offset + 1 >= sizeof(buf)) {
+			// Copy the last 3 bytes such that a half port isn't lost.
+			for (int i = 0; i < 4; i++) {
+				buf[i] = buf[sizeof(buf) - 4 + i];
+			}
+			buffer_offset = 3;
+		}
+	} while (timeout_time > hrt_absolute_time());
+
+	if (!response_detected) {
+		SBF_WARN("No valid serial port detected");
+		return PX4_ERROR;
+	} else {
+		SBF_INFO("Serial port found: %s", port_name);
+		return PX4_OK;
+	}
+}
+
 int GPSDriverSBF::configure(unsigned &baudrate, const GPSConfig &config)
 {
 	_configured = false;
@@ -93,52 +159,9 @@ int GPSDriverSBF::configure(unsigned &baudrate, const GPSConfig &config)
 	receive(50);
 	decodeInit();
 
-	char buf[GPS_READ_BUFFER_SIZE];
 	char com_port[5] {};
 
-	size_t offset = 1;
-	bool response_detected = false;
-	gps_abstime time_started = gps_absolute_time();
-	sendMessage("\n\r");
-
-	// Read buffer to get the COM port
-	do {
-		--offset; //overwrite the null-char
-		int ret = read(reinterpret_cast<uint8_t *>(buf) + offset, sizeof(buf) - offset - 1, SBF_CONFIG_TIMEOUT);
-
-		if (ret < 0) {
-			// something went wrong when polling or reading
-			SBF_WARN("sbf poll_or_read err");
-			return ret;
-
-		}
-
-		offset += ret;
-		buf[offset++] = '\0';
-
-
-		char *p = strstr(buf, ">");
-
-		if (p) { //check if the length of the com port == 4 and contains a > sign
-			for (int i = 0; i < 4; i++) {
-				com_port[i] = buf[i];
-			}
-
-			response_detected = true;
-		}
-
-		if (offset >= sizeof(buf)) {
-			offset = 1;
-		}
-
-	} while (time_started + 1000 * SBF_CONFIG_TIMEOUT > gps_absolute_time() && !response_detected);
-
-	if (response_detected) {
-		SBF_INFO("Septentrio GNSS receiver COM port: %s", com_port);
-		response_detected = false; // for future use
-
-	} else {
-		SBF_WARN("No COM port detected")
+	if (detectSerialPort(com_port) == PX4_ERROR) {
 		return -1;
 	}
 
@@ -205,6 +228,7 @@ int GPSDriverSBF::configure(unsigned &baudrate, const GPSConfig &config)
 
 	// Output a set of SBF blocks on a given connection at a regular interval.
 	int i = 0;
+	bool response_detected = false;
 	snprintf(msg, sizeof(msg), SBF_CONFIG, com_port);
 
 	do {
