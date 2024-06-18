@@ -95,6 +95,7 @@ int GPSDriverSBF::configure(unsigned &baudrate, const GPSConfig &config)
 		snprintf(msg, sizeof(msg), SBF_CONFIG_DISABLE_OUTPUT, "COM", i);
 		sendMessageAndWaitForAck(msg, SBF_CONFIG_TIMEOUT);
 	}
+
 	for (int i = 1; i <= 4; i++) {
 		snprintf(msg, sizeof(msg), SBF_CONFIG_DISABLE_OUTPUT, "USB", i);
 		sendMessageAndWaitForAck(msg, SBF_CONFIG_TIMEOUT);
@@ -196,13 +197,14 @@ int GPSDriverSBF::configure(unsigned &baudrate, const GPSConfig &config)
 		}
 
 		sendMessageAndWaitForAck(msg, SBF_CONFIG_TIMEOUT);
-		
+
 		snprintf(msg, sizeof(msg), SBF_CONFIG, com_port);
 
 		sendMessageAndWaitForAck(msg, SBF_CONFIG_TIMEOUT);
 	}
 
 	int i = 0;
+
 	do {
 		++i;
 
