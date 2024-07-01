@@ -401,7 +401,6 @@ int GPSDriverSBF::parseChar(const uint8_t b)
 
 		} else {
 			// expecting more payload, stay in state SBF_DECODE_PAYLOAD
-			ret = 0;
 
 		}
 
