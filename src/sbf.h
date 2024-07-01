@@ -37,6 +37,7 @@
  * Septentrio protocol as defined in PPSDK SBF Reference Guide 4.1.8
  *
  * @author Matej Franceskin <Matej.Franceskin@gmail.com>
+ * @author Niklas Hauser <niklas@auterion.com>
  * @author <a href="https://github.com/SeppeG">Seppe Geuens</a>
  *
  */
@@ -49,48 +50,50 @@
 #include "../../definitions.h"
 
 
-#define SBF_CONFIG_FORCE_INPUT "SSSSSSSSSS\n"
+#define SBF_CONFIG_FORCE_INPUT \
+	"SSSSSSSSSS\n"
 
-#define SBF_CONFIG_BAUDRATE "setCOMSettings, %s, baud%d\n"
+#define SBF_CONFIG_BAUDRATE \
+	"setCOMSettings, %s, baud%d\n"
 
-#define SBF_CONFIG_RESET "setSBFOutput, Stream1, %s, none, off\n"
+#define SBF_CONFIG_RECEIVER_DYNAMICS \
+	"setReceiverDynamics, %s, UAV\n"
 
-#define SBF_CONFIG_RECEIVER_DYNAMICS "setReceiverDynamics, %s, UAV\n"
-
-#define SBF_CONFIG_ATTITUDE_OFFSET "setAttitudeOffset, %.3f, %.3f\n"
+#define SBF_CONFIG_ATTITUDE_OFFSET \
+	"setAttitudeOffset, %.3f, %.3f\n"
 
 #define SBF_TX_CFG_PRT_BAUDRATE 115200
 
-#define SBF_DATA_IO "setDataInOut, %s, Auto, SBF\n"
+#define SBF_DATA_IO \
+	"setDataInOut, %s, Auto, SBF\n"
 
-#define SBF_CONFIG "setSBFOutput, Stream1, %s, PVTGeodetic+VelCovGeodetic+DOP+AttEuler+AttCovEuler, msec100\n"
+#define SBF_CONFIG_SBF_OUTPUT \
+	"setSBFOutput, Stream1, %s, PVTGeodetic+VelCovGeodetic+DOP+AttEuler+AttCovEuler, msec100\n"
 
-#define SBF_CONFIG_DISABLE_OUTPUT "setDataInOut,%s%d,,-RTCMv3\n"
-
-#define SBF_CONFIG_RTCM "" \
+#define SBF_CONFIG_RTCM \
 	"setDataInOut, USB1, Auto, RTCMv3\n" \
 	"setPVTMode, Static, All, auto\n"
 
-#define SBF_CONFIG_RTCM_STATIC1 "" \
+#define SBF_CONFIG_RTCM_STATIC1 \
 	"setReceiverDynamics, Low, Static\n"
 
-#define SBF_CONFIG_RTCM_STATIC2 "" \
+#define SBF_CONFIG_RTCM_STATIC2 \
 	"setPVTMode, Static, , Geodetic1\n"
 
-#define SBF_CONFIG_RTCM_STATIC_COORDINATES "" \
+#define SBF_CONFIG_RTCM_STATIC_COORDINATES \
 	"setStaticPosGeodetic, Geodetic1, %f, %f, %f\n"
 
-#define SBF_CONFIG_RTCM_STATIC_OFFSET "" \
+#define SBF_CONFIG_RTCM_STATIC_OFFSET \
 	"setAntennaOffset, Main, %f, %f, %f\n"
 
-#define SBF_CONFIG_RESET_HOT "" \
-	SBF_CONFIG_FORCE_INPUT"ExeResetReceiver, soft, none\n"
+#define SBF_CONFIG_RESET_HOT \
+	"ExeResetReceiver, soft, none\n"
 
-#define SBF_CONFIG_RESET_WARM "" \
-	SBF_CONFIG_FORCE_INPUT"ExeResetReceiver, soft, PVTData\n"
+#define SBF_CONFIG_RESET_WARM \
+	"ExeResetReceiver, soft, PVTData\n"
 
-#define SBF_CONFIG_RESET_COLD "" \
-	SBF_CONFIG_FORCE_INPUT"ExeResetReceiver, hard, SatData\n"
+#define SBF_CONFIG_RESET_COLD \
+	"ExeResetReceiver, hard, SatData\n"
 
 #define SBF_SYNC1 0x24
 #define SBF_SYNC2 0x40
@@ -399,20 +402,38 @@ private:
 	 * @brief Send a message
 	 * @return true on success, false on write error (errno set)
 	 */
-	bool sendMessage(const char *msg);
+	bool sendMessage(const char *msg, ...);
+	bool sendMessage(const char *msg, va_list args);
 
 	/**
 	 * @brief Send a message and waits for acknowledge
 	 * @return true on success, false on write error (errno set) or ack wait timeout
 	 */
-	bool sendMessageAndWaitForAck(const char *msg, const int timeout);
+	bool sendMessageAndWaitForAck(const char *msg, ...);
 
 	/**
-	 * @brief Configures the SBF Output blocks
-	 * @return true on success, false on write error (errno set) or ack wait timeout
+	 * @brief Reads the input stream and presents it in chunks to the filter function.
+	 *
+	 * The input stream is sanitized by replacing `\0` bytes with `0` and
+	 * terminated with a `\0` byte at the end. This allows use of strstr and
+	 * strchr on the input stream without worrying about binary data.
+	 *
+	 * The filter function must have the signature `int(const char*)` and will
+	 * get passed the current buffer chunk. Returning -N will copy the last N
+	 * character to the beginning of the buffer and continue receiving.
+	 * Returning 0 will stop receiving and this function returns -1.
+	 * Returning 1 will stop receiving and this function returns 0.
+	 *
+	 * On timeout, this function returns -2.
+	 * On read error, this function returns -3.
+	 *
+	 * You can use this function to await a specific substring pattern, but not
+	 * to parse binary messages. That requires a proper parser!
 	 */
-	bool configSBFOutput(const char *com_port);
+	template< class Callable >
+	int receivePattern(Callable &&filter, int timeout);
 
+	char _com_port[5] {};
 	sensor_gps_s *_gps_position{nullptr};
 	satellite_info_s *_satellite_info{nullptr};
 	uint8_t _dynamic_model{7};

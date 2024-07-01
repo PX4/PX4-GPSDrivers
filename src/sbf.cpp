@@ -37,6 +37,7 @@
  * Septentrio protocol as defined in PPSDK SBF Reference Guide 4.1.8
  *
  * @author Matej Frančeškin <Matej.Franceskin@gmail.com>
+ * @author Niklas Hauser <niklas@auterion.com>
  * @author <a href="https://github.com/SeppeG">Seppe Geuens</a>
  *
 */
@@ -44,11 +45,11 @@
 #include "sbf.h"
 #include "rtcm.h"
 
-#include <string.h>
+#include <cstring>
 #include <ctime>
 #include <cmath>
 
-#define SBF_CONFIG_TIMEOUT        1000      // ms, timeout for waiting ACK
+#define SBF_CONFIG_TIMEOUT        500      // ms, timeout for waiting ACK
 #define SBF_PACKET_TIMEOUT        2        // ms, if now data during this delay assume that full update received
 #define DISABLE_MSG_INTERVAL    1000000  // us, try to disable message with this interval
 #define DNU                        100000.0 // Do-Not-Use value for PVTGeodetic
@@ -78,87 +79,40 @@ GPSDriverSBF::~GPSDriverSBF()
 
 int GPSDriverSBF::configure(unsigned &baudrate, const GPSConfig &config)
 {
-	char buf[GPS_READ_BUFFER_SIZE];
-	char msg[MSG_SIZE];
-
 	_configured = false;
 
-	setBaudrate(SBF_TX_CFG_PRT_BAUDRATE);
-	baudrate = SBF_TX_CFG_PRT_BAUDRATE;
-	_output_mode = config.output_mode;
+	if (baudrate == 0) { baudrate = SBF_TX_CFG_PRT_BAUDRATE; }
+
+	setBaudrate(baudrate);
 
 	// Make sure we can send commands to the receiver
 	sendMessage(SBF_CONFIG_FORCE_INPUT);
 
-	// Disable previous output for now so we can detect the COM port
-	for (int i = 1; i <= 2; i++) {
-		snprintf(msg, sizeof(msg), SBF_CONFIG_DISABLE_OUTPUT, "COM", i);
-		sendMessageAndWaitForAck(msg, SBF_CONFIG_TIMEOUT);
-	}
-
-	for (int i = 1; i <= 4; i++) {
-		snprintf(msg, sizeof(msg), SBF_CONFIG_DISABLE_OUTPUT, "USB", i);
-		sendMessageAndWaitForAck(msg, SBF_CONFIG_TIMEOUT);
-	}
-
-	char com_port[5] {};
-	size_t offset = 1;
-	bool response_detected = false;
-	gps_abstime time_started = gps_absolute_time();
-	sendMessage("\n\r");
-
 	// Read buffer to get the COM port
-	do {
-		--offset; // overwrite the null-char
-		int ret = read(reinterpret_cast<uint8_t *>(buf) + offset, sizeof(buf) - offset - 1, SBF_CONFIG_TIMEOUT);
+	const int com_detected = receivePattern([&](char *buf) {
+		// check if the length of the com port >= 4 and contains a > sign
+		const char *p = strchr(buf, '>');
 
-		if (ret < 0) {
-			// something went wrong when reading
-			SBF_WARN("sbf read err");
-			return ret;
+		if (p && (p - buf) >= 4) {
+			memcpy(_com_port, p - 4, 4);
+			return 1;
 		}
 
-		offset += ret;
-		buf[offset++] = '\0';
+		return -5; // looking for "COM1>"
+	}, SBF_CONFIG_TIMEOUT);
 
-		char *p = strstr(buf, ">");
-
-		if (p) { //check if the length of the com port == 4 and contains a > sign
-			for (int i = 0; i < 4; i++) {
-				com_port[i] = buf[i];
-			}
-
-			response_detected = true;
-		}
-
-		if (offset >= sizeof(buf)) {
-			offset = 1;
-		}
-
-	} while (time_started + 1000 * SBF_CONFIG_TIMEOUT > gps_absolute_time() && !response_detected);
-
-	if (response_detected) {
-		SBF_INFO("Septentrio GNSS receiver COM port: %s", com_port);
-		response_detected = false; // for future use
+	if (com_detected == 0) {
+		SBF_INFO("Septentrio GNSS detected on %s", _com_port);
 
 	} else {
-		SBF_WARN("No COM port detected")
+		SBF_WARN("Septentrio GNSS not detected...")
 		return -1;
 	}
 
-	// Delete all sbf outputs on current COM port to remove clutter data
-	snprintf(msg, sizeof(msg), SBF_CONFIG_RESET, com_port);
-
-	if (!sendMessageAndWaitForAck(msg, SBF_CONFIG_TIMEOUT)) {
-		return -1; // connection and/or baudrate detection failed
-	}
-
 	// Set baudrate, unless we're connected over USB
-	if (strncmp(com_port, "USB1", 4) != 0 && strncmp(com_port, "USB2", 4) != 0) {
-		snprintf(msg, sizeof(msg), SBF_CONFIG_BAUDRATE, com_port, baudrate);
-
-		if (!sendMessageAndWaitForAck(msg, SBF_CONFIG_TIMEOUT)) {
-			SBF_DEBUG("Connection and/or baudrate detection failed (SBF_CONFIG_BAUDRATE)");
+	if (strncmp(_com_port, "USB", 3) != 0) {
+		if (!sendMessageAndWaitForAck(SBF_CONFIG_BAUDRATE, _com_port, baudrate)) {
+			SBF_WARN("!BAUDRATE");
 			return -1; // connection and/or baudrate detection failed
 		}
 	}
@@ -167,71 +121,72 @@ int GPSDriverSBF::configure(unsigned &baudrate, const GPSConfig &config)
 	SBF_DEBUG("Correct baud rate on both ends");
 
 	// Define/inquire the type of data that the receiver should accept/send on a given connection descriptor
-	snprintf(msg, sizeof(msg), SBF_DATA_IO, com_port);
-
-	if (!sendMessageAndWaitForAck(msg, SBF_CONFIG_TIMEOUT)) {
+	if (!sendMessageAndWaitForAck(SBF_DATA_IO, _com_port)) {
+		SBF_WARN("!DATA_IO");
 		return -1;
 	}
 
 	// Set the type of dynamics the GNSS antenna is subjected to.
+	_output_mode = config.output_mode;
+
 	if (_output_mode != OutputMode::RTCM) {
 
 		// Specify the offsets that the receiver applies to the computed attitude angles.
-		snprintf(msg, sizeof(msg), SBF_CONFIG_ATTITUDE_OFFSET, (double)(_heading_offset * 180 / M_PI_F), (double)_pitch_offset);
-
-		if (!sendMessageAndWaitForAck(msg, SBF_CONFIG_TIMEOUT)) {
+		if (!sendMessageAndWaitForAck(SBF_CONFIG_ATTITUDE_OFFSET,
+					      (double)(_heading_offset * 180 / M_PI_F),
+					      (double)_pitch_offset)) {
+			SBF_WARN("!ATTITUDE_OFFSET");
 			return -1;
 		}
 
-		if (_dynamic_model < 6) {
-			snprintf(msg, sizeof(msg), SBF_CONFIG_RECEIVER_DYNAMICS, "low");
+		const char *arg = "max";
 
-		} else if (_dynamic_model < 7) {
-			snprintf(msg, sizeof(msg), SBF_CONFIG_RECEIVER_DYNAMICS, "moderate");
+		if (_dynamic_model < 6) { arg = "low"; }
 
-		} else if (_dynamic_model < 8) {
-			snprintf(msg, sizeof(msg), SBF_CONFIG_RECEIVER_DYNAMICS, "high");
+		else if (_dynamic_model < 7) { arg = "moderate"; }
 
-		} else {
-			snprintf(msg, sizeof(msg), SBF_CONFIG_RECEIVER_DYNAMICS, "max");
+		else if (_dynamic_model < 8) { arg = "high"; }
+
+		if (!sendMessageAndWaitForAck(SBF_CONFIG_RECEIVER_DYNAMICS, arg)) {
+			SBF_WARN("!RECEIVER_DYNAMICS");
+			return -1;
 		}
 
-		sendMessageAndWaitForAck(msg, SBF_CONFIG_TIMEOUT);
+		if (!sendMessageAndWaitForAck(SBF_CONFIG_SBF_OUTPUT, _com_port)) {
+			SBF_WARN("!SBF_OUTPUT");
+			return -1;
+		}
 
-		snprintf(msg, sizeof(msg), SBF_CONFIG, com_port);
+	} else {
+		if (_base_settings.type == BaseSettingsType::fixed_position) {
+			if (!sendMessageAndWaitForAck(SBF_CONFIG_RTCM_STATIC_COORDINATES,
+						      _base_settings.settings.fixed_position.latitude,
+						      _base_settings.settings.fixed_position.longitude,
+						      static_cast<double>(_base_settings.settings.fixed_position.altitude))) {
+				SBF_WARN("!RTCM_STATIC_COORDINATES");
+				return -1;
+			}
 
-		sendMessageAndWaitForAck(msg, SBF_CONFIG_TIMEOUT);
-	}
+			if (!sendMessageAndWaitForAck(SBF_CONFIG_RTCM_STATIC_OFFSET, 0.0, 0.0, 0.0)) {
+				SBF_WARN("!RTCM_STATIC_OFFSET");
+				return -1;
+			}
 
-	int i = 0;
+			if (!sendMessageAndWaitForAck(SBF_CONFIG_RTCM_STATIC1)) {
+				SBF_WARN("!RTCM_STATIC1");
+				return -1;
+			}
 
-	do {
-		++i;
-
-		if (!sendMessageAndWaitForAck(msg, SBF_CONFIG_TIMEOUT)) {
-			if (i >= 5) {
-				return -1; // connection and/or baudrate detection failed
+			if (!sendMessageAndWaitForAck(SBF_CONFIG_RTCM_STATIC2)) {
+				SBF_WARN("!RTCM_STATIC2");
+				return -1;
 			}
 
 		} else {
-			response_detected = true;
-		}
-	} while (i < 5 && !response_detected);
-
-	if (_output_mode == OutputMode::RTCM) {
-		if (_base_settings.type == BaseSettingsType::fixed_position) {
-			snprintf(msg, sizeof(msg), SBF_CONFIG_RTCM_STATIC_COORDINATES,
-				 _base_settings.settings.fixed_position.latitude,
-				 _base_settings.settings.fixed_position.longitude,
-				 static_cast<double>(_base_settings.settings.fixed_position.altitude));
-			sendMessageAndWaitForAck(msg, SBF_CONFIG_TIMEOUT);
-			snprintf(msg, sizeof(msg), SBF_CONFIG_RTCM_STATIC_OFFSET, 0.0, 0.0, 0.0);
-			sendMessageAndWaitForAck(msg, SBF_CONFIG_TIMEOUT);
-			sendMessageAndWaitForAck(SBF_CONFIG_RTCM_STATIC1, SBF_CONFIG_TIMEOUT);
-			sendMessageAndWaitForAck(SBF_CONFIG_RTCM_STATIC2, SBF_CONFIG_TIMEOUT);
-
-		} else {
-			sendMessageAndWaitForAck(SBF_CONFIG_RTCM, SBF_CONFIG_TIMEOUT);
+			if (!sendMessageAndWaitForAck(SBF_CONFIG_RTCM)) {
+				SBF_WARN("!RTCM");
+				return -1;
+			}
 		}
 	}
 
@@ -239,61 +194,102 @@ int GPSDriverSBF::configure(unsigned &baudrate, const GPSConfig &config)
 	return 0;
 }
 
-bool GPSDriverSBF::sendMessage(const char *msg)
+bool GPSDriverSBF::sendMessage(const char *fmt, ...)
 {
-	// Send message
-	SBF_DEBUG("Send MSG: %s", msg);
-	int length = static_cast<int>(strlen(msg));
-
-	return (write(msg, length) == length);
+	va_list args;
+	va_start(args, fmt);
+	bool ret = sendMessage(fmt, args);
+	va_end(args);
+	return ret;
 }
 
-bool GPSDriverSBF::sendMessageAndWaitForAck(const char *msg, const int timeout)
+bool GPSDriverSBF::sendMessage(const char *fmt, va_list args)
 {
+	char msg[MSG_SIZE];
+	const int length = vsnprintf(msg, sizeof(msg), fmt, args);
 	SBF_DEBUG("Send MSG: %s", msg);
+	return write(msg, length) == length;
+}
 
-	// Send message
-	int length = static_cast<int>(strlen(msg));
+bool GPSDriverSBF::sendMessageAndWaitForAck(const char *fmt, ...)
+{
+	va_list args;
+	va_start(args, fmt);
+	const bool send = sendMessage(fmt, args);
+	va_end(args);
 
-	if (write(msg, length) != length) {
-		return false;
-	}
+	if (!send) { return false; }
 
 	// Wait for acknowledge
 	// For all valid set -, get - and exe -commands, the first line of the reply is an exact copy
-	// of the command as entered by the user, preceded with "$R:"
+	// of the command as entered by the user, preceded with "$R: " or "$R? "
+	const int read = receivePattern([ret = int(-1)](char *buf) mutable {
+		if (ret >= 0)
+		{
+			// wait until the messages is completely received
+			// Otherwise we send messages too fast and the reponses get lost
+			if (strchr(buf, '>')) { return ret; }
+
+		} else
+		{
+			// await either a positive or negative response
+			if (strstr(buf, "$R: ")) { ret = 1; }
+
+			else if (strstr(buf, "$R? ")) { ret = 0; }
+
+			// we still need to wait for the message completion!
+		}
+		return -4; // keep looking for pattern
+	}, SBF_CONFIG_TIMEOUT);
+
+	if (read == -1) { SBF_WARN("NACK"); }
+
+	else if (read == -2) { SBF_WARN("Timeout"); }
+
+	return read == 0;
+}
+
+
+template< class Callable >
+int GPSDriverSBF::receivePattern(Callable &&filter, const int timeout)
+{
+	size_t qlen{0};
 	char buf[GPS_READ_BUFFER_SIZE];
-	size_t offset = 1;
 	gps_abstime time_started = gps_absolute_time();
 
-	bool found_response = false;
-
 	do {
-		--offset; //overwrite the null-char
-		int ret = read(reinterpret_cast<uint8_t *>(buf) + offset, sizeof(buf) - offset - 1, timeout);
+		int ret = read(reinterpret_cast<uint8_t *>(buf + qlen), sizeof(buf) - 1 - qlen, timeout / 10);
 
 		if (ret < 0) {
 			// something went wrong when reading
 			SBF_WARN("sbf read err");
-			return false;
+			return -3;
 		}
 
-		offset += ret;
-		buf[offset++] = '\0';
-
-		if (!found_response && strstr(buf, "$R: ") != nullptr) {
-			//SBF_DEBUG("READ %d: %s", (int) offset, buf);
-			found_response = true;
+		// We may get binary messages in the $@ format and instead of properly parsing that,
+		// we just replace all \0 bytes so we can use strstr without early termination
+		for (size_t ii = 0; ii < ret + qlen; ii++) {
+			if (buf[ii] == 0) { buf[ii] = 1; }
 		}
 
-		if (offset >= sizeof(buf)) {
-			offset = 1;
-		}
+		buf[ret + qlen + 1] = '\0';
+
+		const int fret = filter(buf);
+
+		if (fret == 0) { return -1; }
+
+		if (fret >= 1) { return 0; }
+
+		qlen = -fret;
+
+		if (qlen > sizeof(buf) / 2) { qlen = sizeof(buf) / 2; }
+
+		// copy the last characters to the beginning to make the search window continuous
+		memcpy(buf, buf + ret, qlen);
 
 	} while (time_started + 1000 * timeout > gps_absolute_time());
 
-	SBF_DEBUG("response: %u", found_response)
-	return found_response;
+	return -2;
 }
 
 // return value:
@@ -322,7 +318,7 @@ int GPSDriverSBF::receive(unsigned timeout)
 
 		if (ret < 0) {
 			// something went wrong when reading
-			SBF_WARN("ubx read err");
+			SBF_WARN("sbf read err");
 			return -1;
 
 		} else {
@@ -712,15 +708,15 @@ int GPSDriverSBF::reset(GPSRestartType restart_type)
 
 	switch (restart_type) {
 	case GPSRestartType::Hot:
-		res = sendMessageAndWaitForAck(SBF_CONFIG_RESET_HOT, SBF_CONFIG_TIMEOUT);
+		res = sendMessageAndWaitForAck(SBF_CONFIG_RESET_HOT);
 		break;
 
 	case GPSRestartType::Warm:
-		res = sendMessageAndWaitForAck(SBF_CONFIG_RESET_WARM, SBF_CONFIG_TIMEOUT);
+		res = sendMessageAndWaitForAck(SBF_CONFIG_RESET_WARM);
 		break;
 
 	case GPSRestartType::Cold:
-		res = sendMessageAndWaitForAck(SBF_CONFIG_RESET_COLD, SBF_CONFIG_TIMEOUT);
+		res = sendMessageAndWaitForAck(SBF_CONFIG_RESET_COLD);
 		break;
 
 	default:
