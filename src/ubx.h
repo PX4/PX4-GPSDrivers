@@ -1020,9 +1020,6 @@ public:
 	const Board &board() const { return _board; }
 
 private:
-
-private:
-
 	int activateRTCMOutput(bool reduce_update_rate);
 
 	/**
