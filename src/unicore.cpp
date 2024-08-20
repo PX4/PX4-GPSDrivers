@@ -74,6 +74,7 @@ UnicoreParser::Result UnicoreParser::parseChar(char c)
 			_buffer_crc[_buffer_crc_pos] = '\0';
 
 			if (!crcCorrect()) {
+				reset();
 				return Result::WrongCrc;
 			}
 
