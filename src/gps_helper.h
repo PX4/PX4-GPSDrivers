@@ -41,7 +41,12 @@
 
 #include <cstdint>
 #include <cstring>
-#include "../../definitions.h"
+
+#ifndef GPS_DEFINITIONS_HEADER
+#define GPS_DEFINITIONS_HEADER "../../definitions.h"
+#endif
+
+#include GPS_DEFINITIONS_HEADER
 
 #ifndef GPS_READ_BUFFER_SIZE
 #define GPS_READ_BUFFER_SIZE 150 ///< buffer size for the read() call. Messages can be longer than that.
