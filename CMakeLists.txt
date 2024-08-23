@@ -23,3 +23,8 @@ target_include_directories(gps-parser-test
     PRIVATE
     src/
 )
+
+include(CTest)
+enable_testing()
+
+add_test(NAME GPSParserTest COMMAND gps-parser-test)
