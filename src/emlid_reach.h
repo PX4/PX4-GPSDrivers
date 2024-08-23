@@ -40,7 +40,6 @@
 #pragma once
 
 #include "gps_helper.h"
-#include "../../definitions.h"
 
 // Emlid documentation
 //   https://docs.emlid.com/reachm-plus/

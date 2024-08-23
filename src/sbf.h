@@ -43,10 +43,8 @@
 
 #pragma once
 
-#include "gps_helper.h"
 #include "base_station.h"
 #include "rtcm.h"
-#include "../../definitions.h"
 
 
 #define SBF_CONFIG_FORCE_INPUT "SSSSSSSSSS\n"

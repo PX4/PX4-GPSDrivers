@@ -45,7 +45,6 @@
 #pragma once
 
 #include "gps_helper.h"
-#include "../../definitions.h"
 #include "unicore.h"
 
 class RTCMParsing;
