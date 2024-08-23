@@ -36,8 +36,6 @@
 #pragma once
 
 #include "base_station.h"
-#include "gps_helper.h"
-#include "../../definitions.h"
 
 class RTCMParsing;
 

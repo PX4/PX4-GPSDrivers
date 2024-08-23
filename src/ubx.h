@@ -50,8 +50,6 @@
 #pragma once
 
 #include "base_station.h"
-#include "gps_helper.h"
-#include "../../definitions.h"
 
 
 #define UBX_CONFIG_TIMEOUT    250 // ms, timeout for waiting ACK
