@@ -1,0 +1,48 @@
+name: Linux Test
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        BuildType: [Debug, Release]
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-tags: true
+          fetch-depth: 0
+
+      - uses: lukka/get-cmake@latest
+
+      - uses: seanmiddleditch/gha-setup-ninja@v5
+
+      - run: mkdir ${{ runner.temp }}/build
+
+      - name: Configure
+        working-directory: ${{ runner.temp }}/build
+        run: cmake -S ${{ github.workspace }} -B . -G Ninja -DCMAKE_BUILD_TYPE=${{ matrix.BuildType }}
+
+      - name: Build
+        working-directory: ${{ runner.temp }}/build
+        run: cmake --build . --target all --config ${{ matrix.BuildType }}
+
+      - name: Install
+        working-directory: ${{ runner.temp }}/build
+        run: cmake --install . --config ${{ matrix.BuildType }}
+
+      - name: Run unit tests
+        working-directory: ${{ runner.temp }}/build
+        run: ctest
