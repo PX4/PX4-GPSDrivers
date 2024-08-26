@@ -179,5 +179,31 @@ bool UnicoreParser::extractHeading()
 
 bool UnicoreParser::extractAgrica()
 {
-	return true;
+	// Skip to ;
+	char *ptr = strchr(_buffer, ';');
+
+	if (ptr == nullptr) {
+		return false;
+	}
+
+	ptr = strtok(ptr, ",");
+
+	unsigned i = 0;
+
+	while (ptr != nullptr) {
+		ptr = strtok(nullptr, ",");
+
+		if (ptr == nullptr) {
+			return false;
+		}
+
+		if (i == 24) {
+			_agrica.velocity_up_m_s = strtof(ptr, nullptr);
+			return true;
+		}
+
+		++i;
+	}
+
+	return false;
 }

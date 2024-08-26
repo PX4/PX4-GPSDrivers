@@ -922,13 +922,14 @@ int GPSDriverNMEA::receive(unsigned timeout)
 				} else if (result == UnicoreParser::Result::GotAgrica) {
 					++handled;
 
-					// We don't use anything of that message at this point, however, this
-					// allows to determine whether we are talking to a UM982 and hence
-					// request the heading (UNIHEADINGA) message that we actually require.
+					// Receiving this message tells us that we are talking to a UM982. If
+					// UNIHEADINGA is not configured by default, we request it now.
 
 					if (gps_absolute_time() - _unicore_heading_received_last > 1000000) {
 						request_unicore_heading_message();
 					}
+
+					_gps_position->vel_d_m_s = -_unicore_parser.agrica().velocity_up_m_s;
 				}
 			}
 

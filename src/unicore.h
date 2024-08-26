@@ -57,6 +57,7 @@ public:
 	};
 
 	struct Agrica {
+		float velocity_up_m_s;
 	};
 
 	Heading heading() const
