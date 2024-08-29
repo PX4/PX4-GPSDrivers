@@ -126,7 +126,13 @@ void test_agrica()
 		auto result = unicore_parser.parseChar(str[i]);
 
 		if (result == UnicoreParser::Result::GotAgrica) {
+			assert(unicore_parser.agrica().velocity_m_s == 0.003f);
+			assert(unicore_parser.agrica().velocity_north_m_s == 0.003f);
+			assert(unicore_parser.agrica().velocity_east_m_s == 0.001f);
 			assert(unicore_parser.agrica().velocity_up_m_s == -0.002f);
+			assert(unicore_parser.agrica().stddev_velocity_north_m_s == 0.021f);
+			assert(unicore_parser.agrica().stddev_velocity_east_m_s == 0.039f);
+			assert(unicore_parser.agrica().stddev_velocity_up_m_s == 0.025f);
 			return;
 		}
 	}

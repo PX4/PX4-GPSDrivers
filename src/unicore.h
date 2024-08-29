@@ -57,7 +57,13 @@ public:
 	};
 
 	struct Agrica {
+		float velocity_m_s;
+		float velocity_north_m_s;
+		float velocity_east_m_s;
 		float velocity_up_m_s;
+		float stddev_velocity_north_m_s;
+		float stddev_velocity_east_m_s;
+		float stddev_velocity_up_m_s;
 	};
 
 	Heading heading() const
@@ -70,6 +76,7 @@ public:
 		return _agrica;
 	}
 
+	bool agricaValid() const { return _agrica_valid; }
 
 private:
 	void reset();
@@ -93,4 +100,6 @@ private:
 
 	Heading _heading{};
 	Agrica _agrica{};
+
+	bool _agrica_valid{false};
 };
