@@ -487,13 +487,17 @@ int GPSDriverNMEA::handleMessage(int len)
 		_gps_position->latitude_deg = int(lat * 0.01) + (lat * 0.01 - int(lat * 0.01)) * 100.0 / 60.0;
 		_gps_position->longitude_deg = int(lon * 0.01) + (lon * 0.01 - int(lon * 0.01)) * 100.0 / 60.0;
 
-		_gps_position->vel_m_s = velocity_ms;
-		_gps_position->vel_n_m_s = velocity_north;
-		_gps_position->vel_e_m_s = velocity_east;
 		_gps_position->cog_rad = track_rad;
-		_gps_position->vel_ned_valid = true; /**< Flag to indicate if NED speed is valid */
 		_gps_position->c_variance_rad = 0.1f;
-		_gps_position->s_variance_m_s = 0;
+
+		if (!_unicore_parser.agricaValid()) {
+			_gps_position->vel_m_s = velocity_ms;
+			_gps_position->vel_n_m_s = velocity_north;
+			_gps_position->vel_e_m_s = velocity_east;
+			_gps_position->vel_ned_valid = true; /**< Flag to indicate if NED speed is valid */
+			_gps_position->s_variance_m_s = 0;
+		}
+
 		_gps_position->timestamp = gps_absolute_time();
 		_last_timestamp_time = gps_absolute_time();
 
@@ -922,13 +926,24 @@ int GPSDriverNMEA::receive(unsigned timeout)
 				} else if (result == UnicoreParser::Result::GotAgrica) {
 					++handled;
 
-					// We don't use anything of that message at this point, however, this
-					// allows to determine whether we are talking to a UM982 and hence
-					// request the heading (UNIHEADINGA) message that we actually require.
+					// Receiving this message tells us that we are talking to a UM982. If
+					// UNIHEADINGA is not configured by default, we request it now.
 
 					if (gps_absolute_time() - _unicore_heading_received_last > 1000000) {
 						request_unicore_heading_message();
 					}
+
+					_gps_position->vel_m_s = _unicore_parser.agrica().velocity_m_s;
+					_gps_position->vel_n_m_s = _unicore_parser.agrica().velocity_north_m_s;
+					_gps_position->vel_e_m_s = _unicore_parser.agrica().velocity_east_m_s;
+					_gps_position->vel_d_m_s = -_unicore_parser.agrica().velocity_up_m_s;
+					_gps_position->s_variance_m_s =
+						(_unicore_parser.agrica().stddev_velocity_north_m_s * _unicore_parser.agrica().stddev_velocity_north_m_s +
+						 _unicore_parser.agrica().stddev_velocity_east_m_s * _unicore_parser.agrica().stddev_velocity_east_m_s +
+						 _unicore_parser.agrica().stddev_velocity_up_m_s * _unicore_parser.agrica().stddev_velocity_up_m_s)
+						/ 3.0f;
+
+					_gps_position->vel_ned_valid = true;
 				}
 			}
 
