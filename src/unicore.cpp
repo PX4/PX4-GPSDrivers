@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (c) 2023 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2023-2024 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -179,5 +179,56 @@ bool UnicoreParser::extractHeading()
 
 bool UnicoreParser::extractAgrica()
 {
-	return true;
+	// Skip to ;
+	char *ptr = strchr(_buffer, ';');
+
+	if (ptr == nullptr) {
+		return false;
+	}
+
+	ptr = strtok(ptr, ",");
+
+	unsigned i = 0;
+
+	while (ptr != nullptr) {
+		ptr = strtok(nullptr, ",");
+
+		if (ptr == nullptr) {
+			return false;
+		}
+
+		if (i == 21) {
+			_agrica.velocity_m_s = strtof(ptr, nullptr);
+		}
+
+		else if (i == 22) {
+			_agrica.velocity_north_m_s = strtof(ptr, nullptr);
+		}
+
+		else if (i == 23) {
+			_agrica.velocity_east_m_s = strtof(ptr, nullptr);
+		}
+
+		else if (i == 24) {
+			_agrica.velocity_up_m_s = strtof(ptr, nullptr);
+		}
+
+		else if (i == 25) {
+			_agrica.stddev_velocity_north_m_s = strtof(ptr, nullptr);
+		}
+
+		else if (i == 26) {
+			_agrica.stddev_velocity_east_m_s = strtof(ptr, nullptr);
+		}
+
+		else if (i == 27) {
+			_agrica.stddev_velocity_up_m_s = strtof(ptr, nullptr);
+			_agrica_valid = true;
+			return true;
+		}
+
+		++i;
+	}
+
+	return false;
 }
