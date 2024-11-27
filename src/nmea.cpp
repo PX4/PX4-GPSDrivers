@@ -92,16 +92,16 @@ int GPSDriverNMEA::handleMessage(int len)
 		return 0;
 	}
 
-	int uiCalcComma = 0;
+	int fieldCount = 0;
 
 	for (int i = 0 ; i < len; i++) {
-		if (_rx_buffer[i] == ',') { uiCalcComma++; }
+		if (_rx_buffer[i] == ',') { fieldCount++; }
 	}
 
 	char *bufptr = (char *)(_rx_buffer + 6);
 	int ret = 0;
 
-	if ((memcmp(_rx_buffer + 3, "ZDA,", 4) == 0) && (uiCalcComma == 6)) {
+	if ((memcmp(_rx_buffer + 3, "ZDA,", 4) == 0) && (fieldCount == 6)) {
 #ifndef NO_MKTIME
 		/*
 		UTC day, month, and year, and local time zone offset
@@ -186,10 +186,56 @@ int GPSDriverNMEA::handleMessage(int len)
 		_TIME_received = true;
 		_gps_position->timestamp = gps_absolute_time();
 
-	} else if ((memcmp(_rx_buffer + 3, "GGA,", 4) == 0) && (uiCalcComma >= 14)) {
+	} else if ((memcmp(_rx_buffer + 3, "GLL,", 4) == 0) && (fieldCount >= 7)) {
+		/*
+		  Latitude and Londitude data
+		  Example:
+		  $xxGLL,Lat,N/S,long,E/W,timestamp,A/V data validity,A/V mode indicator
+		  $GNGLL,3150.712345,N,11711.912345,E,062735.00,A,A*76
+		*/
+		double utc_time = 0.0, lat = 0.0, lon = 0.0;
+		char ns = '?', ew = '?', dvalid = '?', modeind = '?';
+
+		if (bufptr && *(++bufptr) != ',') { lat = strtod(bufptr, &endp); bufptr = endp; }
+
+		if (bufptr && *(++bufptr) != ',') { ns = *(bufptr++); }
+
+		if (bufptr && *(++bufptr) != ',') { lon = strtod(bufptr, &endp); bufptr = endp; }
+
+		if (bufptr && *(++bufptr) != ',') { ew = *(bufptr++); }
+
+		if (bufptr && *(++bufptr) != ',') { utc_time = strtod(bufptr, &endp); bufptr = endp; }
+
+		if (bufptr && *(++bufptr) != ',') { dvalid = *(bufptr++); }
+
+		if (bufptr && *(++bufptr) != ',') { modeind = *(bufptr++); }
+
+		if (ns == 'S') {
+			lat = -lat;
+		}
+
+		if (ew == 'W') {
+			lon = -lon;
+		}
+
+		//  XXX todo add time
+
+		/* only update the values if they are valid */
+		if (dvalid == 'A' && modeind == 'A') {
+			_gps_position->longitude_deg = int(lon * 0.01) + (lon * 0.01 - int(lon * 0.01)) * 100.0 / 60.0;
+			_gps_position->latitude_deg = int(lat * 0.01) + (lat * 0.01 - int(lat * 0.01)) * 100.0 / 60.0;
+
+			if (!_POS_received && (_last_POS_timeUTC < utc_time)) {
+				_last_POS_timeUTC = utc_time;
+				_POS_received = true;
+			}
+
+		}
+
+	} else if ((memcmp(_rx_buffer + 3, "GGA,", 4) == 0) && (fieldCount >= 14)) {
 		/*
 		  Time, position, and fix related data
-		  An example of the GBS message string is:
+		  An example of the GGA message string is:
 		  $xxGGA,time,lat,NS,long,EW,quality,numSV,HDOP,alt,M,sep,M,diffAge,diffStation*cs
 		  $GPGGA,172814.0,3723.46587704,N,12202.26957864,W,2,6,1.2,18.893,M,-25.669,M,2.0,0031*4F
 		  $GNGGA,092721.00,2926.688113,N,11127.771644,E,2,08,1.11,106.3,M,-20,M,1.0,3721*53
@@ -303,7 +349,7 @@ int GPSDriverNMEA::handleMessage(int len)
 		_gps_position->c_variance_rad = 0.1f;
 		_gps_position->timestamp = gps_absolute_time();
 
-	} else if (memcmp(_rx_buffer + 3, "HDT,", 4) == 0 && uiCalcComma == 2) {
+	} else if (memcmp(_rx_buffer + 3, "HDT,", 4) == 0 && fieldCount == 2) {
 		/*
 		Heading message
 		Example $GPHDT,121.2,T*35
@@ -321,7 +367,7 @@ int GPSDriverNMEA::handleMessage(int len)
 
 		_HEAD_received = true;
 
-	} else if ((memcmp(_rx_buffer + 3, "GNS,", 4) == 0) && (uiCalcComma >= 12)) {
+	} else if ((memcmp(_rx_buffer + 3, "GNS,", 4) == 0) && (fieldCount >= 12)) {
 
 		/*
 		Message GNS
@@ -333,6 +379,7 @@ int GPSDriverNMEA::handleMessage(int len)
 		Example:
 		$GPGNS,091547.00,5114.50897,N,00012.28663,W,AA,10,0.83,111.1,45.6,,,V*71
 		$GNGNS,092721.00,2926.68811,N,11127.77164,E,DNNN,08,1.11,106.3,-20,1.0,3721,V*0D
+		$GNGNS,182243.00,4908.088781,N,12233.7501,W,AAAAN,24,0.6,191.8178,-33.6291,,,S*50
 
 		FieldNo.  Name    Unit     Format                  Example Description
 		0        xxGNS    -       string            $GPGNS GNS Message ID (xx = current Talker ID)
@@ -356,7 +403,7 @@ int GPSDriverNMEA::handleMessage(int len)
 		double lat = 0.0, lon = 0.0;
 		char pos_Mode[5] = {'N', 'N', 'N', 'N', 'N'};
 		int num_of_sv = 0;
-		float alt = 0.f;
+		float alt = 0.f, geoid_h = 0.f;
 		float hdop = 0.f;
 		char ns = '?', ew = '?';
 		int i = 0;
@@ -372,17 +419,19 @@ int GPSDriverNMEA::handleMessage(int len)
 
 		if (bufptr && *(++bufptr) != ',') { ew = *(bufptr++);}
 
+		/* as more GPS systems are added this string can grow, so only parse out the first X, but keep going until we hit the end of field */
 		do {
-			pos_Mode[i] =  *(bufptr);
-			i++;
+			if (i < 5) { pos_Mode[i++] =  *(bufptr); }
 
-		} while (*(++bufptr) != ',' && i < 5);
+		} while (*(++bufptr) != ',');
 
 		if (bufptr && *(++bufptr) != ',') { num_of_sv = strtol(bufptr, &endp, 10); bufptr = endp; }
 
 		if (bufptr && *(++bufptr) != ',') { hdop = strtof(bufptr, &endp); bufptr = endp; }
 
 		if (bufptr && *(++bufptr) != ',') { alt = strtof(bufptr, &endp); bufptr = endp; }
+
+		if (bufptr && *(++bufptr) != ',') { geoid_h = strtof(bufptr, &endp); bufptr = endp; }
 
 		if (ns == 'S') {
 			lat = -lat;
@@ -397,6 +446,7 @@ int GPSDriverNMEA::handleMessage(int len)
 		_gps_position->longitude_deg = int(lon * 0.01) + (lon * 0.01 - int(lon * 0.01)) * 100.0 / 60.0;
 		_gps_position->hdop = hdop;
 		_gps_position->altitude_msl_m = (double)alt;
+		_gps_position->altitude_ellipsoid_m = (double)(alt + geoid_h);
 		_sat_num_gns = static_cast<int>(num_of_sv);
 
 		if (!_POS_received && (_last_POS_timeUTC < utc_time)) {
@@ -408,7 +458,7 @@ int GPSDriverNMEA::handleMessage(int len)
 		_SVNUM_received = true;
 
 
-	} else if ((memcmp(_rx_buffer + 3, "RMC,", 4) == 0) && (uiCalcComma >= 11)) {
+	} else if ((memcmp(_rx_buffer + 3, "RMC,", 4) == 0) && (fieldCount >= 11)) {
 
 		/*
 		Position, velocity, and time
@@ -562,7 +612,7 @@ int GPSDriverNMEA::handleMessage(int len)
 
 		_TIME_received = true;
 
-	}	else if ((memcmp(_rx_buffer + 3, "GST,", 4) == 0) && (uiCalcComma == 8)) {
+	}	else if ((memcmp(_rx_buffer + 3, "GST,", 4) == 0) && (fieldCount == 8)) {
 
 		/*
 		Position error statistics
@@ -622,7 +672,7 @@ int GPSDriverNMEA::handleMessage(int len)
 		_EPH_received = true;
 		_last_FIX_timeUTC = utc_time;
 
-	} else if ((memcmp(_rx_buffer + 3, "GSA,", 4) == 0) && (uiCalcComma >= 17)) {
+	} else if ((memcmp(_rx_buffer + 3, "GSA,", 4) == 0) && (fieldCount >= 17)) {
 
 		/*
 		GPS DOP and active satellites
@@ -775,7 +825,7 @@ int GPSDriverNMEA::handleMessage(int len)
 		}
 
 
-	} else if ((memcmp(_rx_buffer + 3, "VTG,", 4) == 0) && (uiCalcComma >= 8)) {
+	} else if ((memcmp(_rx_buffer + 3, "VTG,", 4) == 0) && (fieldCount >= 8)) {
 
 		/*$GNVTG,,T,,M,0.683,N,1.265,K*30
 		  $GNVTG,,T,,M,0.780,N,1.445,K*33
@@ -845,6 +895,9 @@ int GPSDriverNMEA::handleMessage(int len)
 		if (!_VEL_received) {
 			_VEL_received = true;
 		}
+
+	} else {
+		NMEA_DEBUG("Unable to parse %c%c%c%c message", _rx_buffer[3], _rx_buffer[4], _rx_buffer[5], _rx_buffer[6]);
 	}
 
 	if (_sat_num_gga > 0) {
@@ -857,13 +910,19 @@ int GPSDriverNMEA::handleMessage(int len)
 		_gps_position->satellites_used = MAX(_sat_num_gns, _sat_num_gsv);
 	}
 
-	if (_VEL_received && _POS_received) {
+	/** update the stats for the velocity. */
+	if (_VEL_received) {
+		ret = 1;
+		_VEL_received = false;
+		_rate_count_vel++;
+	}
+
+	/** update the stats for the velocity. lat/long is considered to be a gps position update whereas velocity may not be */
+	if (_POS_received) {
 		ret = 1;
 		_gps_position->timestamp_time_relative = (int32_t)(_last_timestamp_time - _gps_position->timestamp);
 		_clock_set = false;
-		_VEL_received = false;
 		_POS_received = false;
-		_rate_count_vel++;
 		_rate_count_lat_lon++;
 	}
 
