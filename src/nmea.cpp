@@ -803,6 +803,7 @@ int GPSDriverNMEA::handleMessage(int len)
 			if (_satellite_info) {
 				_satellite_info->count = satellite_info_s::SAT_INFO_MAX_SATELLITES;
 				_satellite_info->timestamp = gps_absolute_time();
+				ret |= 2;
 			}
 		}
 
