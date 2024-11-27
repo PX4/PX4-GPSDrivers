@@ -993,7 +993,7 @@ int GPSDriverNMEA::receive(unsigned timeout)
 					// UNIHEADINGA is not configured by default, we request it now.
 
 					if (gps_absolute_time() - _unicore_heading_received_last > 1000000) {
-						request_unicore_heading_message();
+						request_unicore_messages();
 					}
 
 					_gps_position->vel_m_s = _unicore_parser.agrica().velocity_m_s;
@@ -1050,11 +1050,44 @@ void GPSDriverNMEA::handleHeading(float heading_deg, float heading_stddev_deg)
 	_gps_position->heading_accuracy = heading_stddev_rad;
 }
 
-void GPSDriverNMEA::request_unicore_heading_message()
+void GPSDriverNMEA::request_unicore_messages()
 {
-	// Configure heading message on serial port at 5 Hz. Don't save it though.
-	uint8_t buf[] = "UNIHEADINGA COM1 0.2\r\n";
-	write(buf, sizeof(buf) - 1);
+	// Configure position messages on serial port. Don't save it though.
+	{
+		// position
+		uint8_t buf[] = "GPGGA COM1 0.2\r\n";
+		write(buf, sizeof(buf) - 1);
+	}
+
+	{
+		// velocity
+		uint8_t buf[] = "UNIAGRICA COM1 0.2\r\n";
+		write(buf, sizeof(buf) - 1);
+	}
+
+	{
+		// heading
+		uint8_t buf[] = "UNIHEADINGA COM1 0.2\r\n";
+		write(buf, sizeof(buf) - 1);
+	}
+
+	{
+		// eph, epv
+		uint8_t buf[] = "GPGST COM1 1.0\r\n";
+		write(buf, sizeof(buf) - 1);
+	}
+
+	{
+		// vdop
+		uint8_t buf[] = "GPGSA COM1 1.0\r\n";
+		write(buf, sizeof(buf) - 1);
+	}
+
+	{
+		// time
+		uint8_t buf[] = "GPRMC COM1 1.0\r\n";
+		write(buf, sizeof(buf) - 1);
+	}
 }
 
 #define HEXDIGIT_CHAR(d) ((char)((d) + (((d) < 0xA) ? '0' : 'A'-0xA)))
