@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (c) 2020, 2021 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2020 - 2024 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -183,8 +183,8 @@ int GPSDriverNMEA::handleMessage(int len)
 #else
 		_gps_position->time_utc_usec = 0;
 #endif
+		_last_timestamp_time = gps_absolute_time();
 		_TIME_received = true;
-		_gps_position->timestamp = gps_absolute_time();
 
 	} else if ((memcmp(_rx_buffer + 3, "GLL,", 4) == 0) && (fieldCount >= 7)) {
 		/*
@@ -218,7 +218,6 @@ int GPSDriverNMEA::handleMessage(int len)
 			lon = -lon;
 		}
 
-		//  XXX todo add time
 
 		/* only update the values if they are valid */
 		if (dvalid == 'A' && modeind == 'A') {
@@ -228,6 +227,7 @@ int GPSDriverNMEA::handleMessage(int len)
 			if (!_POS_received && (_last_POS_timeUTC < utc_time)) {
 				_last_POS_timeUTC = utc_time;
 				_POS_received = true;
+				_rate_count_lat_lon++;
 			}
 
 		}
@@ -339,7 +339,9 @@ int GPSDriverNMEA::handleMessage(int len)
 
 		if (!_POS_received && (_last_POS_timeUTC < utc_time)) {
 			_last_POS_timeUTC = utc_time;
+			_gps_position->timestamp = gps_absolute_time();
 			_POS_received = true;
+			_rate_count_lat_lon++;
 		}
 
 		_ALT_received = true;
@@ -347,7 +349,6 @@ int GPSDriverNMEA::handleMessage(int len)
 		_FIX_received = true;
 
 		_gps_position->c_variance_rad = 0.1f;
-		_gps_position->timestamp = gps_absolute_time();
 
 	} else if (memcmp(_rx_buffer + 3, "HDT,", 4) == 0 && fieldCount == 2) {
 		/*
@@ -451,7 +452,9 @@ int GPSDriverNMEA::handleMessage(int len)
 
 		if (!_POS_received && (_last_POS_timeUTC < utc_time)) {
 			_last_POS_timeUTC = utc_time;
+			_gps_position->timestamp = gps_absolute_time();
 			_POS_received = true;
+			_rate_count_lat_lon++;
 		}
 
 		_ALT_received = true;
@@ -533,23 +536,35 @@ int GPSDriverNMEA::handleMessage(int len)
 		float velocity_north = velocity_ms * cosf(track_rad);
 		float velocity_east  = velocity_ms * sinf(track_rad);
 
-		/* convert from degrees, minutes and seconds to degrees */
-		_gps_position->latitude_deg = int(lat * 0.01) + (lat * 0.01 - int(lat * 0.01)) * 100.0 / 60.0;
-		_gps_position->longitude_deg = int(lon * 0.01) + (lon * 0.01 - int(lon * 0.01)) * 100.0 / 60.0;
-
 		_gps_position->cog_rad = track_rad;
 		_gps_position->c_variance_rad = 0.1f;
 
 		if (!_unicore_parser.agricaValid()) {
+			// We ignore RMC position for Unicore, because we have GGA configured at the rate we want.
+
+			/* convert from degrees, minutes and seconds to degrees */
+			_gps_position->latitude_deg = int(lat * 0.01) + (lat * 0.01 - int(lat * 0.01)) * 100.0 / 60.0;
+			_gps_position->longitude_deg = int(lon * 0.01) + (lon * 0.01 - int(lon * 0.01)) * 100.0 / 60.0;
+
+			if (!_POS_received && (_last_POS_timeUTC < utc_time)) {
+				_gps_position->timestamp = gps_absolute_time();
+				_last_POS_timeUTC = utc_time;
+				_POS_received = true;
+				_rate_count_lat_lon++;
+			}
+
 			_gps_position->vel_m_s = velocity_ms;
 			_gps_position->vel_n_m_s = velocity_north;
 			_gps_position->vel_e_m_s = velocity_east;
 			_gps_position->vel_ned_valid = true; /**< Flag to indicate if NED speed is valid */
 			_gps_position->s_variance_m_s = 0;
-		}
 
-		_gps_position->timestamp = gps_absolute_time();
-		_last_timestamp_time = gps_absolute_time();
+			if (!_VEL_received && (_last_VEL_timeUTC < utc_time)) {
+				_last_VEL_timeUTC = utc_time;
+				_VEL_received = true;
+				_rate_count_vel++;
+			}
+		}
 
 #ifndef NO_MKTIME
 		int utc_hour = static_cast<int>(utc_time / 10000);
@@ -600,16 +615,7 @@ int GPSDriverNMEA::handleMessage(int len)
 		_gps_position->time_utc_usec = 0;
 #endif
 
-		if (!_POS_received && (_last_POS_timeUTC < utc_time)) {
-			_last_POS_timeUTC = utc_time;
-			_POS_received = true;
-		}
-
-		if (!_VEL_received && (_last_VEL_timeUTC < utc_time)) {
-			_last_VEL_timeUTC = utc_time;
-			_VEL_received = true;
-		}
-
+		_last_timestamp_time = gps_absolute_time();
 		_TIME_received = true;
 
 	}	else if ((memcmp(_rx_buffer + 3, "GST,", 4) == 0) && (fieldCount == 8)) {
@@ -644,6 +650,7 @@ int GPSDriverNMEA::handleMessage(int len)
 		float lat_err = 0.f, lon_err = 0.f, alt_err = 0.f;
 		float min_err = 0.f, maj_err = 0.f, deg_from_north = 0.f, rms_err = 0.f;
 
+		NMEA_UNUSED(utc_time);
 		NMEA_UNUSED(min_err);
 		NMEA_UNUSED(maj_err);
 		NMEA_UNUSED(deg_from_north);
@@ -670,7 +677,6 @@ int GPSDriverNMEA::handleMessage(int len)
 		_gps_position->epv = static_cast<float>(alt_err);
 
 		_EPH_received = true;
-		_last_FIX_timeUTC = utc_time;
 
 	} else if ((memcmp(_rx_buffer + 3, "GSA,", 4) == 0) && (fieldCount >= 17)) {
 
@@ -803,6 +809,7 @@ int GPSDriverNMEA::handleMessage(int len)
 			if (_satellite_info) {
 				_satellite_info->count = satellite_info_s::SAT_INFO_MAX_SATELLITES;
 				_satellite_info->timestamp = gps_absolute_time();
+				ret |= 2;
 			}
 		}
 
@@ -880,20 +887,20 @@ int GPSDriverNMEA::handleMessage(int len)
 			track_rad -= 2.f * M_PI_F; // rad in range [-pi, pi]
 		}
 
-		float velocity_ms = ground_speed / 1.9438445f;
-		float velocity_north = velocity_ms * cosf(track_rad);
-		float velocity_east  = velocity_ms * sinf(track_rad);
-
-		_gps_position->vel_m_s = velocity_ms;
-		_gps_position->vel_n_m_s = velocity_north;
-		_gps_position->vel_e_m_s = velocity_east;
-		_gps_position->cog_rad = track_rad;
-		_gps_position->vel_ned_valid = true; /** Flag to indicate if NED speed is valid */
-		_gps_position->c_variance_rad = 0.1f;
-		_gps_position->s_variance_m_s = 0;
-
-		if (!_VEL_received) {
+		if (!_unicore_parser.agricaValid()) {
+			float velocity_ms = ground_speed / 1.9438445f;
+			float velocity_north = velocity_ms * cosf(track_rad);
+			float velocity_east  = velocity_ms * sinf(track_rad);
+			_gps_position->vel_m_s = velocity_ms;
+			_gps_position->vel_n_m_s = velocity_north;
+			_gps_position->vel_e_m_s = velocity_east;
+			_gps_position->vel_ned_valid = true; /** Flag to indicate if NED speed is valid */
+			_gps_position->c_variance_rad = 0.1f;
+			_gps_position->s_variance_m_s = 0;
 			_VEL_received = true;
+			_rate_count_vel++;
+
+			_gps_position->cog_rad = track_rad;
 		}
 
 	} else {
@@ -910,20 +917,11 @@ int GPSDriverNMEA::handleMessage(int len)
 		_gps_position->satellites_used = MAX(_sat_num_gns, _sat_num_gsv);
 	}
 
-	/** update the stats for the velocity. */
-	if (_VEL_received) {
-		ret = 1;
-		_VEL_received = false;
-		_rate_count_vel++;
-	}
-
-	/** update the stats for the velocity. lat/long is considered to be a gps position update whereas velocity may not be */
-	if (_POS_received) {
-		ret = 1;
+	if (_VEL_received && _POS_received) {
 		_gps_position->timestamp_time_relative = (int32_t)(_last_timestamp_time - _gps_position->timestamp);
-		_clock_set = false;
+		ret |= 1;
+		_VEL_received = false;
 		_POS_received = false;
-		_rate_count_lat_lon++;
 	}
 
 	return ret;
@@ -959,7 +957,9 @@ int GPSDriverNMEA::receive(unsigned timeout)
 				UnicoreParser::Result result = _unicore_parser.parseChar(buf[i]);
 
 				if (result == UnicoreParser::Result::GotHeading) {
-					++handled;
+
+					// Don't mark this as handled, just publish it with position later.
+
 					_unicore_heading_received_last = gps_absolute_time();
 
 					// Unicore seems to publish heading and standard deviation of 0
@@ -982,14 +982,18 @@ int GPSDriverNMEA::receive(unsigned timeout)
 						   (double)_unicore_parser.heading().heading_stddev_deg,
 						   (double)_unicore_parser.heading().baseline_m);
 
+					// We don't specifically publish this but it's just added with the next position
+					// update.
+
 				} else if (result == UnicoreParser::Result::GotAgrica) {
-					++handled;
+
+					// Don't mark this as handled, just publish it with position later.
 
 					// Receiving this message tells us that we are talking to a UM982. If
 					// UNIHEADINGA is not configured by default, we request it now.
 
 					if (gps_absolute_time() - _unicore_heading_received_last > 1000000) {
-						request_unicore_heading_message();
+						request_unicore_messages();
 					}
 
 					_gps_position->vel_m_s = _unicore_parser.agrica().velocity_m_s;
@@ -1002,7 +1006,16 @@ int GPSDriverNMEA::receive(unsigned timeout)
 						 _unicore_parser.agrica().stddev_velocity_up_m_s * _unicore_parser.agrica().stddev_velocity_up_m_s)
 						/ 3.0f;
 
+					_gps_position->cog_rad = atan2f(
+									 _unicore_parser.agrica().velocity_north_m_s,
+									 _unicore_parser.agrica().velocity_east_m_s);
+
 					_gps_position->vel_ned_valid = true;
+					_VEL_received = true;
+					_rate_count_vel++;
+
+					// We don't specifically publish this but it's just added with the next position
+					// update.
 				}
 			}
 
@@ -1037,11 +1050,44 @@ void GPSDriverNMEA::handleHeading(float heading_deg, float heading_stddev_deg)
 	_gps_position->heading_accuracy = heading_stddev_rad;
 }
 
-void GPSDriverNMEA::request_unicore_heading_message()
+void GPSDriverNMEA::request_unicore_messages()
 {
-	// Configure heading message on serial port at 5 Hz. Don't save it though.
-	uint8_t buf[] = "UNIHEADINGA COM1 0.2\r\n";
-	write(buf, sizeof(buf) - 1);
+	// Configure position messages on serial port. Don't save it though.
+	{
+		// position
+		uint8_t buf[] = "GPGGA COM1 0.2\r\n";
+		write(buf, sizeof(buf) - 1);
+	}
+
+	{
+		// velocity
+		uint8_t buf[] = "UNIAGRICA COM1 0.2\r\n";
+		write(buf, sizeof(buf) - 1);
+	}
+
+	{
+		// heading
+		uint8_t buf[] = "UNIHEADINGA COM1 0.2\r\n";
+		write(buf, sizeof(buf) - 1);
+	}
+
+	{
+		// eph, epv
+		uint8_t buf[] = "GPGST COM1 1.0\r\n";
+		write(buf, sizeof(buf) - 1);
+	}
+
+	{
+		// vdop
+		uint8_t buf[] = "GPGSA COM1 1.0\r\n";
+		write(buf, sizeof(buf) - 1);
+	}
+
+	{
+		// time
+		uint8_t buf[] = "GPRMC COM1 1.0\r\n";
+		write(buf, sizeof(buf) - 1);
+	}
 }
 
 #define HEXDIGIT_CHAR(d) ((char)((d) + (((d) < 0xA) ? '0' : 'A'-0xA)))

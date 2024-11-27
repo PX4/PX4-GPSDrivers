@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (c) 2020, 2021 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2020 - 2024 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -70,7 +70,7 @@ public:
 
 private:
 	void handleHeading(float heading_deg, float heading_stddev_deg);
-	void request_unicore_heading_message();
+	void request_unicore_messages();
 
 	UnicoreParser _unicore_parser;
 	gps_abstime _unicore_heading_received_last;
@@ -95,7 +95,6 @@ private:
 	satellite_info_s *_satellite_info {nullptr};
 	double _last_POS_timeUTC{0};
 	double _last_VEL_timeUTC{0};
-	double _last_FIX_timeUTC{0};
 	uint64_t _last_timestamp_time{0};
 
 	uint8_t _sat_num_gga{0};
