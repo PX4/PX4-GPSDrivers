@@ -554,15 +554,23 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 	cfgValset<uint8_t>(UBX_CFG_KEY_ODO_OUTLPCOG, 0, cfg_valset_msg_size);
 
 	// measurement rate
-	// In case of F9P not in moving base mode we use 10Hz, otherwise 8Hz (receivers such as M9N can go higher as well, but
-	// the number of used satellites will be restricted to 16. Not mentioned in datasheet)
-	int rate_meas;
+	// F9P L1L2 in firmware <1.50 the max update rate with 4 constellations is 9Hz without RTK and 7Hz with RTK
+	// F9P L1L2 in firmware >=1.50 the max update rate with 4 constellations is 7Hz without RTK and 5Hz with RTK
+	// F9P L1L5 the max update rate with 4 constellations is 8Hz without RTK and 7Hz with RTK
+	// Receivers such as M9N can go higher than 10Hz, but the number of used satellites will be restricted to 16. (Not mentioned in datasheet)
+	int rate_meas = 100; // 10Hz
 
-	if (_mode != UBXMode::Normal) {
-		rate_meas = 125; //8Hz for heading.
+	switch (_board) {
+	case Board::u_blox9_F9P_L1L2:
+		rate_meas = 200; // 5Hz
+		break;
 
-	} else {
-		rate_meas = ((_board == Board::u_blox9_F9P_L1L2) || (_board == Board::u_blox9_F9P_L1L5)) ? 100 : 125;
+	case Board::u_blox9_F9P_L1L5:
+		rate_meas = 143; // 7Hz
+		break;
+
+	default:
+		break;
 	}
 
 	cfgValset<uint16_t>(UBX_CFG_KEY_RATE_MEAS, rate_meas, cfg_valset_msg_size);
