@@ -1993,7 +1993,7 @@ GPSDriverUBX::payloadRxDone()
 			_got_posllh = true;
 		}
 
-		_gps_position->s_variance_m_s	= static_cast<float>(_buf.payload_rx_nav_pvt.sAcc) * 1e-3f;
+		_gps_position->speed_accuracy	= static_cast<float>(_buf.payload_rx_nav_pvt.sAcc) * 1e-3f;
 
 		_gps_position->vel_m_s		= static_cast<float>(_buf.payload_rx_nav_pvt.gSpeed) * 1e-3f;
 
@@ -2116,7 +2116,7 @@ GPSDriverUBX::payloadRxDone()
 		UBX_TRACE_RXMSG("Rx NAV-SOL");
 
 		_gps_position->fix_type		= _buf.payload_rx_nav_sol.gpsFix;
-		_gps_position->s_variance_m_s	= static_cast<float>(_buf.payload_rx_nav_sol.sAcc) * 1e-2f;	// from cm to m
+		_gps_position->speed_accuracy	= static_cast<float>(_buf.payload_rx_nav_sol.sAcc) * 1e-2f;	// from cm to m
 		_gps_position->satellites_used	= _buf.payload_rx_nav_sol.numSV;
 
 		ret = 1;

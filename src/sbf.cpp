@@ -598,14 +598,14 @@ int GPSDriverSBF::payloadRxDone()
 
 	case SBF_ID_VelCovGeodetic: SBF_TRACE_RXMSG("Rx VelCovGeodetic");
 		_msg_status |= 2;
-		_gps_position->s_variance_m_s = _buf.payload_vel_col_geodetic.cov_ve_ve;
+		_gps_position->speed_accuracy = _buf.payload_vel_col_geodetic.cov_ve_ve;
 
-		if (_gps_position->s_variance_m_s < _buf.payload_vel_col_geodetic.cov_vn_vn) {
-			_gps_position->s_variance_m_s = _buf.payload_vel_col_geodetic.cov_vn_vn;
+		if (_gps_position->speed_accuracy < _buf.payload_vel_col_geodetic.cov_vn_vn) {
+			_gps_position->speed_accuracy = _buf.payload_vel_col_geodetic.cov_vn_vn;
 		}
 
-		if (_gps_position->s_variance_m_s < _buf.payload_vel_col_geodetic.cov_vu_vu) {
-			_gps_position->s_variance_m_s = _buf.payload_vel_col_geodetic.cov_vu_vu;
+		if (_gps_position->speed_accuracy < _buf.payload_vel_col_geodetic.cov_vu_vu) {
+			_gps_position->speed_accuracy = _buf.payload_vel_col_geodetic.cov_vu_vu;
 		}
 
 		//SBF_DEBUG("VelCovGeodetic handled");

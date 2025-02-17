@@ -346,7 +346,7 @@ GPSDriverEmlidReach::handleErbSentence()
 		_gps_position->vel_m_s = static_cast<float>(_erb_buff.payload.ned_velocity.speed) / 100.0f;
 		_gps_position->cog_rad = (static_cast<float>(_erb_buff.payload.ned_velocity.heading) / 1e5f) * GPS_PI / 180.0f;
 
-		_gps_position->s_variance_m_s = static_cast<float>(_erb_buff.payload.ned_velocity.speedAccuracy) / 100.0f;
+		_gps_position->speed_accuracy = static_cast<float>(_erb_buff.payload.ned_velocity.speedAccuracy) / 100.0f;
 
 		_gps_position->vel_ned_valid = true;
 		_rate_count_vel++;

@@ -51,7 +51,7 @@ typedef struct {
 	int32_t 	lon;			/** Longitude in 1E-7 degrees*/
 	int32_t 	alt;			/** Altitude in 1E-3 meters above MSL, (millimetres)*/
 	int32_t 	alt_ellipsoid;		/** Altitude in 1E-3 meters bove Ellipsoid, (millimetres)*/
-	float 		s_variance_m_s;		/** GPS speed accuracy estimate, (metres/sec)*/
+	float 		speed_accuracy;		/** GPS speed accuracy estimate, (metres/sec)*/
 	float 		c_variance_rad;		/** GPS course accuracy estimate, (radians)*/
 	float 		eph;			/** GPS horizontal position accuracy (metres)*/
 	float 		epv;			/** GPS vertical position accuracy (metres)*/

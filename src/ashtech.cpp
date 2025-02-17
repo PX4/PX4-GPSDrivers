@@ -516,7 +516,7 @@ int GPSDriverAshtech::handleMessage(int len)
 					   + static_cast<float>(lon_err) * static_cast<float>(lon_err));
 		_gps_position->epv = static_cast<float>(alt_err);
 
-		_gps_position->s_variance_m_s = 0;
+		_gps_position->speed_accuracy = 0;
 
 	} else if ((memcmp(_rx_buffer + 3, "GSV,", 3) == 0)) {
 		/*

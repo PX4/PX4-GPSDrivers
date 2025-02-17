@@ -557,7 +557,7 @@ int GPSDriverNMEA::handleMessage(int len)
 			_gps_position->vel_n_m_s = velocity_north;
 			_gps_position->vel_e_m_s = velocity_east;
 			_gps_position->vel_ned_valid = true; /**< Flag to indicate if NED speed is valid */
-			_gps_position->s_variance_m_s = 0;
+			_gps_position->speed_accuracy = 0;
 
 			if (!_VEL_received && (_last_VEL_timeUTC < utc_time)) {
 				_last_VEL_timeUTC = utc_time;
@@ -896,7 +896,7 @@ int GPSDriverNMEA::handleMessage(int len)
 			_gps_position->vel_e_m_s = velocity_east;
 			_gps_position->vel_ned_valid = true; /** Flag to indicate if NED speed is valid */
 			_gps_position->c_variance_rad = 0.1f;
-			_gps_position->s_variance_m_s = 0;
+			_gps_position->speed_accuracy = 0;
 			_VEL_received = true;
 			_rate_count_vel++;
 
@@ -1000,7 +1000,7 @@ int GPSDriverNMEA::receive(unsigned timeout)
 					_gps_position->vel_n_m_s = _unicore_parser.agrica().velocity_north_m_s;
 					_gps_position->vel_e_m_s = _unicore_parser.agrica().velocity_east_m_s;
 					_gps_position->vel_d_m_s = -_unicore_parser.agrica().velocity_up_m_s;
-					_gps_position->s_variance_m_s =
+					_gps_position->speed_accuracy =
 						(_unicore_parser.agrica().stddev_velocity_north_m_s * _unicore_parser.agrica().stddev_velocity_north_m_s +
 						 _unicore_parser.agrica().stddev_velocity_east_m_s * _unicore_parser.agrica().stddev_velocity_east_m_s +
 						 _unicore_parser.agrica().stddev_velocity_up_m_s * _unicore_parser.agrica().stddev_velocity_up_m_s)
