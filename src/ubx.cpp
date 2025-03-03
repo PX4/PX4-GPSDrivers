@@ -1137,6 +1137,30 @@ GPSDriverUBX::waitForAck(const uint16_t msg, const unsigned timeout, const bool 
 	return ret;
 }
 
+void
+GPSDriverUBX::debug_pub(uint8_t evt, int32_t ret, bool got_posllh, bool got_velned, uint32_t handled,
+			uint64_t timeout_time)
+{
+	uint64_t now = hrt_absolute_time();
+	ubx_debug_s debug_data{};
+
+	debug_data.timestamp = now;
+	debug_data.ret = ret;
+	debug_data.evt = evt;
+	debug_data.got_posllh = got_posllh;
+	debug_data.got_velned = got_velned;
+	debug_data.handled = handled;
+	debug_data.timeout_time = timeout_time;
+
+	debug_data.rx_ck_a = _rx_ck_a;
+	debug_data.rx_ck_b = _rx_ck_b;
+	debug_data.rx_payload_length = _rx_payload_length;
+	debug_data.rx_payload_index = _rx_payload_index;
+	debug_data.decode_state = _decode_state;
+
+	_ubx_debug_pub.publish(debug_data);
+}
+
 int	// -1 = error, 0 = no message handled, 1 = message handled, 2 = sat info message handled
 GPSDriverUBX::receive(unsigned timeout)
 {
@@ -1152,6 +1176,10 @@ GPSDriverUBX::receive(unsigned timeout)
 
 		/* return success if ready */
 		if (ready_to_return) {
+			if (handled <= 0) {
+				debug_pub(1, 0, _got_posllh, _got_velned, handled, (time_started + timeout * 1000) - hrt_absolute_time());
+			}
+
 			_got_posllh = false;
 			_got_velned = false;
 			return handled;
@@ -1163,6 +1191,7 @@ GPSDriverUBX::receive(unsigned timeout)
 		if (ret < 0) {
 			/* something went wrong when polling or reading */
 			UBX_WARN("ubx poll_or_read err");
+			debug_pub(2, ret, _got_posllh, _got_velned, handled, (time_started + timeout * 1000) - hrt_absolute_time());
 			return -1;
 
 		} else if (ret > 0) {
@@ -1188,7 +1217,12 @@ GPSDriverUBX::receive(unsigned timeout)
 		/* abort after timeout if no useful packets received */
 		if (time_started + timeout * 1000 < gps_absolute_time()) {
 			UBX_DEBUG("timed out, returning");
+			debug_pub(3, 0, _got_posllh, _got_velned, 0, hrt_absolute_time() - (time_started + timeout * 1000));
 			return -1;
+		}
+
+		if (time_started + timeout * 950 < gps_absolute_time()) {
+			debug_pub(4, 0, _got_posllh, _got_velned, 0, hrt_absolute_time() - (time_started + timeout * 950));
 		}
 	}
 }

@@ -50,6 +50,9 @@
 #pragma once
 
 #include "base_station.h"
+#include <uORB/Publication.hpp>
+#include <uORB/PublicationMulti.hpp>
+#include <uORB/topics/ubx_debug.h>
 
 
 #define UBX_CONFIG_TIMEOUT    250 // ms, timeout for waiting ACK
@@ -1142,6 +1145,9 @@ private:
 	 * Wait for message acknowledge
 	 */
 	int waitForAck(const uint16_t msg, const unsigned timeout, const bool report);
+
+	void debug_pub(uint8_t evt, int32_t ret, bool got_posllh, bool got_velned, uint32_t handled, uint64_t uint64);
+	uORB::Publication<ubx_debug_s> _ubx_debug_pub{ORB_ID(ubx_debug)};
 
 	const Interface _interface{};
 
