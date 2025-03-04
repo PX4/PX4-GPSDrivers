@@ -80,10 +80,12 @@ GPSDriverUBX::GPSDriverUBX(Interface gpsInterface, GPSCallbackPtr callback, void
 	_uart2_baudrate(uart2_baudrate)
 {
 	decodeInit();
+	PX4_INFO("UBX constructed");
 }
 
 GPSDriverUBX::~GPSDriverUBX()
 {
+	PX4_INFO("UBX deconstructed");
 	delete _rtcm_parsing;
 }
 
@@ -1139,7 +1141,7 @@ GPSDriverUBX::waitForAck(const uint16_t msg, const unsigned timeout, const bool 
 
 void
 GPSDriverUBX::debug_pub(uint8_t evt, int32_t ret, bool got_posllh, bool got_velned, uint32_t handled,
-			uint64_t timeout_time)
+			int64_t timeout_time, uint64_t time_start, uint64_t timeout)
 {
 	uint64_t now = hrt_absolute_time();
 	ubx_debug_s debug_data{};
@@ -1151,6 +1153,9 @@ GPSDriverUBX::debug_pub(uint8_t evt, int32_t ret, bool got_posllh, bool got_veln
 	debug_data.got_velned = got_velned;
 	debug_data.handled = handled;
 	debug_data.timeout_time = timeout_time;
+	debug_data.time_now = now;
+	debug_data.time_start = time_start;
+	debug_data.timeout = timeout;
 
 	debug_data.rx_ck_a = _rx_ck_a;
 	debug_data.rx_ck_b = _rx_ck_b;
@@ -1174,34 +1179,47 @@ GPSDriverUBX::receive(unsigned timeout)
 	while (true) {
 		bool ready_to_return = _configured ? (_got_posllh && _got_velned) : handled;
 
+		if (_got_rtcm_msg) {
+			debug_pub(37, _rtcm_msg_len, _got_posllh, _got_velned, handled, (time_started + timeout * 1000) - hrt_absolute_time(), time_started, timeout * 1000);
+			_got_rtcm_msg = false;
+		}
+
 		/* return success if ready */
 		if (ready_to_return) {
-			if (handled <= 0) {
-				debug_pub(1, 0, _got_posllh, _got_velned, handled, (time_started + timeout * 1000) - hrt_absolute_time());
-			}
-
+			debug_pub(1, 0, _got_posllh, _got_velned, handled, (time_started + timeout * 1000) - hrt_absolute_time(), time_started, timeout * 1000);
 			_got_posllh = false;
 			_got_velned = false;
 			return handled;
 		}
 
 		/* Wait for only UBX_PACKET_TIMEOUT if something already received. */
+		hrt_abstime read_start = hrt_absolute_time();
 		int ret = read(buf, sizeof(buf), (_got_posllh || _got_velned) ? UBX_PACKET_TIMEOUT : timeout);
+		hrt_abstime read_diff = hrt_absolute_time() - read_start;
 
 		if (ret < 0) {
 			/* something went wrong when polling or reading */
 			UBX_WARN("ubx poll_or_read err");
-			debug_pub(2, ret, _got_posllh, _got_velned, handled, (time_started + timeout * 1000) - hrt_absolute_time());
+			debug_pub(2, ret, _got_posllh, _got_velned, handled, (time_started + timeout * 1000) - hrt_absolute_time(), time_started, timeout * 1000);
 			return -1;
 
 		} else if (ret > 0) {
 			//UBX_DEBUG("read %d bytes", ret);
 
+			hrt_abstime parse_start = hrt_absolute_time();
 			/* pass received bytes to the packet decoder */
 			for (int i = 0; i < ret; i++) {
 				handled |= parseChar(buf[i]);
 				//UBX_DEBUG("parsed %d: 0x%x", i, buf[i]);
 			}
+			hrt_abstime parse_diff = hrt_absolute_time() - parse_start;
+
+			ubx_trace_s ubx_trace{};
+			ubx_trace.timestamp = hrt_absolute_time();
+			ubx_trace.read_diff = read_diff;
+			ubx_trace.parse_diff = parse_diff;
+			ubx_trace.decode_state = _decode_state;
+			_ubx_trace_pub.publish(ubx_trace);
 
 			if (_interface == Interface::SPI) {
 				if (buf[ret - 1] == 0xff) {
@@ -1217,12 +1235,12 @@ GPSDriverUBX::receive(unsigned timeout)
 		/* abort after timeout if no useful packets received */
 		if (time_started + timeout * 1000 < gps_absolute_time()) {
 			UBX_DEBUG("timed out, returning");
-			debug_pub(3, 0, _got_posllh, _got_velned, 0, hrt_absolute_time() - (time_started + timeout * 1000));
+			debug_pub(3, 0, _got_posllh, _got_velned, 0, (time_started + timeout * 1000) - hrt_absolute_time(), time_started, timeout * 1000);
 			return -1;
 		}
 
 		if (time_started + timeout * 950 < gps_absolute_time()) {
-			debug_pub(4, 0, _got_posllh, _got_velned, 0, hrt_absolute_time() - (time_started + timeout * 950));
+			debug_pub(4, 0, _got_posllh, _got_velned, 0, (time_started + timeout * 950) - hrt_absolute_time(), time_started, timeout * 1000);
 		}
 	}
 }
@@ -1365,6 +1383,8 @@ GPSDriverUBX::parseChar(const uint8_t b)
 	case UBX_DECODE_RTCM3:
 		if (_rtcm_parsing->addByte(b)) {
 			//UBX_DEBUG("got RTCM message with length %i", static_cast<int>(_rtcm_parsing->messageLength()));
+			_got_rtcm_msg = true;
+			_rtcm_msg_len = _rtcm_parsing->messageLength();
 			gotRTCMMessage(_rtcm_parsing->message(), _rtcm_parsing->messageLength());
 			decodeInit();
 		}
@@ -1562,7 +1582,7 @@ GPSDriverUBX::payloadRxInit()
 		break;
 
 	case UBX_MSG_RXM_RTCM:
-		if (_rx_payload_length < sizeof(ubx_payload_rx_rxm_rtcm_t)) {
+		if (_rx_payload_length != sizeof(ubx_payload_rx_rxm_rtcm_t)) {
 			_rx_state = UBX_RXMSG_ERROR_LENGTH;
 
 		} else if (!_configured) {
@@ -2091,7 +2111,7 @@ GPSDriverUBX::payloadRxDone()
 	case UBX_MSG_INF_NOTICE: {
 			uint8_t *p_buf = (uint8_t *)&_buf;
 			p_buf[_rx_payload_length] = 0;
-			UBX_DEBUG("ubx msg: %s", p_buf);
+			UBX_WARN("ubx msg: %s", p_buf);
 		}
 		break;
 

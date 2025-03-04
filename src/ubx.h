@@ -53,6 +53,7 @@
 #include <uORB/Publication.hpp>
 #include <uORB/PublicationMulti.hpp>
 #include <uORB/topics/ubx_debug.h>
+#include <uORB/topics/ubx_trace.h>
 
 
 #define UBX_CONFIG_TIMEOUT    250 // ms, timeout for waiting ACK
@@ -722,6 +723,7 @@ typedef struct {
 	uint8_t  flags;
 	uint16_t subType;
 	uint16_t refStationID;
+	uint16_t msgType;
 } ubx_payload_rx_rxm_rtcm_t;
 
 /* Rx ACK-ACK */
@@ -1146,8 +1148,7 @@ private:
 	 */
 	int waitForAck(const uint16_t msg, const unsigned timeout, const bool report);
 
-	void debug_pub(uint8_t evt, int32_t ret, bool got_posllh, bool got_velned, uint32_t handled, uint64_t uint64);
-	uORB::Publication<ubx_debug_s> _ubx_debug_pub{ORB_ID(ubx_debug)};
+	void debug_pub(uint8_t evt, int32_t ret, bool got_posllh, bool got_velned, uint32_t handled, int64_t timeout_time, uint64_t time_start, uint64_t timeout);
 
 	const Interface _interface{};
 
@@ -1187,6 +1188,11 @@ private:
 	const UBXMode _mode;
 	const float _heading_offset;
 	const int32_t _uart2_baudrate;
+
+	uORB::Publication<ubx_debug_s> _ubx_debug_pub{ORB_ID(ubx_debug)};
+	uORB::Publication<ubx_trace_s> _ubx_trace_pub{ORB_ID(ubx_trace)};
+	bool _got_rtcm_msg{false};
+	uint16_t _rtcm_msg_len{0};
 };
 
 
