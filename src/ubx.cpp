@@ -80,10 +80,12 @@ GPSDriverUBX::GPSDriverUBX(Interface gpsInterface, GPSCallbackPtr callback, void
 	_uart2_baudrate(uart2_baudrate)
 {
 	decodeInit();
+	PX4_INFO("UBX constructed");
 }
 
 GPSDriverUBX::~GPSDriverUBX()
 {
+	PX4_INFO("UBX deconstructed");
 	delete _rtcm_parsing;
 }
 
@@ -159,6 +161,10 @@ GPSDriverUBX::configure(unsigned &baudrate, const GPSConfig &config)
 				if (waitForAck(UBX_MSG_CFG_VALSET, 2000, true) == 0) {
 					cfg_valset_success = true;
 				}
+
+				if (_decode_state > 9) {
+					PX4_ERR("It was configure 1");
+				}
 			}
 
 			if (cfg_valset_success) {
@@ -168,7 +174,14 @@ GPSDriverUBX::configure(unsigned &baudrate, const GPSConfig &config)
 				cfgValset<uint32_t>(UBX_CFG_KEY_CFG_UART1_BAUDRATE, desired_baudrate, cfg_valset_msg_size);
 
 				if (!sendMessage(UBX_MSG_CFG_VALSET, (uint8_t *)&_buf, cfg_valset_msg_size)) {
+					if (_decode_state > 9) {
+						PX4_ERR("It was configure 2");
+					}
 					continue;
+				}
+
+				if (_decode_state > 9) {
+					PX4_ERR("It was configure 3");
 				}
 
 				/* no ACK is expected here, but read the buffer anyway in case we actually get an ACK */
@@ -532,7 +545,14 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_USBOUTPROT_NMEA, 0, cfg_valset_msg_size);
 
 		if (!sendMessage(UBX_MSG_CFG_VALSET, (uint8_t *)&_buf, cfg_valset_msg_size)) {
+			if (_decode_state > 9) {
+				PX4_ERR("It was configure 4");
+			}
 			return -1;
+		}
+
+		if (_decode_state > 9) {
+			PX4_ERR("It was configure 5");
 		}
 
 		if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true) < 0) {
@@ -562,11 +582,11 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 
 	switch (_board) {
 	case Board::u_blox9_F9P_L1L2:
-		rate_meas = 200; // 5Hz
+		// rate_meas = 200; // 5Hz
 		break;
 
 	case Board::u_blox9_F9P_L1L5:
-		rate_meas = 143; // 7Hz
+		// rate_meas = 143; // 7Hz
 		break;
 
 	default:
@@ -581,6 +601,10 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 		return -1;
 	}
 
+	if (_decode_state > 9) {
+		PX4_ERR("It was configure 6");
+	}
+
 	if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true) < 0) {
 		return -1;
 	}
@@ -593,6 +617,10 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 		return -1;
 	}
 
+	if (_decode_state > 9) {
+		PX4_ERR("It was configure 7");
+	}
+
 	waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, false);
 
 	cfg_valset_msg_size = initCfgValset();
@@ -602,6 +630,10 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 
 	if (!sendMessage(UBX_MSG_CFG_VALSET, (uint8_t *)&_buf, cfg_valset_msg_size)) {
 		return -1;
+	}
+
+	if (_decode_state > 9) {
+		PX4_ERR("It was configure 8");
 	}
 
 	waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, false);
@@ -710,6 +742,10 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 			return -1;
 		}
 
+		if (_decode_state > 9) {
+			PX4_ERR("It was configure 9");
+		}
+
 		if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true) < 0) {
 			return -1;
 		}
@@ -728,6 +764,10 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 
 		if (!sendMessage(UBX_MSG_CFG_VALSET, (uint8_t *)&_buf, cfg_valset_msg_size)) {
 			return -1;
+		}
+
+		if (_decode_state > 9) {
+			PX4_ERR("It was configure 10");
 		}
 
 		waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true);
@@ -758,6 +798,10 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 
 	if (!sendMessage(UBX_MSG_CFG_VALSET, (uint8_t *)&_buf, cfg_valset_msg_size)) {
 		return -1;
+	}
+
+	if (_decode_state > 9) {
+		PX4_ERR("It was configure 11");
 	}
 
 	if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true) < 0) {
@@ -794,6 +838,10 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 			return -1;
 		}
 
+		if (_decode_state > 9) {
+			PX4_ERR("It was configure 12");
+		}
+
 		if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true) < 0) {
 			return -1;
 		}
@@ -817,6 +865,10 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 
 		if (!sendMessage(UBX_MSG_CFG_VALSET, (uint8_t *)&_buf, cfg_valset_msg_size)) {
 			return -1;
+		}
+
+		if (_decode_state > 9) {
+			PX4_ERR("It was configure 13");
 		}
 
 		if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true) < 0) {
@@ -852,6 +904,10 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 			return -1;
 		}
 
+		if (_decode_state > 9) {
+			PX4_ERR("It was configure 14");
+		}
+
 		if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true) < 0) {
 			return -1;
 		}
@@ -868,6 +924,10 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 
 		if (!sendMessage(UBX_MSG_CFG_VALSET, (uint8_t *)&_buf, cfg_valset_msg_size)) {
 			return -1;
+		}
+
+		if (_decode_state > 9) {
+			PX4_ERR("It was configure 15");
 		}
 
 		if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true) < 0) {
@@ -898,6 +958,10 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 			return -1;
 		}
 
+		if (_decode_state > 9) {
+			PX4_ERR("It was configure 16");
+		}
+
 		if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true) < 0) {
 			return -1;
 		}
@@ -911,6 +975,9 @@ int GPSDriverUBX::initCfgValset()
 {
 	memset(&_buf.payload_tx_cfg_valset, 0, sizeof(_buf.payload_tx_cfg_valset));
 	_buf.payload_tx_cfg_valset.layers = UBX_CFG_LAYER_RAM;
+	if (_decode_state > 9) {
+		PX4_ERR("It was initCfgValset");
+	}
 	return sizeof(_buf.payload_tx_cfg_valset) - sizeof(_buf.payload_tx_cfg_valset.cfgData);
 }
 
@@ -928,6 +995,9 @@ bool GPSDriverUBX::cfgValset(uint32_t key_id, T value, int &msg_size)
 	msg_size += sizeof(key_id);
 	memcpy(buffer + msg_size, &value, sizeof(value));
 	msg_size += sizeof(value);
+	if (_decode_state > 9) {
+		PX4_ERR("It was cfgValset 2");
+	}
 	return true;
 }
 
@@ -975,6 +1045,10 @@ int GPSDriverUBX::restartSurveyInPreV27()
 		return -1;
 	}
 
+	if (_decode_state > 9) {
+		PX4_ERR("It was survey pre 1");
+	}
+
 	if (waitForAck(UBX_MSG_CFG_TMODE3, UBX_CONFIG_TIMEOUT, true) < 0) {
 		return -1;
 	}
@@ -989,6 +1063,10 @@ int GPSDriverUBX::restartSurveyInPreV27()
 
 		if (!sendMessage(UBX_MSG_CFG_TMODE3, (uint8_t *)&_buf, sizeof(_buf.payload_tx_cfg_tmode3))) {
 			return -1;
+		}
+
+		if (_decode_state > 9) {
+			PX4_ERR("It was survey pre 2");
 		}
 
 		if (waitForAck(UBX_MSG_CFG_TMODE3, UBX_CONFIG_TIMEOUT, true) < 0) {
@@ -1023,6 +1101,10 @@ int GPSDriverUBX::restartSurveyInPreV27()
 			return -1;
 		}
 
+		if (_decode_state > 9) {
+			PX4_ERR("It was survey pre 3");
+		}
+
 		if (waitForAck(UBX_MSG_CFG_TMODE3, UBX_CONFIG_TIMEOUT, true) < 0) {
 			return -1;
 		}
@@ -1055,6 +1137,10 @@ int GPSDriverUBX::restartSurveyIn()
 	sendMessage(UBX_MSG_CFG_VALSET, (uint8_t *)&_buf, cfg_valset_msg_size);
 	waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, false);
 
+	if (_decode_state > 9) {
+		PX4_ERR("It was restartSurvey 1");
+	}
+
 	if (_base_settings.type == BaseSettingsType::survey_in) {
 		UBX_DEBUG("Starting Survey-in");
 
@@ -1066,6 +1152,10 @@ int GPSDriverUBX::restartSurveyIn()
 
 		if (!sendMessage(UBX_MSG_CFG_VALSET, (uint8_t *)&_buf, cfg_valset_msg_size)) {
 			return -1;
+		}
+
+		if (_decode_state > 9) {
+			PX4_ERR("It was restartSurvey 2");
 		}
 
 		if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true) < 0) {
@@ -1093,6 +1183,10 @@ int GPSDriverUBX::restartSurveyIn()
 
 		if (!sendMessage(UBX_MSG_CFG_VALSET, (uint8_t *)&_buf, cfg_valset_msg_size)) {
 			return -1;
+		}
+
+		if (_decode_state > 9) {
+			PX4_ERR("It was restartSurvey 3");
 		}
 
 		if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true) < 0) {
@@ -1139,7 +1233,7 @@ GPSDriverUBX::waitForAck(const uint16_t msg, const unsigned timeout, const bool 
 
 void
 GPSDriverUBX::debug_pub(uint8_t evt, int32_t ret, bool got_posllh, bool got_velned, uint32_t handled,
-			uint64_t timeout_time)
+			uint64_t timeout_time, uint64_t time_start, uint64_t timeout)
 {
 	uint64_t now = hrt_absolute_time();
 	ubx_debug_s debug_data{};
@@ -1151,6 +1245,9 @@ GPSDriverUBX::debug_pub(uint8_t evt, int32_t ret, bool got_posllh, bool got_veln
 	debug_data.got_velned = got_velned;
 	debug_data.handled = handled;
 	debug_data.timeout_time = timeout_time;
+	debug_data.time_now = now;
+	debug_data.time_start = time_start;
+	debug_data.timeout = timeout;
 
 	debug_data.rx_ck_a = _rx_ck_a;
 	debug_data.rx_ck_b = _rx_ck_b;
@@ -1174,12 +1271,14 @@ GPSDriverUBX::receive(unsigned timeout)
 	while (true) {
 		bool ready_to_return = _configured ? (_got_posllh && _got_velned) : handled;
 
+		if (_got_rtcm_msg) {
+			debug_pub(37, _rtcm_msg_len, _got_posllh, _got_velned, handled, (time_started + timeout * 1000) - hrt_absolute_time(), time_started, timeout * 1000);
+			_got_rtcm_msg = false;
+		}
+
 		/* return success if ready */
 		if (ready_to_return) {
-			if (handled <= 0) {
-				debug_pub(1, 0, _got_posllh, _got_velned, handled, (time_started + timeout * 1000) - hrt_absolute_time());
-			}
-
+			debug_pub(1, 0, _got_posllh, _got_velned, handled, (time_started + timeout * 1000) - hrt_absolute_time(), time_started, timeout * 1000);
 			_got_posllh = false;
 			_got_velned = false;
 			return handled;
@@ -1191,17 +1290,25 @@ GPSDriverUBX::receive(unsigned timeout)
 		if (ret < 0) {
 			/* something went wrong when polling or reading */
 			UBX_WARN("ubx poll_or_read err");
-			debug_pub(2, ret, _got_posllh, _got_velned, handled, (time_started + timeout * 1000) - hrt_absolute_time());
+			debug_pub(2, ret, _got_posllh, _got_velned, handled, (time_started + timeout * 1000) - hrt_absolute_time(), time_started, timeout * 1000);
 			return -1;
 
 		} else if (ret > 0) {
 			//UBX_DEBUG("read %d bytes", ret);
 
+			hrt_abstime parse_start = hrt_absolute_time();
 			/* pass received bytes to the packet decoder */
 			for (int i = 0; i < ret; i++) {
 				handled |= parseChar(buf[i]);
 				//UBX_DEBUG("parsed %d: 0x%x", i, buf[i]);
 			}
+			hrt_abstime parse_diff = hrt_absolute_time() - parse_start;
+
+			ubx_trace_s ubx_trace{};
+			ubx_trace.timestamp = hrt_absolute_time();
+			ubx_trace.parse_diff = parse_diff;
+			ubx_trace.decode_state = _decode_state;
+			_ubx_trace_pub.publish(ubx_trace);
 
 			if (_interface == Interface::SPI) {
 				if (buf[ret - 1] == 0xff) {
@@ -1217,12 +1324,12 @@ GPSDriverUBX::receive(unsigned timeout)
 		/* abort after timeout if no useful packets received */
 		if (time_started + timeout * 1000 < gps_absolute_time()) {
 			UBX_DEBUG("timed out, returning");
-			debug_pub(3, 0, _got_posllh, _got_velned, 0, hrt_absolute_time() - (time_started + timeout * 1000));
+			debug_pub(3, 0, _got_posllh, _got_velned, 0, hrt_absolute_time() - (time_started + timeout * 1000), time_started, timeout * 1000);
 			return -1;
 		}
 
 		if (time_started + timeout * 950 < gps_absolute_time()) {
-			debug_pub(4, 0, _got_posllh, _got_velned, 0, hrt_absolute_time() - (time_started + timeout * 950));
+			debug_pub(4, 0, _got_posllh, _got_velned, 0, hrt_absolute_time() - (time_started + timeout * 950), time_started, timeout * 1000);
 		}
 	}
 }
@@ -1365,6 +1472,8 @@ GPSDriverUBX::parseChar(const uint8_t b)
 	case UBX_DECODE_RTCM3:
 		if (_rtcm_parsing->addByte(b)) {
 			//UBX_DEBUG("got RTCM message with length %i", static_cast<int>(_rtcm_parsing->messageLength()));
+			_got_rtcm_msg = true;
+			_rtcm_msg_len = _rtcm_parsing->messageLength();
 			gotRTCMMessage(_rtcm_parsing->message(), _rtcm_parsing->messageLength());
 			decodeInit();
 		}
@@ -1562,7 +1671,7 @@ GPSDriverUBX::payloadRxInit()
 		break;
 
 	case UBX_MSG_RXM_RTCM:
-		if (_rx_payload_length < sizeof(ubx_payload_rx_rxm_rtcm_t)) {
+		if (_rx_payload_length != sizeof(ubx_payload_rx_rxm_rtcm_t)) {
 			_rx_state = UBX_RXMSG_ERROR_LENGTH;
 
 		} else if (!_configured) {
@@ -1634,6 +1743,10 @@ GPSDriverUBX::payloadRxInit()
 					int cfg_valset_msg_size = initCfgValset();
 					cfgValsetPort(key_id, 0, cfg_valset_msg_size);
 					sendMessage(UBX_MSG_CFG_VALSET, (uint8_t *)&_buf, cfg_valset_msg_size);
+
+					if (_decode_state > 9) {
+						PX4_ERR("It was payloadRxInit");
+					}
 				}
 			}
 
@@ -1679,6 +1792,10 @@ GPSDriverUBX::payloadRxAdd(const uint8_t b)
 
 	if (++_rx_payload_index >= _rx_payload_length) {
 		ret = 1;	// payload received completely
+	}
+
+	if (_decode_state > 9) {
+		PX4_ERR("It was payloadRxAdd, len: %d, msg: %d, state: %d", _rx_payload_length, _rx_msg, _rx_state);
 	}
 
 	return ret;
@@ -1798,6 +1915,10 @@ GPSDriverUBX::payloadRxAddNavSat(const uint8_t b)
 		ret = 1;	// payload received completely
 	}
 
+	if (_decode_state > 9) {
+		PX4_ERR("It was payloadRxAddNavSat");
+	}
+
 	return ret;
 }
 
@@ -1856,6 +1977,10 @@ GPSDriverUBX::payloadRxAddNavSvinfo(const uint8_t b)
 
 	if (++_rx_payload_index >= _rx_payload_length) {
 		ret = 1;	// payload received completely
+	}
+
+	if (_decode_state > 9) {
+		PX4_ERR("It was payloadRxAddNavSvinfo");
 	}
 
 	return ret;
@@ -1963,6 +2088,10 @@ GPSDriverUBX::payloadRxAddMonVer(const uint8_t b)
 
 	if (++_rx_payload_index >= _rx_payload_length) {
 		ret = 1;	// payload received completely
+	}
+
+	if (_decode_state > 9) {
+		PX4_ERR("It was payloadRxAddMonVer");
 	}
 
 	return ret;
@@ -2091,7 +2220,10 @@ GPSDriverUBX::payloadRxDone()
 	case UBX_MSG_INF_NOTICE: {
 			uint8_t *p_buf = (uint8_t *)&_buf;
 			p_buf[_rx_payload_length] = 0;
-			UBX_DEBUG("ubx msg: %s", p_buf);
+			UBX_WARN("ubx msg: %s", p_buf);
+			if (_decode_state > 9) {
+				PX4_ERR("It was INF_NOTICE");
+			}
 		}
 		break;
 
@@ -2100,6 +2232,9 @@ GPSDriverUBX::payloadRxDone()
 			uint8_t *p_buf = (uint8_t *)&_buf;
 			p_buf[_rx_payload_length] = 0;
 			UBX_WARN("ubx msg: %s", p_buf);
+			if (_decode_state > 9) {
+				PX4_ERR("It was INF_WARNING");
+			}
 		}
 		break;
 
@@ -2473,6 +2608,10 @@ GPSDriverUBX::activateRTCMOutput(bool reduce_update_rate)
 			return -1;
 		}
 
+		if (_decode_state > 9) {
+			PX4_ERR("It was activateRTCMOutput 1");
+		}
+
 		if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, false) < 0) {
 			return -1;
 		}
@@ -2486,6 +2625,10 @@ GPSDriverUBX::activateRTCMOutput(bool reduce_update_rate)
 			_buf.payload_tx_cfg_rate.timeRef	= UBX_TX_CFG_RATE_TIMEREF;
 
 			if (!sendMessage(UBX_MSG_CFG_RATE, (uint8_t *)&_buf, sizeof(_buf.payload_tx_cfg_rate))) { return -1; }
+
+			if (_decode_state > 9) {
+				PX4_ERR("It was activateRTCMOutput 2");
+			}
 
 			// according to the spec we should receive an (N)ACK here, but we don't
 		}
@@ -2642,6 +2785,10 @@ GPSDriverUBX::reset(GPSRestartType restart_type)
 	memset(&_buf.payload_tx_cfg_rst, 0, sizeof(_buf.payload_tx_cfg_rst));
 	_buf.payload_tx_cfg_rst.resetMode = UBX_TX_CFG_RST_MODE_SOFTWARE;
 
+	if (_decode_state > 9) {
+		PX4_ERR("It was reset 1");
+	}
+
 	switch (restart_type) {
 	case GPSRestartType::Hot:
 		_buf.payload_tx_cfg_rst.navBbrMask = UBX_TX_CFG_RST_BBR_MODE_HOT_START;
@@ -2660,7 +2807,14 @@ GPSDriverUBX::reset(GPSRestartType restart_type)
 	}
 
 	if (sendMessage(UBX_MSG_CFG_RST, (uint8_t *)&_buf, sizeof(_buf.payload_tx_cfg_rst))) {
+		if (_decode_state > 9) {
+			PX4_ERR("It was reset 2");
+		}
 		return 0;
+	}
+
+	if (_decode_state > 9) {
+		PX4_ERR("It was reset 3");
 	}
 
 	return -2;
