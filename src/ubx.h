@@ -719,6 +719,7 @@ typedef struct {
 	uint8_t  flags;
 	uint16_t subType;
 	uint16_t refStationID;
+	uint16_t msgType;
 } ubx_payload_rx_rxm_rtcm_t;
 
 /* Rx ACK-ACK */

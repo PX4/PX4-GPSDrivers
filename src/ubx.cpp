@@ -1528,7 +1528,7 @@ GPSDriverUBX::payloadRxInit()
 		break;
 
 	case UBX_MSG_RXM_RTCM:
-		if (_rx_payload_length < sizeof(ubx_payload_rx_rxm_rtcm_t)) {
+		if (_rx_payload_length != sizeof(ubx_payload_rx_rxm_rtcm_t)) {
 			_rx_state = UBX_RXMSG_ERROR_LENGTH;
 
 		} else if (!_configured) {
