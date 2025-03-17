@@ -345,8 +345,7 @@ uint8_t msg_revision:
 typedef enum {
 	SBF_DECODE_SYNC1 = 0,
 	SBF_DECODE_SYNC2,
-	SBF_DECODE_PAYLOAD,
-	SBF_DECODE_RTCM3
+	SBF_DECODE_PAYLOAD
 } sbf_decode_state_t;
 
 class GPSDriverSBF : public GPSBaseStationSupport

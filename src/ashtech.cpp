@@ -838,14 +838,6 @@ int GPSDriverAshtech::parseChar(uint8_t b)
 			_decode_state = NMEADecodeState::got_sync1;
 			_rx_buffer_bytes = 0;
 			_rx_buffer[_rx_buffer_bytes++] = b;
-
-		} else if (b == RTCM3_PREAMBLE && _rtcm_parsing) {
-			_decode_state = NMEADecodeState::decode_rtcm3;
-
-			if (_rtcm_parsing->addByte(b) != RTCMParsing::ParserStatus::ExpectingMore) {
-				decodeInit();
-			}
-
 		}
 
 		break;
@@ -886,32 +878,24 @@ int GPSDriverAshtech::parseChar(uint8_t b)
 			if ((HEXDIGIT_CHAR(checksum >> 4) == *(_rx_buffer + _rx_buffer_bytes - 2)) &&
 			    (HEXDIGIT_CHAR(checksum & 0x0F) == *(_rx_buffer + _rx_buffer_bytes - 1))) {
 				iRet = _rx_buffer_bytes;
+
+				if (_rtcm_parsing) {
+					_rtcm_parsing->reset();
+				}
 			}
 
 			decodeInit();
 		}
 		break;
+	}
 
-	case NMEADecodeState::decode_rtcm3: {
-			RTCMParsing::ParserStatus parser_status = _rtcm_parsing->addByte(b);
-
-			switch (parser_status) {
-			case RTCMParsing::ParserStatus::Finished:
-				ASH_DEBUG("got RTCM message with length %i", (int)_rtcm_parsing->messageLength());
-				gotRTCMMessage(_rtcm_parsing->message(), _rtcm_parsing->messageLength());
-				decodeInit();
-				break;
-
-			case RTCMParsing::ParserStatus::Failure:
-				ASH_DEBUG("rtcm3 parsing err");
-				decodeInit();
-				break;
-
-			default:
-				break;
-			}
+	if (_rtcm_parsing && iRet <= 0) {
+		if (_rtcm_parsing->addByte(b)) {
+			ASH_DEBUG("got RTCM message with length %i", (int)_rtcm_parsing->messageLength());
+			gotRTCMMessage(_rtcm_parsing->message(), _rtcm_parsing->messageLength());
+			decodeInit();
+			_rtcm_parsing->reset();
 		}
-		break;
 	}
 
 	return iRet;
@@ -921,16 +905,6 @@ void GPSDriverAshtech::decodeInit()
 {
 	_rx_buffer_bytes = 0;
 	_decode_state = NMEADecodeState::uninit;
-
-	if (_output_mode == OutputMode::GPSAndRTCM || _output_mode == OutputMode::RTCM) {
-		if (!_rtcm_parsing) {
-			_rtcm_parsing = new RTCMParsing();
-		}
-
-		if (_rtcm_parsing) {
-			_rtcm_parsing->reset();
-		}
-	}
 }
 
 int GPSDriverAshtech::writeAckedCommand(const void *buf, int buf_length, unsigned timeout)
@@ -1133,6 +1107,13 @@ int GPSDriverAshtech::configure(unsigned &baudrate, const GPSConfig &config)
 		}
 	}
 
+	if (_output_mode == OutputMode::GPSAndRTCM || _output_mode == OutputMode::RTCM) {
+		if (!_rtcm_parsing) {
+			_rtcm_parsing = new RTCMParsing();
+		}
+
+		_rtcm_parsing->reset();
+	}
 
 	if (_output_mode == OutputMode::RTCM && _board == AshtechBoard::trimble_mb_two) {
 		SurveyInStatus status{};

@@ -53,12 +53,23 @@ void RTCMParsing::reset()
 
 	_pos = 0;
 	_message_length = _buffer_len;
+	_preamble_received = false;
 }
 
-RTCMParsing::ParserStatus RTCMParsing::addByte(uint8_t b)
+bool RTCMParsing::addByte(uint8_t b)
 {
 	if (!_buffer) {
-		return ParserStatus::Failure;
+		reset();
+		return false;
+	}
+
+	if (!_preamble_received) {
+		if (b == RTCM3_PREAMBLE) {
+			_preamble_received = true;
+
+		} else {
+			return false;
+		}
 	}
 
 	_buffer[_pos++] = b;
@@ -73,7 +84,8 @@ RTCMParsing::ParserStatus RTCMParsing::addByte(uint8_t b)
 			if (!new_buffer) {
 				delete[](_buffer);
 				_buffer = nullptr;
-				return ParserStatus::Failure;
+				reset();
+				return false;
 			}
 
 			memcpy(new_buffer, _buffer, 3);
@@ -84,14 +96,20 @@ RTCMParsing::ParserStatus RTCMParsing::addByte(uint8_t b)
 	}
 
 	if (_message_length + 6 == _pos) {
-		const uint8_t *crc_start = &_buffer[_message_length + 3];
-		uint32_t actual_crc = (crc_start[0] << 16) | (crc_start[1] << 8) | crc_start[2];
+		const uint8_t *crc_buffer = &_buffer[_message_length + 3];
+		uint32_t actual_crc = (crc_buffer[0] << 16) | (crc_buffer[1] << 8) | crc_buffer[2];
 		uint32_t expected_crc = crc24(_buffer, _message_length + 3);
-		return actual_crc == expected_crc ? ParserStatus::Finished : ParserStatus::Failure;
 
-	} else {
-		return ParserStatus::ExpectingMore;
+		if (actual_crc == expected_crc) {
+			return true;
+
+		} else {
+			reset();
+			return false;
+		}
 	}
+
+	return false;
 }
 
 uint32_t RTCMParsing::crc24(const uint8_t *buffer, uint16_t len)
