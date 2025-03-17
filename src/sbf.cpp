@@ -367,7 +367,10 @@ int GPSDriverSBF::parseChar(const uint8_t b)
 		} else if (b == RTCM3_PREAMBLE && _rtcm_parsing) {
 			SBF_TRACE_PARSER("RTCM");
 			_decode_state = SBF_DECODE_RTCM3;
-			_rtcm_parsing->addByte(b);
+
+			if (_rtcm_parsing->addByte(b) != RTCMParsing::ParserStatus::ExpectingMore) {
+				decodeInit();
+			}
 		}
 
 		break;
@@ -407,15 +410,27 @@ int GPSDriverSBF::parseChar(const uint8_t b)
 
 		break;
 
-	case SBF_DECODE_RTCM3:
-		if (_rtcm_parsing->addByte(b)) {
-			// Complete message received
-			SBF_DEBUG("got RTCM message with length %i", (int) _rtcm_parsing->messageLength());
-			gotRTCMMessage(_rtcm_parsing->message(), _rtcm_parsing->messageLength());
-			decodeInit();
-			ret |= 1;
-		}
+	case SBF_DECODE_RTCM3: {
+			RTCMParsing::ParserStatus parser_status = _rtcm_parsing->addByte(b);
 
+			switch (parser_status) {
+			case RTCMParsing::ParserStatus::Finished:
+				// Complete message received
+				SBF_DEBUG("got RTCM message with length %i", (int) _rtcm_parsing->messageLength());
+				gotRTCMMessage(_rtcm_parsing->message(), _rtcm_parsing->messageLength());
+				decodeInit();
+				ret |= 1;
+				break;
+
+			case RTCMParsing::ParserStatus::Failure:
+				SBF_DEBUG("rtcm3 parsing err");
+				decodeInit();
+				break;
+
+			default:
+				break;
+			}
+		}
 		break;
 
 	default:

@@ -43,6 +43,12 @@
 class RTCMParsing
 {
 public:
+	enum class ParserStatus : uint8_t {
+		Failure,
+		ExpectingMore,
+		Finished
+	};
+
 	RTCMParsing();
 	~RTCMParsing();
 
@@ -54,17 +60,21 @@ public:
 	/**
 	 * add a byte to the message
 	 * @param b
-	 * @return true if message complete (use @message to get it)
+	 * @return ParserStatus::Finished, if a message is complete (use @message to get it). The user needs to reset the parser.
+	 *	ParserStatus::ExpectingMore, if the message is not complete yet and more data is needed.
+	 *	ParserStatus::Failure, if an error occured. The user needs to reset the parser.
 	 */
-	bool addByte(uint8_t b);
+	ParserStatus addByte(uint8_t b);
 
 	uint8_t *message() const { return _buffer; }
 	uint16_t messageLength() const { return _pos; }
 	uint16_t messageId() const { return (_buffer[3] << 4) | (_buffer[4] >> 4); }
 
 private:
+	uint32_t crc24(const uint8_t *buffer, const uint16_t len);
+
 	uint8_t			*_buffer{nullptr};
 	uint16_t		_buffer_len{};
 	uint16_t		_pos{};						///< next position in buffer
-	uint16_t		_message_length{};					///< message length without header & CRC (both 3 bytes)
+	uint16_t		_message_length{};				///< message length without header & CRC (both 3 bytes)
 };

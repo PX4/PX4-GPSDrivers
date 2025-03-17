@@ -424,7 +424,10 @@ int GPSDriverFemto::parseChar(uint8_t temp)
 
 			} else if (temp == RTCM3_PREAMBLE && _rtcm_parsing) {
 				_decode_state = FemtoDecodeState::decode_rtcm3;
-				_rtcm_parsing->addByte(temp);
+
+				if (_rtcm_parsing->addByte(temp) != RTCMParsing::ParserStatus::ExpectingMore) {
+					decodeInit();
+				}
 			}
 
 			break;
@@ -439,7 +442,10 @@ int GPSDriverFemto::parseChar(uint8_t temp)
 
 			} else if (temp == RTCM3_PREAMBLE && _rtcm_parsing) {
 				_decode_state = FemtoDecodeState::decode_rtcm3;
-				_rtcm_parsing->addByte(temp);
+
+				if (_rtcm_parsing->addByte(temp) != RTCMParsing::ParserStatus::ExpectingMore) {
+					decodeInit();
+				}
 			}
 
 			if (_femto_msg.read >= (sizeof(_femto_msg.data) - 5)) {
@@ -479,13 +485,25 @@ int GPSDriverFemto::parseChar(uint8_t temp)
 				break;
 			}
 
-		case FemtoDecodeState::decode_rtcm3:
-			if (_rtcm_parsing->addByte(temp)) {
-				FEMTO_DEBUG("Femto: got RTCM message with length %i", (int)_rtcm_parsing->messageLength())
-				gotRTCMMessage(_rtcm_parsing->message(), _rtcm_parsing->messageLength());
-				decodeInit();
-			}
+		case FemtoDecodeState::decode_rtcm3: {
+				RTCMParsing::ParserStatus parser_status = _rtcm_parsing->addByte(temp);
 
+				switch (parser_status) {
+				case RTCMParsing::ParserStatus::Finished:
+					FEMTO_DEBUG("Femto: got RTCM message with length %i", (int)_rtcm_parsing->messageLength())
+					gotRTCMMessage(_rtcm_parsing->message(), _rtcm_parsing->messageLength());
+					decodeInit();
+					break;
+
+				case RTCMParsing::ParserStatus::Failure:
+					FEMTO_DEBUG("rtcm3 parsing err")
+					decodeInit();
+					break;
+
+				default:
+					break;
+				}
+			}
 			break;
 
 		default:

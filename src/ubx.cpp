@@ -1209,7 +1209,10 @@ GPSDriverUBX::parseChar(const uint8_t b)
 		} else if (b == RTCM3_PREAMBLE && _rtcm_parsing) {
 			UBX_TRACE_PARSER("RTCM");
 			_decode_state = UBX_DECODE_RTCM3;
-			_rtcm_parsing->addByte(b);
+
+			if (_rtcm_parsing->addByte(b) != RTCMParsing::ParserStatus::ExpectingMore) {
+				decodeInit();
+			}
 		}
 
 		break;
@@ -1328,13 +1331,25 @@ GPSDriverUBX::parseChar(const uint8_t b)
 		decodeInit();
 		break;
 
-	case UBX_DECODE_RTCM3:
-		if (_rtcm_parsing->addByte(b)) {
-			//UBX_DEBUG("got RTCM message with length %i", static_cast<int>(_rtcm_parsing->messageLength()));
-			gotRTCMMessage(_rtcm_parsing->message(), _rtcm_parsing->messageLength());
-			decodeInit();
-		}
+	case UBX_DECODE_RTCM3: {
+			RTCMParsing::ParserStatus parser_status = _rtcm_parsing->addByte(b);
 
+			switch (parser_status) {
+			case RTCMParsing::ParserStatus::Finished:
+				//UBX_DEBUG("got RTCM message with length %i", static_cast<int>(_rtcm_parsing->messageLength()));
+				gotRTCMMessage(_rtcm_parsing->message(), _rtcm_parsing->messageLength());
+				decodeInit();
+				break;
+
+			case RTCMParsing::ParserStatus::Failure:
+				UBX_DEBUG("rtcm3 parsing err");
+				decodeInit();
+				break;
+
+			default:
+				break;
+			}
+		}
 		break;
 
 	default:

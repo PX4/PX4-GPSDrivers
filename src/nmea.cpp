@@ -1106,7 +1106,10 @@ int GPSDriverNMEA::parseChar(uint8_t b)
 
 		}  else if (b == RTCM3_PREAMBLE && _rtcm_parsing) {
 			_decode_state = NMEADecodeState::decode_rtcm3;
-			_rtcm_parsing->addByte(b);
+
+			if (_rtcm_parsing->addByte(b) != RTCMParsing::ParserStatus::ExpectingMore) {
+				decodeInit();
+			}
 
 		}
 
@@ -1153,13 +1156,25 @@ int GPSDriverNMEA::parseChar(uint8_t b)
 		}
 		break;
 
-	case NMEADecodeState::decode_rtcm3:
-		if (_rtcm_parsing->addByte(b)) {
-			NMEA_DEBUG("got RTCM message with length %i", (int)_rtcm_parsing->messageLength());
-			gotRTCMMessage(_rtcm_parsing->message(), _rtcm_parsing->messageLength());
-			decodeInit();
-		}
+	case NMEADecodeState::decode_rtcm3: {
+			RTCMParsing::ParserStatus parser_status = _rtcm_parsing->addByte(b);
 
+			switch (parser_status) {
+			case RTCMParsing::ParserStatus::Finished:
+				NMEA_DEBUG("got RTCM message with length %i", (int)_rtcm_parsing->messageLength());
+				gotRTCMMessage(_rtcm_parsing->message(), _rtcm_parsing->messageLength());
+				decodeInit();
+				break;
+
+			case RTCMParsing::ParserStatus::Failure:
+				NMEA_DEBUG("rtcm3 parsing err");
+				decodeInit();
+				break;
+
+			default:
+				break;
+			}
+		}
 		break;
 	}
 
