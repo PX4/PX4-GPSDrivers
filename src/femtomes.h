@@ -154,8 +154,6 @@ enum class FemtoDecodeState {
 	pream_nmea_got_sync1,           /**< NMEA Frame '$' */
 	pream_nmea_got_asteriks,        /**< NMEA Frame '*' */
 	pream_nmea_got_first_cs_byte,   /**< NMEA Frame cs first byte */
-
-	decode_rtcm3                    /**< Frame rtcm3 */
 };
 
 class GPSDriverFemto : public GPSBaseStationSupport

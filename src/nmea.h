@@ -79,8 +79,7 @@ private:
 		uninit,
 		got_sync1,
 		got_asteriks,
-		got_first_cs_byte,
-		decode_rtcm3
+		got_first_cs_byte
 	};
 
 	void decodeInit(void);

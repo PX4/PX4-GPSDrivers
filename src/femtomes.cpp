@@ -421,13 +421,6 @@ int GPSDriverFemto::parseChar(uint8_t temp)
 				_decode_state = FemtoDecodeState::pream_nmea_got_sync1;
 				_femto_msg.read = 0;
 				_femto_msg.data[_femto_msg.read++] = temp;
-
-			} else if (temp == RTCM3_PREAMBLE && _rtcm_parsing) {
-				_decode_state = FemtoDecodeState::decode_rtcm3;
-
-				if (_rtcm_parsing->addByte(temp) != RTCMParsing::ParserStatus::ExpectingMore) {
-					decodeInit();
-				}
 			}
 
 			break;
@@ -440,12 +433,6 @@ int GPSDriverFemto::parseChar(uint8_t temp)
 			} else if (temp == '*') {
 				_decode_state = FemtoDecodeState::pream_nmea_got_asteriks;
 
-			} else if (temp == RTCM3_PREAMBLE && _rtcm_parsing) {
-				_decode_state = FemtoDecodeState::decode_rtcm3;
-
-				if (_rtcm_parsing->addByte(temp) != RTCMParsing::ParserStatus::ExpectingMore) {
-					decodeInit();
-				}
 			}
 
 			if (_femto_msg.read >= (sizeof(_femto_msg.data) - 5)) {
@@ -479,32 +466,15 @@ int GPSDriverFemto::parseChar(uint8_t temp)
 					iRet = _femto_msg.read;
 					_femto_msg.header.femto_header.messageid = FEMTO_MSG_ID_GPGGA;
 					FEMTO_DEBUG("Femto: got NMEA message with length %i", _femto_msg.read)
+
+					if (_rtcm_parsing) {
+						_rtcm_parsing->reset();
+					}
 				}
 
 				decodeInit();
 				break;
 			}
-
-		case FemtoDecodeState::decode_rtcm3: {
-				RTCMParsing::ParserStatus parser_status = _rtcm_parsing->addByte(temp);
-
-				switch (parser_status) {
-				case RTCMParsing::ParserStatus::Finished:
-					FEMTO_DEBUG("Femto: got RTCM message with length %i", (int)_rtcm_parsing->messageLength())
-					gotRTCMMessage(_rtcm_parsing->message(), _rtcm_parsing->messageLength());
-					decodeInit();
-					break;
-
-				case RTCMParsing::ParserStatus::Failure:
-					FEMTO_DEBUG("rtcm3 parsing err")
-					decodeInit();
-					break;
-
-				default:
-					break;
-				}
-			}
-			break;
 
 		default:
 			break;
@@ -512,6 +482,14 @@ int GPSDriverFemto::parseChar(uint8_t temp)
 
 	}
 
+	if (_rtcm_parsing && iRet <= 0) {
+		if (_rtcm_parsing->addByte(temp)) {
+			FEMTO_DEBUG("Femto: got RTCM message with length %i", (int)_rtcm_parsing->messageLength())
+			gotRTCMMessage(_rtcm_parsing->message(), _rtcm_parsing->messageLength());
+			decodeInit();
+			_rtcm_parsing->reset();
+		}
+	}
 
 	return iRet;
 }
@@ -519,17 +497,6 @@ int GPSDriverFemto::parseChar(uint8_t temp)
 void GPSDriverFemto::decodeInit()
 {
 	_decode_state = FemtoDecodeState::pream_ble1;
-
-	/** init or reset rtcm parsing */
-	if (_output_mode == OutputMode::RTCM) {
-		if (!_rtcm_parsing) {
-			_rtcm_parsing = new RTCMParsing();
-		}
-
-		if (_rtcm_parsing) {
-			_rtcm_parsing->reset();
-		}
-	}
 }
 
 int GPSDriverFemto::writeAckedCommandFemto(const char *command, const char *reply, const unsigned int timeout)
@@ -631,6 +598,15 @@ int GPSDriverFemto::configure(unsigned &baudrate, const GPSConfig &config)
 
 	} else {
 		decodeInit();
+	}
+
+	/** init rtcm parsing */
+	if (_output_mode == OutputMode::RTCM) {
+		if (!_rtcm_parsing) {
+			_rtcm_parsing = new RTCMParsing();
+		}
+
+		_rtcm_parsing->reset();
 	}
 
 	if (_output_mode == OutputMode::GPS) {
