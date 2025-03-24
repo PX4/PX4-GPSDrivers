@@ -306,6 +306,16 @@ int GPSDriverFemto::parseChar(uint8_t temp)
 {
 	int iRet = 0;
 
+	if (_rtcm_parsing) {
+		if (_rtcm_parsing->addByte(temp)) {
+			FEMTO_DEBUG("Femto: got RTCM message with length %i", (int)_rtcm_parsing->messageLength())
+			gotRTCMMessage(_rtcm_parsing->message(), _rtcm_parsing->messageLength());
+			decodeInit();
+			_rtcm_parsing->reset();
+			return iRet;
+		}
+	}
+
 	if (_output_mode == OutputMode::GPS) {
 
 		switch (_decode_state) {
@@ -480,15 +490,6 @@ int GPSDriverFemto::parseChar(uint8_t temp)
 			break;
 		}
 
-	}
-
-	if (_rtcm_parsing && iRet <= 0) {
-		if (_rtcm_parsing->addByte(temp)) {
-			FEMTO_DEBUG("Femto: got RTCM message with length %i", (int)_rtcm_parsing->messageLength())
-			gotRTCMMessage(_rtcm_parsing->message(), _rtcm_parsing->messageLength());
-			decodeInit();
-			_rtcm_parsing->reset();
-		}
 	}
 
 	return iRet;

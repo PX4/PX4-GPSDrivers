@@ -363,6 +363,16 @@ int GPSDriverSBF::parseChar(const uint8_t b)
 {
 	int ret = 0;
 
+	if (_rtcm_parsing) {
+		if (_rtcm_parsing->addByte(b)) {
+			SBF_DEBUG("got RTCM message with length %i", (int) _rtcm_parsing->messageLength());
+			gotRTCMMessage(_rtcm_parsing->message(), _rtcm_parsing->messageLength());
+			decodeInit();
+			_rtcm_parsing->reset();
+			return ret;
+		}
+	}
+
 	switch (_decode_state) {
 
 	// Expecting Sync1
@@ -401,7 +411,7 @@ int GPSDriverSBF::parseChar(const uint8_t b)
 		} else if (ret > 0) {
 			ret = payloadRxDone(); // finish payload processing
 
-			if (_rtcm_parsing && ret > 0) {
+			if (_rtcm_parsing) {
 				_rtcm_parsing->reset();
 			}
 
@@ -416,15 +426,6 @@ int GPSDriverSBF::parseChar(const uint8_t b)
 
 	default:
 		break;
-	}
-
-	if (_rtcm_parsing && ret <= 0) {
-		if (_rtcm_parsing->addByte(b)) {
-			SBF_DEBUG("got RTCM message with length %i", (int) _rtcm_parsing->messageLength());
-			gotRTCMMessage(_rtcm_parsing->message(), _rtcm_parsing->messageLength());
-			decodeInit();
-			_rtcm_parsing->reset();
-		}
 	}
 
 	return ret;
