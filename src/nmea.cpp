@@ -1096,6 +1096,16 @@ int GPSDriverNMEA::parseChar(uint8_t b)
 {
 	int iRet = 0;
 
+	if (_rtcm_parsing) {
+		if (_rtcm_parsing->addByte(b)) {
+			NMEA_DEBUG("got RTCM message with length %i", (int)_rtcm_parsing->messageLength());
+			gotRTCMMessage(_rtcm_parsing->message(), _rtcm_parsing->messageLength());
+			decodeInit();
+			_rtcm_parsing->reset();
+			return iRet;
+		}
+	}
+
 	switch (_decode_state) {
 	/* First, look for sync1 */
 	case NMEADecodeState::uninit:
@@ -1151,15 +1161,6 @@ int GPSDriverNMEA::parseChar(uint8_t b)
 			decodeInit();
 		}
 		break;
-	}
-
-	if (_rtcm_parsing && iRet <= 0) {
-		if (_rtcm_parsing->addByte(b)) {
-			NMEA_DEBUG("got RTCM message with length %i", (int)_rtcm_parsing->messageLength());
-			gotRTCMMessage(_rtcm_parsing->message(), _rtcm_parsing->messageLength());
-			decodeInit();
-			_rtcm_parsing->reset();
-		}
 	}
 
 	return iRet;

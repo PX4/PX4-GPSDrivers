@@ -1205,6 +1205,15 @@ GPSDriverUBX::parseChar(const uint8_t b)
 {
 	int ret = 0;
 
+	if (_rtcm_parsing) {
+		if (_rtcm_parsing->addByte(b)) {
+			gotRTCMMessage(_rtcm_parsing->message(), _rtcm_parsing->messageLength());
+			decodeInit();
+			_rtcm_parsing->reset();
+			return ret;
+		}
+	}
+
 	switch (_decode_state) {
 
 	/* Expecting Sync1 */
@@ -1326,7 +1335,7 @@ GPSDriverUBX::parseChar(const uint8_t b)
 		} else {
 			ret = payloadRxDone();	// finish payload processing
 
-			if (_rtcm_parsing && ret > 0) {
+			if (_rtcm_parsing) {
 				_rtcm_parsing->reset();
 			}
 		}
@@ -1336,14 +1345,6 @@ GPSDriverUBX::parseChar(const uint8_t b)
 
 	default:
 		break;
-	}
-
-	if (_rtcm_parsing && ret <= 0) {
-		if (_rtcm_parsing->addByte(b)) {
-			gotRTCMMessage(_rtcm_parsing->message(), _rtcm_parsing->messageLength());
-			decodeInit();
-			_rtcm_parsing->reset();
-		}
 	}
 
 	return ret;
