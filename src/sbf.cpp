@@ -57,10 +57,10 @@
 /**** Trace macros, disable for production builds */
 #define SBF_TRACE_PARSER(...)   {/*GPS_INFO(__VA_ARGS__);*/}    /* decoding progress in parse_char() */
 #define SBF_TRACE_RXMSG(...)    {/*GPS_INFO(__VA_ARGS__);*/}    /* Rx msgs in payload_rx_done() */
-#define SBF_INFO(...)           {/*GPS_INFO(__VA_ARGS__);*/}
+#define SBF_INFO(...)           {GPS_INFO(__VA_ARGS__);}
 
 /**** Warning macros, disable to save memory */
-#define SBF_WARN(...)        {/*GPS_WARN(__VA_ARGS__);*/}
+#define SBF_WARN(...)        {GPS_WARN(__VA_ARGS__);}
 #define SBF_DEBUG(...)       {/*GPS_WARN(__VA_ARGS__);*/}
 
 GPSDriverSBF::GPSDriverSBF(GPSCallbackPtr callback, void *callback_user, struct sensor_gps_s *gps_position,
