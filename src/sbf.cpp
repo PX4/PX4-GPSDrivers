@@ -270,7 +270,7 @@ bool GPSDriverSBF::sendMessage(const char *msg)
 
 bool GPSDriverSBF::sendMessageAndWaitForAck(const char *msg, const int timeout)
 {
-	SBF_INFO("Send MSG: %s", msg);
+	SBF_DEBUG("Send MSG: %s", msg);
 
 	// Send message
 	int length = static_cast<int>(strlen(msg));
@@ -618,7 +618,7 @@ int GPSDriverSBF::payloadRxDone()
 
 
 		// In RTCM mode, PVTGeodetic is used to get base station survey-in
-		if(_output_mode == OutputMode::RTCM){
+		if (_output_mode == OutputMode::RTCM){
 			SurveyInStatus status{};
 			status.latitude = _gps_position->latitude_deg;
 			status.longitude = _gps_position->longitude_deg;
