@@ -357,7 +357,7 @@ int GPSDriverSBF::receive(unsigned timeout)
 		}
 
 		if (handled > 0) {
-			SBF_INFO("Handled : %i", handled);
+			SBF_DEBUG("Handled : %i", handled);
 			return handled;
 		}
 
