@@ -605,7 +605,10 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 	cfg_valset_msg_size = initCfgValset();
 
 	// enable jamming monitor
-	cfgValset<uint8_t>(UBX_CFG_KEY_ITFM_ENABLE, 1, cfg_valset_msg_size);
+	// available only on firmware versions earlier than 1.40
+	if (_firmware_version > 0.f && _firmware_version < 1.40f) {
+		cfgValset<uint8_t>(UBX_CFG_KEY_ITFM_ENABLE, 1, cfg_valset_msg_size);
+	}
 
 	if (!sendMessage(UBX_MSG_CFG_VALSET, (uint8_t *)&_buf, cfg_valset_msg_size)) {
 		return -1;
@@ -1901,6 +1904,7 @@ GPSDriverUBX::payloadRxAddMonVer(const uint8_t b)
 
 			if (fwver_str != nullptr) {
 				GPS_INFO("u-blox firmware version: %s", fwver_str + strlen("FWVER="));
+				_firmware_version = atof(strrchr(fwver_str, ' ') + 1);
 
 				// Check if its a ZED-F9P-15B
 				if ((_board == Board::u_blox9) && strstr(fwver_str, "HPGL1L5")) {
