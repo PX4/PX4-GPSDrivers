@@ -1013,6 +1013,7 @@ public:
 		u_blox9_F9P_L1L2 = 10, ///< F9P
 		u_blox10 = 11,
 		u_blox9_F9P_L1L5 = 12, ///< ZED-F9P-15B
+		u_blox10_L1L5 = 13, ///< DAN-F10N
 	};
 
 	const Board &board() const { return _board; }
@@ -1093,9 +1094,10 @@ private:
 
 	/**
 	 * Init _buf as CFG-VALSET
+	 * Optionally add the version, otherwise it will default to 0.
 	 * @return size of the message (without any config values)
 	 */
-	int initCfgValset();
+	int initCfgValset(uint8_t version = 0);
 
 	/**
 	 * Start or restart the survey-in procees. This is only used in RTCM ouput mode.

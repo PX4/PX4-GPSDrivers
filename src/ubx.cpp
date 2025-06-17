@@ -544,7 +544,7 @@ int GPSDriverUBX::configureDevicePreV27(const GNSSSystemsMask &gnssSystems)
 int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_baudrate)
 {
 	// There is no RTCM or USB interface on M10
-	if (_board != Board::u_blox10) {
+	if (_board != Board::u_blox10 && _board != Board::u_blox10_L1L5) {
 
 		int cfg_valset_msg_size = initCfgValset();
 
@@ -594,7 +594,8 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 	// F9P L1L2 in firmware <1.50 the max update rate with 4 constellations is 9Hz without RTK and 7Hz with RTK
 	// F9P L1L2 in firmware >=1.50 the max update rate with 4 constellations is 7Hz without RTK and 5Hz with RTK
 	// F9P L1L5 the max update rate with 4 constellations is 8Hz without RTK and 7Hz with RTK
-	// Receivers such as M9N can go higher than 10Hz, but the number of used satellites will be restricted to 16. (Not mentioned in datasheet)
+	// DAN-F10N the max update rate is 10Hz with GPS+GAL+BDS(Default)
+	// Receivers such as M9N and DAN-F10N can go higher than 10Hz, but the number of used satellites will be restricted to 16. (Not mentioned in datasheet)
 	int rate_meas = 100; // 10Hz
 
 	switch (_board) {
@@ -768,6 +769,21 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 		}
 
 		waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true);
+
+	}
+
+	if (_board == Board::u_blox10_L1L5) {
+		// Enable L5 health override, use version 1 of the message
+		cfg_valset_msg_size = initCfgValset(0x01);
+		cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_L5_HEALTH_OVERRIDE, 1, cfg_valset_msg_size);
+
+		UBX_DEBUG("Enabling L5 health override");
+
+		if (!sendMessage(UBX_MSG_CFG_VALSET, (uint8_t *)&_buf, cfg_valset_msg_size)) {
+			return -1;
+		}
+
+		waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true);
 	}
 
 	// Configure message rates
@@ -776,7 +792,7 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_PVT_I2C, 1, cfg_valset_msg_size);
 
 	// There is no RTCM on M10 and M9* (except F9P)
-	if (_board != Board::u_blox10 && _board != Board::u_blox9) {
+	if (_board != Board::u_blox10 && _board != Board::u_blox9 && _board != Board::u_blox10_L1L5) {
 		cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_HPPOSLLH_I2C, 1, cfg_valset_msg_size);
 		cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_RELPOSNED_I2C,
 			      _mode == UBXMode::RoverWithMovingBase || _mode == UBXMode::RoverWithMovingBaseUART1 ? 1 : 0,
@@ -812,7 +828,7 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 				   config.interface_protocols & InterfaceProtocolsMask::I2C_IN_PROT_NMEA, cfg_valset_msg_size);
 
 		// There is no RTCM on M10
-		if (_board != Board::u_blox10) {
+		if (_board != Board::u_blox10 && _board != Board::u_blox10_L1L5) {
 			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_I2CINPROT_RTCM3X,
 					   config.interface_protocols & InterfaceProtocolsMask::I2C_IN_PROT_RTCM3X, cfg_valset_msg_size);
 		}
@@ -965,10 +981,11 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 	return 0;
 }
 
-int GPSDriverUBX::initCfgValset()
+int GPSDriverUBX::initCfgValset(uint8_t version)
 {
 	memset(&_buf.payload_tx_cfg_valset, 0, sizeof(_buf.payload_tx_cfg_valset));
 	_buf.payload_tx_cfg_valset.layers = UBX_CFG_LAYER_RAM;
+	_buf.payload_tx_cfg_valset.version = version;
 	return sizeof(_buf.payload_tx_cfg_valset) - sizeof(_buf.payload_tx_cfg_valset.cfgData);
 }
 
@@ -1003,7 +1020,7 @@ bool GPSDriverUBX::cfgValsetPort(uint32_t key_id, uint8_t value, int &msg_size)
 		}
 
 		// M10 has no USB
-		if (_board != Board::u_blox10) {
+		if (_board != Board::u_blox10 && _board != Board::u_blox10_L1L5) {
 			if (!cfgValset<uint8_t>(key_id + 3, value, msg_size)) {
 				return false;
 			}
@@ -1976,6 +1993,12 @@ GPSDriverUBX::payloadRxAddMonVer(const uint8_t b)
 					if (strstr(mod_str, "F9P")) {
 						_board = Board::u_blox9_F9P_L1L2;
 						UBX_DEBUG("F9P detected");
+					}
+
+				} else if (_board == Board::u_blox10) {
+					if (strstr(mod_str, "DAN-F10N")) {
+						_board = Board::u_blox10_L1L5;
+						UBX_DEBUG("DAN-F10N detected");
 					}
 				}
 
