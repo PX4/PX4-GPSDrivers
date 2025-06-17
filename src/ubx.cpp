@@ -657,23 +657,38 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 			UBX_DEBUG("GNSS Systems: Use GPS + QZSS");
 			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GPS_ENA, 1, cfg_valset_msg_size);
 			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_QZSS_ENA, 1, cfg_valset_msg_size);
+			UBX_DEBUG("GNSS Systems: Enable QZSS L1CA");
+			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_QZSS_L1CA_ENA, 1, cfg_valset_msg_size);
+			UBX_DEBUG("GNSS Systems: Enable QZSS L1S");
+			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_QZSS_L1S_ENA, 1, cfg_valset_msg_size);
 
 			if (_board == Board::u_blox9_F9P_L1L2) {
+				UBX_DEBUG("GNSS Systems: Use GPS L2C");
 				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GPS_L2C_ENA, 1, cfg_valset_msg_size);
+				UBX_DEBUG("GNSS Systems: Enable QZAA L2C");
+				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_QZSS_L2C_ENA, 1, cfg_valset_msg_size);
 
-			} else if (_board == Board::u_blox9_F9P_L1L5) {
+			} else if (_board == Board::u_blox9_F9P_L1L5 || _board == Board::u_blox10_L1L5) {
+				UBX_DEBUG("GNSS Systems: Use GPS L5");
 				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GPS_L5_ENA, 1, cfg_valset_msg_size);
+				UBX_DEBUG("GNSS Systems: Enable GPS L5 health override");
 				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_L5_HEALTH_OVERRIDE, 1, cfg_valset_msg_size);
+				UBX_DEBUG("GNSS Systems: Use QZSS L5");
+				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_QZSS_L5_ENA, 1, cfg_valset_msg_size);
 			}
 
 		} else {
+			UBX_DEBUG("GNSS Systems: Disable GPS + QZSS");
+
 			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GPS_ENA, 0, cfg_valset_msg_size);
 			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_QZSS_ENA, 0, cfg_valset_msg_size);
 
 			if (_board == Board::u_blox9_F9P_L1L2) {
+				UBX_DEBUG("GNSS Systems: Disable GPS L2C");
 				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GPS_L2C_ENA, 0, cfg_valset_msg_size);
 
-			} else if (_board == Board::u_blox9_F9P_L1L5) {
+			} else if (_board == Board::u_blox9_F9P_L1L5 || _board == Board::u_blox10_L1L5) {
+				UBX_DEBUG("GNSS Systems: Disable GPS L5");
 				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GPS_L5_ENA, 0, cfg_valset_msg_size);
 				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_L5_HEALTH_OVERRIDE, 0, cfg_valset_msg_size);
 			}
@@ -684,19 +699,25 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GAL_ENA, 1, cfg_valset_msg_size);
 
 			if (_board == Board::u_blox9_F9P_L1L2) {
+				UBX_DEBUG("GNSS Systems: Use Galileo E5B");
 				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GAL_E5B_ENA, 1, cfg_valset_msg_size);
 
-			} else if (_board == Board::u_blox9_F9P_L1L5) {
+			} else if (_board == Board::u_blox9_F9P_L1L5 || _board == Board::u_blox10_L1L5) {
+				UBX_DEBUG("GNSS Systems: Use Galileo E5A");
 				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GAL_E5A_ENA, 1, cfg_valset_msg_size);
 			}
 
 		} else {
+			UBX_DEBUG("GNSS Systems: Disable Galileo");
+
 			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GAL_ENA, 0, cfg_valset_msg_size);
 
 			if (_board == Board::u_blox9_F9P_L1L2) {
+				UBX_DEBUG("GNSS Systems: Disable Galileo E5B");
 				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GAL_E5B_ENA, 0, cfg_valset_msg_size);
 
-			} else if (_board == Board::u_blox9_F9P_L1L5) {
+			} else if (_board == Board::u_blox9_F9P_L1L5 || _board == Board::u_blox10_L1L5) {
+				UBX_DEBUG("GNSS Systems: Disable Galileo E5A");
 				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GAL_E5A_ENA, 0, cfg_valset_msg_size);
 			}
 		}
@@ -706,38 +727,48 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_BDS_ENA, 1, cfg_valset_msg_size);
 
 			if (_board == Board::u_blox9_F9P_L1L2) {
+				UBX_DEBUG("GNSS Systems: Use BeiDou B2");
 				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_BDS_B2_ENA, 1, cfg_valset_msg_size);
 
-			} else if (_board == Board::u_blox9_F9P_L1L5) {
+			} else if (_board == Board::u_blox9_F9P_L1L5 || _board == Board::u_blox10_L1L5) {
+				UBX_DEBUG("GNSS Systems: Use BeiDou B2A");
 				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_BDS_B2A_ENA, 1, cfg_valset_msg_size);
 			}
 
 		} else {
+			UBX_DEBUG("GNSS Systems: Disable BeiDou");
+
 			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_BDS_ENA, 0, cfg_valset_msg_size);
 
 			if (_board == Board::u_blox9_F9P_L1L2) {
+				UBX_DEBUG("GNSS Systems: Disable BeiDou B2");
 				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_BDS_B2_ENA, 0, cfg_valset_msg_size);
 
-			} else if (_board == Board::u_blox9_F9P_L1L5) {
+			} else if (_board == Board::u_blox9_F9P_L1L5 || _board == Board::u_blox10_L1L5) {
+				UBX_DEBUG("GNSS Systems: Disable BeiDou B2A");
 				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_BDS_B2A_ENA, 0, cfg_valset_msg_size);
 			}
 		}
 
-		if (config.gnss_systems & GNSSSystemsMask::ENABLE_GLONASS) {
-			UBX_DEBUG("GNSS Systems: Use GLONASS");
-			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GLO_ENA, 1, cfg_valset_msg_size);
+		if (_board != Board::u_blox10_L1L5) {
+			if (config.gnss_systems & GNSSSystemsMask::ENABLE_GLONASS) {
+				UBX_DEBUG("GNSS Systems: Use GLONASS");
+				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GLO_ENA, 1, cfg_valset_msg_size);
 
-		} else {
-			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GLO_ENA, 0, cfg_valset_msg_size);
+			} else {
+				UBX_DEBUG("GNSS Systems: Disable GLONASS");
+				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GLO_ENA, 0, cfg_valset_msg_size);
+			}
 		}
 
-		if (_board == Board::u_blox9_F9P_L1L5) {
+		if (_board == Board::u_blox9_F9P_L1L5 || _board == Board::u_blox10_L1L5) {
 			if (config.gnss_systems & GNSSSystemsMask::ENABLE_NAVIC) {
 				UBX_DEBUG("GNSS Systems: Use NavIC");
 				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_NAVIC_ENA, 1, cfg_valset_msg_size);
 				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_NAVIC_L5_ENA, 1, cfg_valset_msg_size);
 
 			} else {
+				UBX_DEBUG("GNSS Systems: Disable NavIC");
 				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_NAVIC_ENA, 0, cfg_valset_msg_size);
 				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_NAVIC_L5_ENA, 0, cfg_valset_msg_size);
 			}
@@ -770,11 +801,9 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 
 		waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true);
 
-	}
-
-	if (_board == Board::u_blox10_L1L5) {
-		// Enable L5 health override, use version 1 of the message
-		cfg_valset_msg_size = initCfgValset(0x01);
+	} else if (_board == Board::u_blox10_L1L5) {
+		// Enable L5 health override, use version 0 of the message
+		cfg_valset_msg_size = initCfgValset();
 		cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_L5_HEALTH_OVERRIDE, 1, cfg_valset_msg_size);
 
 		UBX_DEBUG("Enabling L5 health override");
@@ -981,11 +1010,10 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 	return 0;
 }
 
-int GPSDriverUBX::initCfgValset(uint8_t version)
+int GPSDriverUBX::initCfgValset()
 {
 	memset(&_buf.payload_tx_cfg_valset, 0, sizeof(_buf.payload_tx_cfg_valset));
 	_buf.payload_tx_cfg_valset.layers = UBX_CFG_LAYER_RAM;
-	_buf.payload_tx_cfg_valset.version = version;
 	return sizeof(_buf.payload_tx_cfg_valset) - sizeof(_buf.payload_tx_cfg_valset.cfgData);
 }
 

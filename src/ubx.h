@@ -1094,10 +1094,9 @@ private:
 
 	/**
 	 * Init _buf as CFG-VALSET
-	 * Optionally add the version, otherwise it will default to 0.
 	 * @return size of the message (without any config values)
 	 */
-	int initCfgValset(uint8_t version = 0);
+	int initCfgValset();
 
 	/**
 	 * Start or restart the survey-in procees. This is only used in RTCM ouput mode.
