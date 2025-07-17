@@ -73,7 +73,7 @@
 #define SBF_CONFIG_OUTPUT_RTCM2	"setDataInOut, USB1, Auto, RTCMv2+SBF\n"
 
 #define SBF_CONFIG_OUTPUT_CMR	"setDataInOut, USB1, Auto, CMRv2+SBF\n"
-	
+
 /* RTK Fixed */
 #define SBF_CONFIG_RTCM_STATIC_COORDINATES "setStaticPosGeodetic, Geodetic1, %f, %f, %f\n"
 
