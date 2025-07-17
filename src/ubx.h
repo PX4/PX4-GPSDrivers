@@ -100,7 +100,7 @@
 #define UBX_ID_CFG_PRT        0x00 // deprecated in protocol version >= 27 -> use CFG_VALSET
 #define UBX_ID_CFG_MSG        0x01 // deprecated in protocol version >= 27 -> use CFG_VALSET
 #define UBX_ID_CFG_RATE       0x08 // deprecated in protocol version >= 27 -> use CFG_VALSET
-#define UBX_ID_CFG_CFG        0x09 // deprecated in protocol version >= 27 -> use CFG_VALSET
+#define UBX_ID_CFG_CFG        0x09 // deprecated in protocol version >= 27 for individual config (not for global clear/save/load)
 #define UBX_ID_CFG_NAV5       0x24 // deprecated in protocol version >= 27 -> use CFG_VALSET
 #define UBX_ID_CFG_RST        0x04
 #define UBX_ID_CFG_SBAS       0x16
