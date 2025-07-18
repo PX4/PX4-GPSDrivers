@@ -133,6 +133,21 @@ GPSDriverUBX::configure(unsigned &baudrate, const GPSConfig &config)
 			receive(20);
 			decodeInit();
 
+			if (config.cfg_wipe) {
+				/* Send a CFG-CFG message to wipe the FLASH and reload a clean config */
+				memset(&_buf.payload_tx_cfg_cfg, 0, sizeof(_buf.payload_tx_cfg_cfg));
+				_buf.payload_tx_cfg_cfg.clearMask = 0xFFFFFFFF;
+				_buf.payload_tx_cfg_cfg.loadMask = 0xFFFFFFFF;
+
+				if (!sendMessage(UBX_MSG_CFG_CFG, (uint8_t *)&_buf, sizeof(_buf.payload_tx_cfg_cfg))) {
+					continue;
+				}
+
+				if (waitForAck(UBX_MSG_CFG_CFG, 2000, true) < 0) {
+					continue;
+				}
+			}
+
 			// try CFG-VALSET: if we get an ACK we know we can use protocol version 27+
 			int cfg_valset_msg_size = initCfgValset();
 			// UART1
@@ -237,6 +252,21 @@ GPSDriverUBX::configure(unsigned &baudrate, const GPSConfig &config)
 
 	} else if (_interface == Interface::SPI) {
 
+		if (config.cfg_wipe) {
+			/* Send a CFG-CFG message to wipe the FLASH and reload a clean config */
+			memset(&_buf.payload_tx_cfg_cfg, 0, sizeof(_buf.payload_tx_cfg_cfg));
+			_buf.payload_tx_cfg_cfg.clearMask = 0xFFFFFFFF;
+			_buf.payload_tx_cfg_cfg.loadMask = 0xFFFFFFFF;
+
+			if (!sendMessage(UBX_MSG_CFG_CFG, (uint8_t *)&_buf, sizeof(_buf.payload_tx_cfg_cfg))) {
+				return -1;
+			}
+
+			if (waitForAck(UBX_MSG_CFG_CFG, 2000, true) < 0) {
+				return -1;
+			}
+		}
+
 		// try CFG-VALSET: if we get an ACK we know we can use protocol version 27+
 		int cfg_valset_msg_size = initCfgValset();
 		cfgValset<uint8_t>(UBX_CFG_KEY_SPI_ENABLED, 1, cfg_valset_msg_size);
@@ -293,7 +323,6 @@ GPSDriverUBX::configure(unsigned &baudrate, const GPSConfig &config)
 		return -1;
 	}
 
-
 	/* Now that we know the board, update the baudrate on M8 boards (on F9+ we already used the
 	 * higher baudrate with CFG-VALSET) */
 	if (_interface == Interface::UART && auto_baudrate && _board == Board::u_blox8) {
@@ -325,6 +354,7 @@ GPSDriverUBX::configure(unsigned &baudrate, const GPSConfig &config)
 
 	int ret;
 
+	/* Configure the device, use config commands depending on protocol version */
 	if (_proto_ver_27_or_higher) {
 		ret = configureDevice(config, _uart2_baudrate);
 

@@ -204,6 +204,7 @@ public:
 		OutputMode output_mode;
 		GNSSSystemsMask gnss_systems;
 		InterfaceProtocolsMask interface_protocols;
+		bool cfg_wipe;
 	};
 
 
