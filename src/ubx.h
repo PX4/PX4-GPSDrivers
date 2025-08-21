@@ -985,6 +985,7 @@ public:
 		RoverWithMovingBaseUART1, ///< expect RTCM input on UART1 from a moving base for heading output
 		MovingBaseUART1,          ///< RTCM output on UART1 to a rover (GPS is installed on the vehicle)
 		RoverWithStaticBaseUart2,  ///< expect RTCM input on UART2 from a static base.
+		GroundControlStation, ///< NMEA output on UART2 to a ground control station (GPS is installed in GCS)
 	};
 
 	GPSDriverUBX(Interface gpsInterface, GPSCallbackPtr callback, void *callback_user,
