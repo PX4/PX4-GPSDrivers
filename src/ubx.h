@@ -1004,7 +1004,7 @@ public:
 	int receive(unsigned timeout) override;
 	int reset(GPSRestartType restart_type) override;
 
-	bool shouldInjectRTCM() override { return _mode != UBXMode::RoverWithMovingBase; }
+	bool shouldInjectRTCM() override { return _configured && _mode != UBXMode::RoverWithMovingBase; }
 
 	enum class Board : uint8_t {
 		unknown = 0,
