@@ -1761,7 +1761,7 @@ GPSDriverUBX::payloadRxInit()
 		break;
 
 	case UBX_RXMSG_ERROR_LENGTH:	// error: invalid length
-		UBX_WARN("ubx msg 0x%04x invalid len %u", SWAP16((unsigned)_rx_msg), (unsigned)_rx_payload_length);
+		UBX_DEBUG("ubx msg 0x%04x invalid len %u", SWAP16((unsigned)_rx_msg), (unsigned)_rx_payload_length);
 		ret = -1;	// return error, abort handling this message
 		break;
 
