@@ -1192,10 +1192,10 @@ private:
 
 	RTCMParsing *_rtcm_parsing{nullptr};
 
-	const UBXMode _mode;
-	const float _heading_offset;
-	const int32_t _uart2_baudrate;
-	const bool _ppk_output;
+	const UBXMode _mode {};
+	const float _heading_offset {};
+	const int32_t _uart2_baudrate {};
+	const bool _ppk_output {};
 };
 
 

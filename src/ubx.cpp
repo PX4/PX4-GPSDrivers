@@ -65,7 +65,7 @@
 
 /**** Warning macros, disable to save memory */
 #define UBX_WARN(...)         {GPS_WARN(__VA_ARGS__);}
-#define UBX_DEBUG(...)        {/*GPS_WARN(__VA_ARGS__);*/}
+#define UBX_DEBUG(...)        {GPS_WARN(__VA_ARGS__);}
 
 GPSDriverUBX::GPSDriverUBX(Interface gpsInterface, GPSCallbackPtr callback, void *callback_user,
 			   sensor_gps_s *gps_position, satellite_info_s *satellite_info, Settings settings) :
@@ -927,6 +927,7 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 	}
 
 	if (_mode == UBXMode::Normal && _ppk_output) {
+		UBX_DEBUG("Configuring for MSM7");
 		cfgValsetPort(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1230_I2C, 5, cfg_valset_msg_size); // GLONASS bias
 		cfgValsetPort(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1077_I2C, 5, cfg_valset_msg_size); // GPS MSM7
 		cfgValsetPort(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1087_I2C, 5, cfg_valset_msg_size); // GLONASS MSM7
@@ -973,6 +974,7 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 
 
 		if (_ppk_output) {
+			UBX_DEBUG("Configuring for MSM7");
 			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1230_UART2, 5, cfg_valset_msg_size); // GLONASS Bias
 			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1077_UART2, 5, cfg_valset_msg_size); // GPS MSM7
 			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1087_UART2, 5, cfg_valset_msg_size); // GLONASS MSM7
@@ -980,6 +982,7 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1127_UART2, 5, cfg_valset_msg_size); // BeiDou MSM7
 
 		} else {
+			UBX_DEBUG("Configuring for MSM4");
 			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1230_UART2, 1, cfg_valset_msg_size); // GLONASS Bias
 			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1074_UART2, 1, cfg_valset_msg_size); // GPS MSM4
 			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1084_UART2, 1, cfg_valset_msg_size); // GLONASS MSM4
@@ -1029,6 +1032,7 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1OUTPROT_RTCM3X, 1, cfg_valset_msg_size);
 
 		if (_ppk_output) {
+			UBX_DEBUG("Configuring for MSM7");
 			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1230_UART1, 5, cfg_valset_msg_size); // GLONASS bias
 			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1077_UART1, 5, cfg_valset_msg_size); // GPS MSM7
 			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1087_UART1, 5, cfg_valset_msg_size); // GLONASS MSM7
@@ -1036,6 +1040,7 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1127_UART1, 5, cfg_valset_msg_size); // BeiDou MSM7
 
 		} else {
+			UBX_DEBUG("Configuring for MSM4");
 			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1230_UART1, 1, cfg_valset_msg_size); // GLONASS bias
 			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1074_UART1, 1, cfg_valset_msg_size); // GPS MSM4
 			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1084_UART1, 1, cfg_valset_msg_size); // GLONASS MSM4
