@@ -1006,10 +1006,6 @@ public:
 	GPSDriverUBX(Interface gpsInterface, GPSCallbackPtr callback, void *callback_user,
 		     sensor_gps_s *gps_position, satellite_info_s *satellite_info,
 		     Settings settings);
-		     // uint8_t dynamic_model = 7,
-		     // float heading_offset = 0.f,
-		     // int32_t uart2_baudrate = 57600,
-		     // UBXMode mode = UBXMode::Normal);
 
 	virtual ~GPSDriverUBX();
 
