@@ -364,9 +364,13 @@
 #define UBX_CFG_KEY_MSGOUT_UBX_RXM_RAWX_I2C      0x209102a4
 #define UBX_CFG_KEY_MSGOUT_UBX_RXM_RTCM_I2C      0x20910268
 #define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1005_I2C  0x209102bd
+#define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1074_I2C  0x2091035e
 #define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1077_I2C  0x209102cc
+#define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1084_I2C  0x20910363
 #define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1087_I2C  0x209102d1
+#define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1094_I2C  0x20910368
 #define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1097_I2C  0x20910318
+#define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1124_I2C  0x2091036d
 #define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1127_I2C  0x209102d6
 #define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1230_I2C  0x20910303
 #define UBX_CFG_KEY_MSGOUT_UBX_NAV_TIMEGPS_I2C	 0x20910047
@@ -1031,8 +1035,14 @@ public:
 
 	const Board &board() const { return _board; }
 
+	uint32_t getChecksumErrorCount() const { return _checksum_error_count; }
+
 private:
 	int activateRTCMOutput(bool reduce_update_rate);
+	void enableMSM4(int cfg_valset_msg_size);
+	void enableMSM7(int cfg_valset_msg_size);
+	void disableMSM4(int cfg_valset_msg_size);
+	void disableMSM7(int cfg_valset_msg_size);
 
 	/**
 	 * While parsing add every byte (except the sync bytes) to the checksum
@@ -1196,6 +1206,8 @@ private:
 	const float _heading_offset {};
 	const int32_t _uart2_baudrate {};
 	const bool _ppk_output {};
+
+	uint32_t _checksum_error_count{0};	///< count of UBX checksum errors
 };
 
 
