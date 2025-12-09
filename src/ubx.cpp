@@ -64,8 +64,8 @@
 #define UBX_TRACE_SVINFO(...) {/*GPS_INFO(__VA_ARGS__);*/}    // NAV-SVINFO processing (debug use only, will cause rx buffer overflows)
 
 /**** Warning macros, disable to save memory */
-#define UBX_WARN(...)         {GPS_INFO(__VA_ARGS__);}
-#define UBX_DEBUG(...)        {GPS_INFO(__VA_ARGS__);}
+#define UBX_WARN(...)         {GPS_WARN(__VA_ARGS__);}
+#define UBX_DEBUG(...)        {/*GPS_WARN(__VA_ARGS__);*/}
 
 GPSDriverUBX::GPSDriverUBX(Interface gpsInterface, GPSCallbackPtr callback, void *callback_user,
 			   sensor_gps_s *gps_position, satellite_info_s *satellite_info, Settings settings) :
@@ -1775,7 +1775,7 @@ GPSDriverUBX::payloadRxInit()
 		break;
 
 	case UBX_RXMSG_DISABLE:	// disable unexpected messages
-		// UBX_DEBUG("ubx msg 0x%04x len %u unexpected", SWAP16((unsigned)_rx_msg), (unsigned)_rx_payload_length);
+		UBX_DEBUG("ubx msg 0x%04x len %u unexpected", SWAP16((unsigned)_rx_msg), (unsigned)_rx_payload_length);
 
 		// TODO: UBX-MON-HW2
 		// [uavcan:52:gps] ubx msg 0x0a0b len 28 unexpected
