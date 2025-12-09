@@ -928,7 +928,11 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 
 	if (_mode == UBXMode::Normal && _ppk_output) {
 		cfgValsetPort(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1230_I2C, 1, cfg_valset_msg_size); // GLONASS bias
-		enableMSM7(cfg_valset_msg_size);
+		UBX_DEBUG("Enabling MSM7");
+		cfgValsetPort(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1077_I2C, 1, cfg_valset_msg_size); // GPS MSM7
+		cfgValsetPort(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1087_I2C, 1, cfg_valset_msg_size); // GLONASS MSM7
+		cfgValsetPort(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1097_I2C, 1, cfg_valset_msg_size); // Galileo MSM7
+		cfgValsetPort(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1127_I2C, 1, cfg_valset_msg_size); // BeiDou MSM7
 
 	} else if (_mode == UBXMode::RoverWithStaticBaseUart2 || _mode == UBXMode::RoverWithMovingBase) {
 		UBX_DEBUG("Configuring UART2 for rover");
@@ -970,12 +974,28 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1230_UART2, 1, cfg_valset_msg_size); // GLONASS bias
 
 		if (_ppk_output) {
-			enableMSM7(cfg_valset_msg_size);
-			disableMSM4(cfg_valset_msg_size);
+			UBX_DEBUG("Enabling MSM7");
+			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1077_UART2, 1, cfg_valset_msg_size); // GPS MSM7
+			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1087_UART2, 1, cfg_valset_msg_size); // GLONASS MSM7
+			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1097_UART2, 1, cfg_valset_msg_size); // Galileo MSM7
+			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1127_UART2, 1, cfg_valset_msg_size); // BeiDou MSM7
+			UBX_DEBUG("Disabling MSM4");
+			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1074_UART2, 0, cfg_valset_msg_size); // GPS MSM4
+			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1084_UART2, 0, cfg_valset_msg_size); // GLONASS MSM4
+			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1094_UART2, 0, cfg_valset_msg_size); // Galileo MSM4
+			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1124_UART2, 0, cfg_valset_msg_size); // BeiDou MSM4
 
 		} else {
-			enableMSM4(cfg_valset_msg_size);
-			disableMSM7(cfg_valset_msg_size);
+			UBX_DEBUG("Enabling MSM4");
+			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1074_UART2, 1, cfg_valset_msg_size); // GPS MSM4
+			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1084_UART2, 1, cfg_valset_msg_size); // GLONASS MSM4
+			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1094_UART2, 1, cfg_valset_msg_size); // Galileo MSM4
+			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1124_UART2, 1, cfg_valset_msg_size); // BeiDou MSM4
+			UBX_DEBUG("Disabling MSM7");
+			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1077_UART2, 0, cfg_valset_msg_size); // GPS MSM7
+			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1087_UART2, 0, cfg_valset_msg_size); // GLONASS MSM7
+			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1097_UART2, 0, cfg_valset_msg_size); // Galileo MSM7
+			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1127_UART2, 0, cfg_valset_msg_size); // BeiDou MSM7
 		}
 
 		if (_board == Board::u_blox9_F9P_L1L2) {
@@ -1023,12 +1043,28 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1230_UART1, 1, cfg_valset_msg_size); // GLONASS bias
 
 		if (_ppk_output) {
-			enableMSM7(cfg_valset_msg_size);
-			disableMSM4(cfg_valset_msg_size);
+			UBX_DEBUG("Enabling MSM7");
+			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1077_UART1, 1, cfg_valset_msg_size); // GPS MSM7
+			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1087_UART1, 1, cfg_valset_msg_size); // GLONASS MSM7
+			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1097_UART1, 1, cfg_valset_msg_size); // Galileo MSM7
+			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1127_UART1, 1, cfg_valset_msg_size); // BeiDou MSM7
+			UBX_DEBUG("Disabling MSM4");
+			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1074_UART1, 0, cfg_valset_msg_size); // GPS MSM4
+			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1084_UART1, 0, cfg_valset_msg_size); // GLONASS MSM4
+			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1094_UART1, 0, cfg_valset_msg_size); // Galileo MSM4
+			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1124_UART1, 0, cfg_valset_msg_size); // BeiDou MSM4
 
 		} else {
-			enableMSM4(cfg_valset_msg_size);
-			disableMSM7(cfg_valset_msg_size);
+			UBX_DEBUG("Enabling MSM4");
+			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1074_UART1, 1, cfg_valset_msg_size); // GPS MSM4
+			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1084_UART1, 1, cfg_valset_msg_size); // GLONASS MSM4
+			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1094_UART1, 1, cfg_valset_msg_size); // Galileo MSM4
+			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1124_UART1, 1, cfg_valset_msg_size); // BeiDou MSM4
+			UBX_DEBUG("Disabling MSM7");
+			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1077_UART1, 0, cfg_valset_msg_size); // GPS MSM7
+			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1087_UART1, 0, cfg_valset_msg_size); // GLONASS MSM7
+			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1097_UART1, 0, cfg_valset_msg_size); // Galileo MSM7
+			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1127_UART1, 0, cfg_valset_msg_size); // BeiDou MSM7
 		}
 
 		if (_board == Board::u_blox9_F9P_L1L2) {
@@ -1070,42 +1106,6 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 	}
 
 	return 0;
-}
-
-void GPSDriverUBX::enableMSM4(int cfg_valset_msg_size)
-{
-	UBX_DEBUG("Enabling MSM4");
-	cfgValsetPort(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1074_I2C, 1, cfg_valset_msg_size); // GPS MSM4
-	cfgValsetPort(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1084_I2C, 1, cfg_valset_msg_size); // GLONASS MSM4
-	cfgValsetPort(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1094_I2C, 1, cfg_valset_msg_size); // Galileo MSM4
-	cfgValsetPort(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1124_I2C, 1, cfg_valset_msg_size); // BeiDou MSM4
-}
-
-void GPSDriverUBX::enableMSM7(int cfg_valset_msg_size)
-{
-	UBX_DEBUG("Enabling MSM7");
-	cfgValsetPort(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1077_I2C, 1, cfg_valset_msg_size); // GPS MSM7
-	cfgValsetPort(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1087_I2C, 1, cfg_valset_msg_size); // GLONASS MSM7
-	cfgValsetPort(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1097_I2C, 1, cfg_valset_msg_size); // Galileo MSM7
-	cfgValsetPort(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1127_I2C, 1, cfg_valset_msg_size); // BeiDou MSM7
-}
-
-void GPSDriverUBX::disableMSM4(int cfg_valset_msg_size)
-{
-	UBX_DEBUG("Disabling MSM4");
-	cfgValsetPort(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1074_UART1, 0, cfg_valset_msg_size); // GPS MSM4
-	cfgValsetPort(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1084_UART1, 0, cfg_valset_msg_size); // GLONASS MSM4
-	cfgValsetPort(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1094_UART1, 0, cfg_valset_msg_size); // Galileo MSM4
-	cfgValsetPort(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1124_UART1, 0, cfg_valset_msg_size); // BeiDou MSM4
-}
-
-void GPSDriverUBX::disableMSM7(int cfg_valset_msg_size)
-{
-	UBX_DEBUG("Disabling MSM7");
-	cfgValsetPort(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1077_I2C, 0, cfg_valset_msg_size); // GPS MSM7
-	cfgValsetPort(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1087_I2C, 0, cfg_valset_msg_size); // GLONASS MSM7
-	cfgValsetPort(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1097_I2C, 0, cfg_valset_msg_size); // Galileo MSM7
-	cfgValsetPort(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1127_I2C, 0, cfg_valset_msg_size); // BeiDou MSM7
 }
 
 int GPSDriverUBX::initCfgValset()
@@ -1775,7 +1775,10 @@ GPSDriverUBX::payloadRxInit()
 		break;
 
 	case UBX_RXMSG_DISABLE:	// disable unexpected messages
-		UBX_DEBUG("ubx msg 0x%04x len %u unexpected", SWAP16((unsigned)_rx_msg), (unsigned)_rx_payload_length);
+		// UBX_DEBUG("ubx msg 0x%04x len %u unexpected", SWAP16((unsigned)_rx_msg), (unsigned)_rx_payload_length);
+
+		// TODO: UBX-MON-HW2
+		// [uavcan:52:gps] ubx msg 0x0a0b len 28 unexpected
 
 		if (_proto_ver_27_or_higher) {
 			uint32_t key_id = 0;

@@ -1035,10 +1035,6 @@ public:
 
 private:
 	int activateRTCMOutput(bool reduce_update_rate);
-	void enableMSM4(int cfg_valset_msg_size);
-	void enableMSM7(int cfg_valset_msg_size);
-	void disableMSM4(int cfg_valset_msg_size);
-	void disableMSM7(int cfg_valset_msg_size);
 
 	/**
 	 * While parsing add every byte (except the sync bytes) to the checksum
