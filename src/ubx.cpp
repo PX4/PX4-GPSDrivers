@@ -1000,8 +1000,7 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 
 		if (_board == Board::u_blox9_F9P_L1L2) {
 			// F9P-15B doesn't support 4072
-			// NOTE: 4072 is no longer needed for firmware > HPG 1.12
-			UBX_DEBUG("Configuring ublox prop 4072");
+			UBX_DEBUG("Configuring ublox 4072");
 			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE4072_0_UART2, 1, cfg_valset_msg_size);
 		}
 
@@ -1069,8 +1068,7 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 
 		if (_board == Board::u_blox9_F9P_L1L2) {
 			// F9P-15B doesn't support 4072
-			// NOTE: 4072 is no longer needed for firmware > HPG 1.12
-			UBX_DEBUG("Configuring ublox prop 4072");
+			UBX_DEBUG("Configuring ublox 4072");
 			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE4072_0_UART1, 1, cfg_valset_msg_size);
 		}
 

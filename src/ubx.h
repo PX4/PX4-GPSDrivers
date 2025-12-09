@@ -995,7 +995,7 @@ public:
 		uint8_t dynamic_model;
 		float heading_offset;
 		int32_t uart2_baudrate;
-		bool ppk_output; // Enable MSM7 message output for PPK workflow
+		bool ppk_output;
 		UBXMode mode;
 	};
 
@@ -1195,7 +1195,7 @@ private:
 	const int32_t _uart2_baudrate {};
 	const bool _ppk_output {};
 
-	uint32_t _checksum_error_count{0};	///< count of UBX checksum errors
+	uint32_t _checksum_error_count{0};
 };
 
 
