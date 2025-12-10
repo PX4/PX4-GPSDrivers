@@ -1027,8 +1027,6 @@ public:
 
 	const Board &board() const { return _board; }
 
-	uint32_t getChecksumErrorCount() const { return _checksum_error_count; }
-
 private:
 	int activateRTCMOutput(bool reduce_update_rate);
 
@@ -1194,8 +1192,6 @@ private:
 	const float _heading_offset {};
 	const int32_t _uart2_baudrate {};
 	const bool _ppk_output {};
-
-	uint32_t _checksum_error_count{0};
 };
 
 

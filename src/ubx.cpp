@@ -1515,7 +1515,6 @@ GPSDriverUBX::parseChar(const uint8_t b)
 	case UBX_DECODE_CHKSUM1:
 		if (_rx_ck_a != b) {
 			UBX_DEBUG("ubx checksum err");
-			_checksum_error_count++;
 			decodeInit();
 
 		} else {
@@ -1528,7 +1527,6 @@ GPSDriverUBX::parseChar(const uint8_t b)
 	case UBX_DECODE_CHKSUM2:
 		if (_rx_ck_b != b) {
 			UBX_DEBUG("ubx checksum err");
-			_checksum_error_count++;
 
 		} else {
 			ret = payloadRxDone();	// finish payload processing
