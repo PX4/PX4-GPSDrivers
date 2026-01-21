@@ -595,7 +595,7 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 	if (_min_elev != 0) {
 		cfgValset<uint8_t>(UBX_CFG_KEY_NAVSPG_INFIL_MINELEV, _min_elev, cfg_valset_msg_size);
 	}
-	
+
 	if (_dgnss_timeout != 0) {
 		cfgValset<uint8_t>(UBX_CFG_KEY_NAVSPG_CONSTR_DGNSSTO, _dgnss_timeout, cfg_valset_msg_size);
 	}
