@@ -996,9 +996,9 @@ public:
 
 	struct Settings {
 		uint8_t dynamic_model;
+		uint8_t dgnss_timeout;
 		uint8_t min_cno;
 		int8_t min_elev;
-		uint8_t dgnss_timeout;
 		float heading_offset;
 		int32_t uart2_baudrate;
 		bool ppk_output;
@@ -1178,8 +1178,8 @@ private:
 	uint8_t _rx_ck_a{0};
 	uint8_t _rx_ck_b{0};
 	uint8_t _dyn_model{7};  ///< ublox Dynamic platform model default 7: airborne with <2g acceleration
-	uint8_t _min_cno{0};  ///< ublox minimum satellite signal level for navigation
 	uint8_t _dgnss_timeout{0}; ///< ublox DGNSS timeout.
+	uint8_t _min_cno{0};  ///< ublox minimum satellite signal level for navigation
 
 	int8_t _min_elev{0};  ///< ublox minimum elevation for a GNSS satellite to be used in navigation
 
