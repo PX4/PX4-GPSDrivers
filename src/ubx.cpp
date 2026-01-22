@@ -612,6 +612,7 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 	// F9P L1L2 in firmware >=1.50 the max update rate with 4 constellations is 7Hz without RTK and 5Hz with RTK
 	// F9P L1L5 the max update rate with 4 constellations is 8Hz without RTK and 7Hz with RTK
 	// DAN-F10N the max update rate is 10Hz with GPS+GAL+BDS(Default)
+	// X20 max update rate is 25Hz, but 25Hz at 115200 baud causes high dropouts, especially with RTK. So default 10Hz is selected.
 	// Receivers such as M9N and DAN-F10N can go higher than 10Hz, but the number of used satellites will be restricted to 16. (Not mentioned in datasheet)
 	int rate_meas = 100; // 10Hz
 
@@ -627,9 +628,6 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 	case Board::u_blox9_F9P_L1L5:
 		rate_meas = 143; // 7Hz
 		break;
-
-	case Board::u_blox_X20:
-		rate_meas = 40; // 25Hz
 
 	default:
 		break;
