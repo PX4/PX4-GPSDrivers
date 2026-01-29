@@ -81,7 +81,8 @@ GPSDriverUBX::GPSDriverUBX(Interface gpsInterface, GPSCallbackPtr callback, void
 	_mode(settings.mode),
 	_heading_offset(settings.heading_offset),
 	_uart2_baudrate(settings.uart2_baudrate),
-	_ppk_output(settings.ppk_output)
+	_ppk_output(settings.ppk_output),
+	_jam_det_sensitivity_hi(settings.jam_det_sensitivity_hi)
 {
 	decodeInit();
 }
@@ -659,6 +660,9 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 
 	// enable jamming monitor
 	cfgValset<uint8_t>(UBX_CFG_KEY_ITFM_ENABLE, 1, cfg_valset_msg_size);
+
+	// configure jamming detection sensitivity
+	cfgValset<uint8_t>(UBX_CFG_KEY_SEC_JAMDET_SENSITIVITY_HI, _jam_det_sensitivity_hi ? 1 : 0, cfg_valset_msg_size);
 
 	if (!sendMessage(UBX_MSG_CFG_VALSET, (uint8_t *)&_buf, cfg_valset_msg_size)) {
 		return -1;

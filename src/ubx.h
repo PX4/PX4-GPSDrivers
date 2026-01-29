@@ -339,6 +339,8 @@
 
 #define UBX_CFG_KEY_ITFM_ENABLE                 0x1041000d
 
+#define UBX_CFG_KEY_SEC_JAMDET_SENSITIVITY_HI   0x10f60051
+
 #define UBX_CFG_KEY_RATE_MEAS                   0x30210001
 #define UBX_CFG_KEY_RATE_NAV                    0x30210002
 #define UBX_CFG_KEY_RATE_TIMEREF                0x20210003
@@ -1002,6 +1004,7 @@ public:
 		float heading_offset;
 		int32_t uart2_baudrate;
 		bool ppk_output;
+		bool jam_det_sensitivity_hi;
 		UBXMode mode;
 	};
 
@@ -1202,6 +1205,7 @@ private:
 	const float _heading_offset {};
 	const int32_t _uart2_baudrate {};
 	const bool _ppk_output {};
+	const bool _jam_det_sensitivity_hi {};
 };
 
 
