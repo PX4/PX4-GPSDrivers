@@ -78,6 +78,7 @@ GPSDriverUBX::GPSDriverUBX(Interface gpsInterface, GPSCallbackPtr callback, void
 	_dgnss_timeout(settings.dgnss_timeout),
 	_min_cno(settings.min_cno),
 	_min_elev(settings.min_elev),
+	_output_rate(settings.output_rate),
 	_mode(settings.mode),
 	_heading_offset(settings.heading_offset),
 	_uart2_baudrate(settings.uart2_baudrate),
@@ -616,21 +617,33 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 	// Receivers such as M9N and DAN-F10N can go higher than 10Hz, but the number of used satellites will be restricted to 16. (Not mentioned in datasheet)
 	int rate_meas = 100; // 10Hz
 
-	switch (_board) {
-	case Board::u_blox9:
-		rate_meas = 125; // 8Hz
-		break;
+	if (_output_rate > 0) {
 
-	case Board::u_blox9_F9P_L1L2:
-		rate_meas = 200; // 5Hz
-		break;
+		if (_output_rate > 25) {
+			UBX_WARN("Rate %u Hz exceeds max, limiting to 25Hz", _output_rate);
+			_output_rate = 25;
+		}
 
-	case Board::u_blox9_F9P_L1L5:
-		rate_meas = 143; // 7Hz
-		break;
+		// convert hz to ms
+		rate_meas = 1000 / _output_rate;
 
-	default:
-		break;
+	} else {
+		switch (_board) {
+		case Board::u_blox9:
+			rate_meas = 125; // 8Hz
+			break;
+
+		case Board::u_blox9_F9P_L1L2:
+			rate_meas = 200; // 5Hz
+			break;
+
+		case Board::u_blox9_F9P_L1L5:
+			rate_meas = 143; // 7Hz
+			break;
+
+		default:
+			break;
+		}
 	}
 
 	cfgValset<uint16_t>(UBX_CFG_KEY_RATE_MEAS, rate_meas, cfg_valset_msg_size);

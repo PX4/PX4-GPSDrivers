@@ -999,6 +999,7 @@ public:
 		uint8_t dgnss_timeout;
 		uint8_t min_cno;
 		int8_t min_elev;
+		uint8_t output_rate;
 		float heading_offset;
 		int32_t uart2_baudrate;
 		bool ppk_output;
@@ -1182,6 +1183,7 @@ private:
 	uint8_t _min_cno{0};  ///< ublox minimum satellite signal level for navigation
 
 	int8_t _min_elev{0};  ///< ublox minimum elevation for a GNSS satellite to be used in navigation
+	uint8_t _output_rate{0};  ///< ublox output rate in Hz, 0 = auto-select based on module
 
 	uint16_t _ack_waiting_msg{0};
 	uint16_t _rx_msg{};
