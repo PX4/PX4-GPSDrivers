@@ -533,10 +533,11 @@ typedef struct {
 	uint32_t sAcc;          /**< Speed accuracy estimate [mm/s] */
 	uint32_t headAcc;       /**< Heading accuracy estimate (motion and vehicle) [1e-5 deg] */
 	uint16_t pDOP;          /**< Position DOP [0.01] */
-	uint16_t reserved2;
-	uint32_t reserved3;
-	int32_t  headVeh;       /**< (ubx8+ only) Heading of vehicle (2-D) [1e-5 deg] */
-	uint32_t reserved4;     /**< (ubx8+ only) */
+	uint16_t flags3;        /**< Additional flags (bit0: invalidLlh, bits4..1: lastCorrectionAge) */
+	uint32_t reserved0;
+	int32_t  headVeh;       /**< (ubx8+ only) Heading of vehicle (2-D), this is only valid when headVehValid is set, otherwise the output is set to the heading of motion */
+	int16_t  magDec;        /**< (ubx8+ only) Magnetic declination. Only supported in ADR 4.10 and later.*/
+	uint16_t magAcc;        /**< (ubx8+ only) Magnetic declination accuracy. Only supported in ADR 4.10 and later.*/
 } ubx_payload_rx_nav_pvt_t;
 
 /* Rx NAV-TIMEUTC */
