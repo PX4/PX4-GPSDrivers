@@ -638,7 +638,7 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 			break;
 
 		case Board::u_blox9_F9P_L1L5:
-			rate_meas = 143; // 7Hz
+			rate_meas = 200; // 5Hz
 			break;
 
 		default:
