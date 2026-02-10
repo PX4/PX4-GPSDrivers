@@ -2314,6 +2314,54 @@ GPSDriverUBX::payloadRxDone()
 #endif
 		}
 
+		// Parse lastCorrectionAge from flags3 bits 4..1
+		{
+			static constexpr uint16_t correction_age_lut[] = {
+				0xFFFF, 0, 1, 3, 7, 12, 17, 25, 37, 52, 75, 105, 120
+			};
+
+			uint8_t age_bin = (_buf.payload_rx_nav_pvt.flags3 >> 1) & 0xF;
+
+			if (age_bin < sizeof(correction_age_lut) / sizeof(correction_age_lut[0])) {
+				_gps_position->diff_age = correction_age_lut[age_bin];
+
+			} else {
+				_gps_position->diff_age = 120; // >120s
+			}
+		}
+
+		// Derive fix_quality from fix_type
+		switch (_gps_position->fix_type) {
+		case 0: // no fix
+		case 1: // no fix
+			_gps_position->fix_quality = 0;
+			break;
+
+		case 2: // 2D
+			_gps_position->fix_quality = 30;
+			break;
+
+		case 3: // 3D
+			_gps_position->fix_quality = 60;
+			break;
+
+		case 4: // DGPS
+			_gps_position->fix_quality = 75;
+			break;
+
+		case 5: // RTK float
+			_gps_position->fix_quality = 85;
+			break;
+
+		case 6: // RTK fixed
+			_gps_position->fix_quality = 100;
+			break;
+
+		default:
+			_gps_position->fix_quality = 0;
+			break;
+		}
+
 		_gps_position->timestamp = gps_absolute_time();
 		_last_timestamp_time = _gps_position->timestamp;
 
@@ -2634,8 +2682,20 @@ GPSDriverUBX::payloadRxDone()
 		UBX_TRACE_RXMSG("Rx MON-RF");
 
 		_gps_position->noise_per_ms		= _buf.payload_rx_mon_rf.block[0].noisePerMS;
+		_gps_position->automatic_gain_control	= _buf.payload_rx_mon_rf.block[0].agcCnt;
 		_gps_position->jamming_indicator	= _buf.payload_rx_mon_rf.block[0].jamInd;
 		_gps_position->jamming_state		= _buf.payload_rx_mon_rf.block[0].flags;
+		_gps_position->antenna_status		= _buf.payload_rx_mon_rf.block[0].antStatus;
+		_gps_position->antenna_power		= _buf.payload_rx_mon_rf.block[0].antPower;
+
+		// Derive ANTENNA system error from antStatus
+		if (_buf.payload_rx_mon_rf.block[0].antStatus == 3 /* SHORT */
+		    || _buf.payload_rx_mon_rf.block[0].antStatus == 4 /* OPEN */) {
+			_gps_position->system_error |= sensor_gps_s::SYSTEM_ERROR_ANTENNA;
+
+		} else {
+			_gps_position->system_error &= ~sensor_gps_s::SYSTEM_ERROR_ANTENNA;
+		}
 
 		ret = 1;
 		break;
