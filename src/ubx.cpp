@@ -82,7 +82,8 @@ GPSDriverUBX::GPSDriverUBX(Interface gpsInterface, GPSCallbackPtr callback, void
 	_mode(settings.mode),
 	_heading_offset(settings.heading_offset),
 	_uart2_baudrate(settings.uart2_baudrate),
-	_ppk_output(settings.ppk_output)
+	_ppk_output(settings.ppk_output),
+	_jam_det_sensitivity_hi(settings.jam_det_sensitivity_hi)
 {
 	decodeInit();
 }
@@ -678,6 +679,18 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 	}
 
 	waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, false);
+
+	// configure jamming detection sensitivity (CFG-SEC-JAMDET_SENSITIVITY_HI)
+	// Note: This configuration key may not be supported on older firmware versions.
+	// If NACKed, we just continue - the default sensitivity will be used.
+	cfg_valset_msg_size = initCfgValset();
+	cfgValset<uint8_t>(UBX_CFG_KEY_SEC_JAMDET_SENSITIVITY_HI, _jam_det_sensitivity_hi ? 1 : 0, cfg_valset_msg_size);
+
+	if (sendMessage(UBX_MSG_CFG_VALSET, (uint8_t *)&_buf, cfg_valset_msg_size)) {
+		if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, false) < 0) {
+			UBX_WARN("CFG-SEC-JAMDET_SENSITIVITY_HI not supported by this receiver");
+		}
+	}
 
 	// configure active GNSS systems (leave signal bands as is)
 	// Note: For M10 configuration if changing from default. As per the
