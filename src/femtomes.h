@@ -36,8 +36,6 @@
 #pragma once
 
 #include "base_station.h"
-#include "gps_helper.h"
-#include "../../definitions.h"
 
 class RTCMParsing;
 
@@ -156,8 +154,6 @@ enum class FemtoDecodeState {
 	pream_nmea_got_sync1,           /**< NMEA Frame '$' */
 	pream_nmea_got_asteriks,        /**< NMEA Frame '*' */
 	pream_nmea_got_first_cs_byte,   /**< NMEA Frame cs first byte */
-
-	decode_rtcm3                    /**< Frame rtcm3 */
 };
 
 class GPSDriverFemto : public GPSBaseStationSupport
@@ -175,12 +171,6 @@ public:
 	int configure(unsigned &baudrate, const GPSConfig &config) override;
 
 private:
-
-	/**
-	 * caculate the frame crc value
-	 */
-	uint32_t crc32Value(uint32_t icrc);
-	uint32_t calculateBlockCRC32(uint32_t length, uint8_t *buffer, uint32_t crc);
 
 	/**
 	 * when Constructor is work, initialize parameters

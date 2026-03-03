@@ -1,0 +1,128 @@
+name: ABI Compatibility Check
+
+on:
+  pull_request:
+    paths:
+      - 'src/**/*.h'
+      - 'src/**/*.hpp'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  abi-check:
+    runs-on: ubuntu-latest
+    name: Check ABI/API Compatibility
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for git refs
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y abigail-tools build-essential cmake
+
+      - name: Run ABI check
+        id: abi-check
+        run: |
+          set +e
+          output=$(./tools/check-abi.sh \
+            "${{ github.event.pull_request.base.sha }}" \
+            "${{ github.event.pull_request.head.sha }}" 2>&1)
+          exit_code=$?
+          set -e
+
+          echo "$output"
+          echo "$output" > abi-output.txt
+
+          if [ $exit_code -eq 0 ]; then
+            echo "result=compatible" >> $GITHUB_OUTPUT
+          elif [ $exit_code -eq 1 ]; then
+            echo "result=breaking" >> $GITHUB_OUTPUT
+          else
+            echo "result=error" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate summary
+        run: |
+          {
+            echo "## ABI/API Compatibility Report"
+            echo ""
+
+            if [ "${{ steps.abi-check.outputs.result }}" = "compatible" ]; then
+              echo "**Status:** ✅ No breaking changes detected"
+            elif [ "${{ steps.abi-check.outputs.result }}" = "breaking" ]; then
+              echo "**Status:** ⚠️ Breaking changes detected"
+              echo ""
+              echo "### Details"
+              echo ""
+              echo '```'
+              tail -50 abi-output.txt
+              echo '```'
+            else
+              echo "**Status:** ❌ Error during analysis"
+              echo ""
+              echo '```'
+              cat abi-output.txt
+              echo '```'
+            fi
+          } > summary.md
+
+          cat summary.md >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload report
+        if: ${{ always() && steps.abi-check.outputs.result == 'breaking' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: abi-compatibility-report
+          path: abi-report.txt
+          retention-days: 30
+          if-no-files-found: ignore
+
+      - name: Comment on PR
+        if: steps.abi-check.outputs.result == 'breaking'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const summary = fs.readFileSync('summary.md', 'utf8');
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botComment = comments.find(comment =>
+              comment.user.type === 'Bot' &&
+              comment.body.includes('ABI/API Compatibility Report')
+            );
+
+            const body = summary + '\n\n---\n*This comment is automatically updated on each push.*';
+
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: body
+              });
+            }
+
+      - name: Fail on breaking changes (optional)
+        if: steps.abi-check.outputs.result == 'breaking'
+        run: |
+          echo "::warning::Breaking ABI/API changes detected. Review the compatibility report."
+          # Uncomment the next line to fail the check on breaking changes:
+          # exit 1

@@ -37,9 +37,7 @@
 
 #pragma once
 
-#include "gps_helper.h"
 #include "base_station.h"
-#include "../../definitions.h"
 
 #include <math.h>
 
@@ -87,8 +85,7 @@ private:
 		uninit,
 		got_sync1,
 		got_asteriks,
-		got_first_cs_byte,
-		decode_rtcm3
+		got_first_cs_byte
 	};
 
 	/**

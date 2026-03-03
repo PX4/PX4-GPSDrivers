@@ -40,6 +40,7 @@
 
 #include "femtomes.h"
 #include "rtcm.h"
+#include "crc.h"
 
 
 /* ms, timeout for waiting for a response*/
@@ -97,10 +98,10 @@ int GPSDriverFemto::handleMessage(int len)
 		memcpy(&_femto_uav_gps, _femto_msg.data, sizeof(femto_uav_gps_t));
 
 		_gps_position->time_utc_usec = _femto_uav_gps.time_utc_usec;
-		_gps_position->lat = _femto_uav_gps.lat;
-		_gps_position->lon = _femto_uav_gps.lon;
-		_gps_position->alt = _femto_uav_gps.alt;
-		_gps_position->alt_ellipsoid = _femto_uav_gps.alt_ellipsoid;
+		_gps_position->latitude_deg = _femto_uav_gps.lat / 1e7;
+		_gps_position->longitude_deg = _femto_uav_gps.lon / 1e7;
+		_gps_position->altitude_msl_m = _femto_uav_gps.alt / 1e3;
+		_gps_position->altitude_ellipsoid_m = _femto_uav_gps.alt_ellipsoid / 1e3;
 		_gps_position->s_variance_m_s = _femto_uav_gps.s_variance_m_s;
 		_gps_position->c_variance_rad = _femto_uav_gps.c_variance_rad;
 		_gps_position->eph = _femto_uav_gps.eph;
@@ -305,6 +306,16 @@ int GPSDriverFemto::parseChar(uint8_t temp)
 {
 	int iRet = 0;
 
+	if (_rtcm_parsing) {
+		if (_rtcm_parsing->addByte(temp)) {
+			FEMTO_DEBUG("Femto: got RTCM message with length %i", (int)_rtcm_parsing->messageLength())
+			gotRTCMMessage(_rtcm_parsing->message(), _rtcm_parsing->messageLength());
+			decodeInit();
+			_rtcm_parsing->reset();
+			return iRet;
+		}
+	}
+
 	if (_output_mode == OutputMode::GPS) {
 
 		switch (_decode_state) {
@@ -395,9 +406,9 @@ int GPSDriverFemto::parseChar(uint8_t temp)
 				_femto_msg.crc += (uint32_t)(temp << 24);
 				_decode_state = FemtoDecodeState::pream_ble1;
 
-				uint32_t crc = calculateBlockCRC32((uint32_t)_femto_msg.header.femto_header.headerlength,
-								   (uint8_t *)&_femto_msg.header.data, (uint32_t)0);
-				crc = calculateBlockCRC32((uint32_t)_femto_msg.header.femto_header.messagelength, (uint8_t *)&_femto_msg.data[0], crc);
+				uint32_t crc = calculateCRC32((uint32_t)_femto_msg.header.femto_header.headerlength,
+							      (uint8_t *)&_femto_msg.header.data, (uint32_t)0);
+				crc = calculateCRC32((uint32_t)_femto_msg.header.femto_header.messagelength, (uint8_t *)&_femto_msg.data[0], crc);
 
 				if (_femto_msg.crc == crc) {
 					iRet = _femto_msg.read;
@@ -420,10 +431,6 @@ int GPSDriverFemto::parseChar(uint8_t temp)
 				_decode_state = FemtoDecodeState::pream_nmea_got_sync1;
 				_femto_msg.read = 0;
 				_femto_msg.data[_femto_msg.read++] = temp;
-
-			} else if (temp == RTCM3_PREAMBLE && _rtcm_parsing) {
-				_decode_state = FemtoDecodeState::decode_rtcm3;
-				_rtcm_parsing->addByte(temp);
 			}
 
 			break;
@@ -436,9 +443,6 @@ int GPSDriverFemto::parseChar(uint8_t temp)
 			} else if (temp == '*') {
 				_decode_state = FemtoDecodeState::pream_nmea_got_asteriks;
 
-			} else if (temp == RTCM3_PREAMBLE && _rtcm_parsing) {
-				_decode_state = FemtoDecodeState::decode_rtcm3;
-				_rtcm_parsing->addByte(temp);
 			}
 
 			if (_femto_msg.read >= (sizeof(_femto_msg.data) - 5)) {
@@ -472,20 +476,15 @@ int GPSDriverFemto::parseChar(uint8_t temp)
 					iRet = _femto_msg.read;
 					_femto_msg.header.femto_header.messageid = FEMTO_MSG_ID_GPGGA;
 					FEMTO_DEBUG("Femto: got NMEA message with length %i", _femto_msg.read)
+
+					if (_rtcm_parsing) {
+						_rtcm_parsing->reset();
+					}
 				}
 
 				decodeInit();
 				break;
 			}
-
-		case FemtoDecodeState::decode_rtcm3:
-			if (_rtcm_parsing->addByte(temp)) {
-				FEMTO_DEBUG("Femto: got RTCM message with length %i", (int)_rtcm_parsing->messageLength())
-				gotRTCMMessage(_rtcm_parsing->message(), _rtcm_parsing->messageLength());
-				decodeInit();
-			}
-
-			break;
 
 		default:
 			break;
@@ -493,24 +492,12 @@ int GPSDriverFemto::parseChar(uint8_t temp)
 
 	}
 
-
 	return iRet;
 }
 
 void GPSDriverFemto::decodeInit()
 {
 	_decode_state = FemtoDecodeState::pream_ble1;
-
-	/** init or reset rtcm parsing */
-	if (_output_mode == OutputMode::RTCM) {
-		if (!_rtcm_parsing) {
-			_rtcm_parsing = new RTCMParsing();
-		}
-
-		if (_rtcm_parsing) {
-			_rtcm_parsing->reset();
-		}
-	}
 }
 
 int GPSDriverFemto::writeAckedCommandFemto(const char *command, const char *reply, const unsigned int timeout)
@@ -614,6 +601,15 @@ int GPSDriverFemto::configure(unsigned &baudrate, const GPSConfig &config)
 		decodeInit();
 	}
 
+	/** init rtcm parsing */
+	if (_output_mode == OutputMode::RTCM) {
+		if (!_rtcm_parsing) {
+			_rtcm_parsing = new RTCMParsing();
+		}
+
+		_rtcm_parsing->reset();
+	}
+
 	if (_output_mode == OutputMode::GPS) {
 		if (writeAckedCommandFemto("LOG UAVGPSB 0.1\r\n", "<LOG OK", FEMTO_RESPONSE_TIMEOUT) == 0) {
 			FEMTO_DEBUG("Femto: command LOG UAVGPSB 0.1 success");
@@ -648,35 +644,6 @@ int GPSDriverFemto::configure(unsigned &baudrate, const GPSConfig &config)
 	FEMTO_DEBUG("Femto: gps driver configure done")
 
 	return 0;
-}
-
-#define CRC32_POLYNOMIAL 0xEDB88320L
-uint32_t
-GPSDriverFemto::crc32Value(uint32_t icrc)
-{
-	int i;
-	uint32_t crc = icrc;
-
-	for (i = 8 ; i > 0; i--) {
-		if (crc & 1) {
-			crc = (crc >> 1) ^ CRC32_POLYNOMIAL;
-
-		} else {
-			crc >>= 1;
-		}
-	}
-
-	return crc;
-}
-
-uint32_t
-GPSDriverFemto::calculateBlockCRC32(uint32_t length, uint8_t *buffer, uint32_t crc)
-{
-	while (length-- != 0) {
-		crc = ((crc >> 8) & 0x00FFFFFFL) ^ (crc32Value(((uint32_t) crc ^ *buffer++) & 0xff));
-	}
-
-	return (crc);
 }
 
 void GPSDriverFemto::activateCorrectionOutput()

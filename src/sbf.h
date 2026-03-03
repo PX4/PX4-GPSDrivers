@@ -43,17 +43,15 @@
 
 #pragma once
 
-#include "gps_helper.h"
 #include "base_station.h"
 #include "rtcm.h"
-#include "../../definitions.h"
 
 
 #define SBF_CONFIG_FORCE_INPUT "SSSSSSSSSS\n"
 
 #define SBF_CONFIG_BAUDRATE "setCOMSettings, %s, baud%d\n"
 
-#define SBF_CONFIG_RESET "setSBFOutput, all, %s, none, off\n"
+#define SBF_CONFIG_RESET "setSBFOutput, Stream1, %s, none, off\n"
 
 #define SBF_CONFIG_RECEIVER_DYNAMICS "setReceiverDynamics, %s, UAV\n"
 
@@ -65,32 +63,33 @@
 
 #define SBF_CONFIG "setSBFOutput, Stream1, %s, PVTGeodetic+VelCovGeodetic+DOP+AttEuler+AttCovEuler, msec100\n"
 
+#define SBF_CONFIG_STATUS "setSBFOutput, Stream1, %s, +ReceiverStatus, msec500\n"
 
-#define SBF_CONFIG_RTCM "" \
-	"setDataInOut, USB1, Auto, RTCMv3+SBF\n" \
-	"setPVTMode, Rover, All, auto\n" \
-	"setSatelliteTracking, All\n" \
-	"setSatelliteUsage, All\n" \
-	"setElevationMask, All, 10\n" \
-	"setReceiverDynamics, Moderate, Automotive\n" \
-	"setSBFOutput, Stream1, DSK1, Support, msec100\n" \
-	"setSBFOutput, Stream2, USB1, DOP+VelCovGeodetic, sec1\n" \
-	"setSBFOutput, Stream3, USB1, PVTGeodetic, msec200\n" \
-	"setFileNaming, DSK1, Incremental\n" \
-	"setFileNaming, DSK1, , 'px4rtcm'\n"
+#define SBF_CONFIG_DISABLE_OUTPUT "setDataInOut,%s%d,,-RTCMv3-RTCMv2-CMRv2\n"
 
-#define SBF_CONFIG_RTCM_STATIC1 "" \
-	"setReceiverDynamics, Low, Static\n"
+/* RTK Protocol */
+#define SBF_CONFIG_OUTPUT_RTCM3	"setDataInOut, USB1, Auto, RTCMv3+SBF\n"
 
-#define SBF_CONFIG_RTCM_STATIC2 "" \
-	"setPVTMode, Static, , Geodetic1\n"
+#define SBF_CONFIG_OUTPUT_RTCM2	"setDataInOut, USB1, Auto, RTCMv2+SBF\n"
 
-#define SBF_CONFIG_RTCM_STATIC_COORDINATES "" \
-	"setStaticPosGeodetic, Geodetic1, %f, %f, %f\n"
+#define SBF_CONFIG_OUTPUT_CMR	"setDataInOut, USB1, Auto, CMRv2+SBF\n"
 
-#define SBF_CONFIG_RTCM_STATIC_OFFSET "" \
-	"setAntennaOffset, Main, %f, %f, %f\n"
+/* RTK Fixed */
+#define SBF_CONFIG_RTCM_STATIC_COORDINATES "setStaticPosGeodetic, Geodetic1, %f, %f, %f\n"
 
+#define SBF_CONFIG_RTCM_STATIC_OFFSET "setAntennaOffset, Main, %f, %f, %f\n"
+
+#define SBF_CONFIG_RTCM_STATIC1 "setReceiverDynamics, Low, Static\n"
+
+#define SBF_CONFIG_RTCM_STATIC2 "setPVTMode, Static, , Geodetic1\n"
+
+/* RTK Auto */
+#define SBF_CONFIG_RTCM_SURVEY_IN "setPVTMode, Static, All, auto\n"
+
+/* Status */
+#define SBF_CONFIG_RTCM_STATUS "setSBFOutput, Stream1, USB1, +PVTGeodetic, msec500\n"
+
+/* Reset */
 #define SBF_CONFIG_RESET_HOT "" \
 	SBF_CONFIG_FORCE_INPUT"ExeResetReceiver, soft, none\n"
 
@@ -355,8 +354,7 @@ uint8_t msg_revision:
 typedef enum {
 	SBF_DECODE_SYNC1 = 0,
 	SBF_DECODE_SYNC2,
-	SBF_DECODE_PAYLOAD,
-	SBF_DECODE_RTCM3
+	SBF_DECODE_PAYLOAD
 } sbf_decode_state_t;
 
 class GPSDriverSBF : public GPSBaseStationSupport
@@ -435,6 +433,8 @@ private:
 
 	const float _heading_offset;
 	const float _pitch_offset;
+	bool _survey_active{false};
+	gps_abstime _survey_activation_date{0};
 };
 
 uint16_t crc16(const uint8_t *buf, uint32_t len);

@@ -41,7 +41,12 @@
 
 #include <cstdint>
 #include <cstring>
-#include "../../definitions.h"
+
+#ifndef GPS_DEFINITIONS_HEADER
+#define GPS_DEFINITIONS_HEADER "../../definitions.h"
+#endif
+
+#include GPS_DEFINITIONS_HEADER
 
 #ifndef GPS_READ_BUFFER_SIZE
 #define GPS_READ_BUFFER_SIZE 150 ///< buffer size for the read() call. Messages can be longer than that.
@@ -181,12 +186,25 @@ public:
 		ENABLE_SBAS =       1 << 1,
 		ENABLE_GALILEO =    1 << 2,
 		ENABLE_BEIDOU =     1 << 3,
-		ENABLE_GLONASS =    1 << 4
+		ENABLE_GLONASS =    1 << 4,
+		ENABLE_NAVIC =      1 << 5
+	};
+
+	enum class InterfaceProtocolsMask : int32_t {
+		ALL_DISABLED =        0,
+		I2C_IN_PROT_UBX =     1 << 0,
+		I2C_IN_PROT_NMEA =    1 << 1,
+		I2C_IN_PROT_RTCM3X =  1 << 2,
+		I2C_OUT_PROT_UBX =    1 << 3,
+		I2C_OUT_PROT_NMEA =   1 << 4,
+		I2C_OUT_PROT_RTCM3X = 1 << 5
 	};
 
 	struct GPSConfig {
 		OutputMode output_mode;
 		GNSSSystemsMask gnss_systems;
+		InterfaceProtocolsMask interface_protocols;
+		bool cfg_wipe;
 	};
 
 
@@ -315,6 +333,11 @@ protected:
 };
 
 inline bool operator&(GPSHelper::GNSSSystemsMask a, GPSHelper::GNSSSystemsMask b)
+{
+	return static_cast<int32_t>(a) & static_cast<int32_t>(b);
+}
+
+inline bool operator&(GPSHelper::InterfaceProtocolsMask a, GPSHelper::InterfaceProtocolsMask b)
 {
 	return static_cast<int32_t>(a) & static_cast<int32_t>(b);
 }

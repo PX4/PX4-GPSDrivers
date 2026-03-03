@@ -85,6 +85,7 @@ int GPSDriverAshtech::handleMessage(int len)
 	int ret = 0;
 
 	if ((memcmp(_rx_buffer + 3, "ZDA,", 3) == 0) && (uiCalcComma == 6)) {
+#ifndef NO_MKTIME
 		/*
 		UTC day, month, and year, and local time zone offset
 		An example of the ZDA message string is:
@@ -120,7 +121,6 @@ int GPSDriverAshtech::handleMessage(int len)
 
 		if (bufptr && *(++bufptr) != ',') { local_time_off_min = strtol(bufptr, &endp, 10); bufptr = endp; }
 
-
 		int ashtech_hour = static_cast<int>(ashtech_time / 10000);
 		int ashtech_minute = static_cast<int>((ashtech_time - ashtech_hour * 10000) / 100);
 		double ashtech_sec = static_cast<double>(ashtech_time - ashtech_hour * 10000 - ashtech_minute * 100);
@@ -137,7 +137,6 @@ int GPSDriverAshtech::handleMessage(int len)
 		timeinfo.tm_sec = int(ashtech_sec);
 		timeinfo.tm_isdst = 0;
 
-#ifndef NO_MKTIME
 		time_t epoch = mktime(&timeinfo);
 
 		if (epoch > GPS_EPOCH_SECS) {
@@ -241,9 +240,10 @@ int GPSDriverAshtech::handleMessage(int len)
 		}
 
 		/* convert from degrees, minutes and seconds to degrees * 1e7 */
-		_gps_position->lat = static_cast<int>((int(lat * 0.01) + (lat * 0.01 - int(lat * 0.01)) * 100.0 / 60.0) * 10000000);
-		_gps_position->lon = static_cast<int>((int(lon * 0.01) + (lon * 0.01 - int(lon * 0.01)) * 100.0 / 60.0) * 10000000);
-		_gps_position->alt = static_cast<int>(alt * 1000);
+		_gps_position->latitude_deg = static_cast<int>(lat * 0.01) + (lat * 0.01 - static_cast<int>(lat * 0.01)) * 100.0 / 60.0;
+		_gps_position->longitude_deg = static_cast<int>(lon * 0.01) + (lon * 0.01 - static_cast<int>
+					       (lon * 0.01)) * 100.0 / 60.0;
+		_gps_position->altitude_msl_m = alt;
 		_rate_count_lat_lon++;
 
 		if (fix_quality <= 0) {
@@ -411,11 +411,10 @@ int GPSDriverAshtech::handleMessage(int len)
 			lon = -lon;
 		}
 
-		_gps_position->lat = static_cast<int>((static_cast<int>(lat * 0.01) + static_cast<int>(lat * 0.01 - int(
-				lat * 0.01)) * 100.0 / 60.0) * 10000000);
-		_gps_position->lon = static_cast<int>((static_cast<int>(lon * 0.01) + static_cast<int>(lon * 0.01 - int(
-				lon * 0.01)) * 100.0 / 60.0) * 10000000);
-		_gps_position->alt = static_cast<int>(alt * 1000);
+		_gps_position->latitude_deg = static_cast<int>(lat * 0.01) + (lat * 0.01 - static_cast<int>(lat * 0.01)) * 100.0 / 60.0;
+		_gps_position->longitude_deg = static_cast<int>(lon * 0.01) + (lon * 0.01 - static_cast<int>
+					       (lon * 0.01)) * 100.0 / 60.0;
+		_gps_position->altitude_msl_m = alt;
 		_gps_position->hdop = static_cast<float>(hdop);
 		_gps_position->vdop = static_cast<float>(vdop);
 		_rate_count_lat_lon++;
@@ -832,6 +831,16 @@ int GPSDriverAshtech::parseChar(uint8_t b)
 {
 	int iRet = 0;
 
+	if (_rtcm_parsing) {
+		if (_rtcm_parsing->addByte(b)) {
+			ASH_DEBUG("got RTCM message with length %i", (int)_rtcm_parsing->messageLength());
+			gotRTCMMessage(_rtcm_parsing->message(), _rtcm_parsing->messageLength());
+			decodeInit();
+			_rtcm_parsing->reset();
+			return iRet;
+		}
+	}
+
 	switch (_decode_state) {
 	/* First, look for sync1 */
 	case NMEADecodeState::uninit:
@@ -839,11 +848,6 @@ int GPSDriverAshtech::parseChar(uint8_t b)
 			_decode_state = NMEADecodeState::got_sync1;
 			_rx_buffer_bytes = 0;
 			_rx_buffer[_rx_buffer_bytes++] = b;
-
-		} else if (b == RTCM3_PREAMBLE && _rtcm_parsing) {
-			_decode_state = NMEADecodeState::decode_rtcm3;
-			_rtcm_parsing->addByte(b);
-
 		}
 
 		break;
@@ -884,19 +888,14 @@ int GPSDriverAshtech::parseChar(uint8_t b)
 			if ((HEXDIGIT_CHAR(checksum >> 4) == *(_rx_buffer + _rx_buffer_bytes - 2)) &&
 			    (HEXDIGIT_CHAR(checksum & 0x0F) == *(_rx_buffer + _rx_buffer_bytes - 1))) {
 				iRet = _rx_buffer_bytes;
+
+				if (_rtcm_parsing) {
+					_rtcm_parsing->reset();
+				}
 			}
 
 			decodeInit();
 		}
-		break;
-
-	case NMEADecodeState::decode_rtcm3:
-		if (_rtcm_parsing->addByte(b)) {
-			ASH_DEBUG("got RTCM message with length %i", (int)_rtcm_parsing->messageLength());
-			gotRTCMMessage(_rtcm_parsing->message(), _rtcm_parsing->messageLength());
-			decodeInit();
-		}
-
 		break;
 	}
 
@@ -907,16 +906,6 @@ void GPSDriverAshtech::decodeInit()
 {
 	_rx_buffer_bytes = 0;
 	_decode_state = NMEADecodeState::uninit;
-
-	if (_output_mode == OutputMode::GPSAndRTCM || _output_mode == OutputMode::RTCM) {
-		if (!_rtcm_parsing) {
-			_rtcm_parsing = new RTCMParsing();
-		}
-
-		if (_rtcm_parsing) {
-			_rtcm_parsing->reset();
-		}
-	}
 }
 
 int GPSDriverAshtech::writeAckedCommand(const void *buf, int buf_length, unsigned timeout)
@@ -1119,6 +1108,13 @@ int GPSDriverAshtech::configure(unsigned &baudrate, const GPSConfig &config)
 		}
 	}
 
+	if (_output_mode == OutputMode::GPSAndRTCM || _output_mode == OutputMode::RTCM) {
+		if (!_rtcm_parsing) {
+			_rtcm_parsing = new RTCMParsing();
+		}
+
+		_rtcm_parsing->reset();
+	}
 
 	if (_output_mode == OutputMode::RTCM && _board == AshtechBoard::trimble_mb_two) {
 		SurveyInStatus status{};

@@ -53,12 +53,23 @@ void RTCMParsing::reset()
 
 	_pos = 0;
 	_message_length = _buffer_len;
+	_preamble_received = false;
 }
 
 bool RTCMParsing::addByte(uint8_t b)
 {
 	if (!_buffer) {
+		reset();
 		return false;
+	}
+
+	if (!_preamble_received) {
+		if (b == RTCM3_PREAMBLE) {
+			_preamble_received = true;
+
+		} else {
+			return false;
+		}
 	}
 
 	_buffer[_pos++] = b;
@@ -73,6 +84,7 @@ bool RTCMParsing::addByte(uint8_t b)
 			if (!new_buffer) {
 				delete[](_buffer);
 				_buffer = nullptr;
+				reset();
 				return false;
 			}
 
@@ -83,5 +95,39 @@ bool RTCMParsing::addByte(uint8_t b)
 		}
 	}
 
-	return _message_length + 6 == _pos;
+	if (_message_length + 6 == _pos) {
+		const uint8_t *crc_buffer = &_buffer[_message_length + 3];
+		uint32_t actual_crc = (crc_buffer[0] << 16) | (crc_buffer[1] << 8) | crc_buffer[2];
+		uint32_t expected_crc = crc24(_buffer, _message_length + 3);
+
+		if (actual_crc == expected_crc) {
+			return true;
+
+		} else {
+			reset();
+			return false;
+		}
+	}
+
+	return false;
+}
+
+uint32_t RTCMParsing::crc24(const uint8_t *buffer, uint16_t len)
+{
+	constexpr uint32_t poly = 0x1864CFB;
+	uint32_t crc = 0;
+
+	while (len--) {
+		crc ^= (*buffer++) << 16;
+
+		for (int i = 0; i < 8; i++) {
+			crc <<= 1;
+
+			if (crc & 0x1000000) {
+				crc ^= poly;
+			}
+		}
+	}
+
+	return crc;
 }
