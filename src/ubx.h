@@ -1194,6 +1194,7 @@ private:
 	uint16_t _rx_payload_length{0};
 
 	uint32_t _ubx_version{0};
+	float _firmware_version{0.f};
 
 	uint64_t _last_timestamp_time{0};
 
