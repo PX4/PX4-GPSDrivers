@@ -89,6 +89,7 @@
 #define UBX_ID_NAV_SVIN       0x3B
 #define UBX_ID_NAV_RELPOSNED  0x3C
 #define UBX_ID_RXM_SFRBX      0x13
+#define UBX_ID_RXM_MEASX      0x14
 #define UBX_ID_RXM_RAWX       0x15
 #define UBX_ID_RXM_RTCM       0x32
 #define UBX_ID_INF_DEBUG      0x04
