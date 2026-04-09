@@ -89,7 +89,6 @@
 #define UBX_ID_NAV_SVIN       0x3B
 #define UBX_ID_NAV_RELPOSNED  0x3C
 #define UBX_ID_RXM_SFRBX      0x13
-#define UBX_ID_RXM_MEASX      0x14
 #define UBX_ID_RXM_RAWX       0x15
 #define UBX_ID_RXM_RTCM       0x32
 #define UBX_ID_INF_DEBUG      0x04
@@ -146,7 +145,7 @@
 #define UBX_MSG_NAV_RELPOSNED ((UBX_CLASS_NAV) | UBX_ID_NAV_RELPOSNED << 8)
 #define UBX_MSG_RXM_SFRBX     ((UBX_CLASS_RXM) | UBX_ID_RXM_SFRBX << 8)
 #define UBX_MSG_RXM_RAWX      ((UBX_CLASS_RXM) | UBX_ID_RXM_RAWX << 8)
-#define UBX_MSG_RXM_RTCM      ((UBX_CLASS_RXM) | UBX_ID_RXM_RTCM << 8)
+#define UBX_MSG_RXM_MEASX     ((UBX_CLASS_RXM) | UBX_ID_RXM_MEASX << 8)
 #define UBX_MSG_INF_DEBUG     ((UBX_CLASS_INF) | UBX_ID_INF_DEBUG << 8)
 #define UBX_MSG_INF_ERROR     ((UBX_CLASS_INF) | UBX_ID_INF_ERROR << 8)
 #define UBX_MSG_INF_NOTICE    ((UBX_CLASS_INF) | UBX_ID_INF_NOTICE << 8)
@@ -915,6 +914,50 @@ typedef struct {
 	uint32_t    vAcc;            /**<  [0.1 mm] Vertical Accuracy Estimate */
 } ubx_payload_rx_nav_hpposllh_t;
 
+/* RXM SFRBX (protocol version 27+) */
+typedef struct {
+	uint8_t     gnssId;         /* constellation (GPS/GLO/GAL/BDS/…) */
+	uint8_t     svId;           /* satellite vehicle id */
+	uint8_t     reserved1;
+	uint8_t     freqId;         /* frequency/channel slot info (especially relevant for GLONASS) */
+	uint8_t     numWords;       /* how many 32-bit nav words follow */
+	uint8_t     chn;            /* internal tracking channel */
+	uint8_t     version;        /* message version*/
+	uint8_t     reserved2;
+} ubx_payload_rx_rxm_sfrbx_part1_t;
+
+typedef struct {
+	uint32_t    dwrd;     /* navigation data */
+} ubx_payload_rx_rxm_sfrbx_part2_t;
+
+/* RXM RAWX (protocol version some) */
+typedef struct {
+	double rcvTow;     /* Receiver measurement time-of-week (GPS time), in seconds */
+	uint16_t week;     /* GPS week number */
+	int8_t leapS;      /* Leap seconds offset between GPS time and UTC */
+	uint8_t numMeas;   /* Number of repeated measurement blocks that follow */
+	uint8_t recStat;   /* Receiver status flags (time/clock validity related) */
+	uint8_t version;   /* RAWX message version */
+	uint8_t reserved1[2]; /* Reserved bytes (keep for layout, ignore in logic) */
+} ubx_payload_rx_rxm_rawx_part1_t;
+
+typedef struct {
+	double prMes;     /* Pseudorange measurement (meters) */
+	double cpMes;     /* Carrier phase measurement (cycles) */
+	float doMes;      /* Doppler measurement (Hz) */
+	uint8_t gnssId;   /* Constellation (GPS/GLO/GAL/BDS/etc.) */
+	uint8_t svId;     /* Satellite vehicle ID */
+	uint8_t sigId;    /* Signal identifier (which band/code within constellation) */
+	uint8_t freqId;   /* Frequency channel info (mainly relevant for GLONASS FDMA) */
+	uint16_t locktime;/* Time this signal has been continuously locked */
+	uint8_t cno;      /* Carrier-to-noise ratio (signal strength, dB-Hz) */
+	uint8_t prStdev;   /* Encoded pseudorange std-dev indicator */
+	uint8_t cpStdev;   /* Encoded carrier-phase std-dev indicator */
+	uint8_t doStdev;   /* Encoded doppler std-dev indicator */
+	uint8_t trkStat;  /* Tracking status flags (validity/half-cycle ambiguity flags)*/
+	uint8_t reserved3;/* Reserved byte */
+} ubx_payload_rx_rxm_rawx_part2_t;
+
 /* General message and payload buffer union */
 typedef union {
 	ubx_payload_rx_nav_pvt_t          payload_rx_nav_pvt;
@@ -950,6 +993,10 @@ typedef union {
 	ubx_payload_tx_cfg_valset_t       payload_tx_cfg_valset;
 	ubx_payload_tx_cfg_gnss_t         payload_tx_cfg_gnss;
 	ubx_payload_rx_nav_relposned_t    payload_rx_nav_relposned;
+	ubx_payload_rx_rxm_sfrbx_part1_t  payload_rx_rxm_sfrbx_part1;
+	ubx_payload_rx_rxm_sfrbx_part2_t  payload_rx_rxm_sfrbx_part2;
+	ubx_payload_rx_rxm_rawx_part1_t   payload_rx_rxm_rawx_part1;
+	ubx_payload_rx_rxm_rawx_part2_t   payload_rx_rxm_rawx_part2;
 } ubx_buf_t;
 
 #pragma pack(pop)
@@ -1145,6 +1192,8 @@ private:
 	 */
 	int payloadRxAdd(const uint8_t b);
 	int payloadRxAddMonVer(const uint8_t b);
+	int payloadRxAddRawx(const uint8_t b);
+	int payloadRxAddSfrbx(const uint8_t b);
 	int payloadRxAddNavSat(const uint8_t b);
 	int payloadRxAddNavSvinfo(const uint8_t b);
 

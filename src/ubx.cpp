@@ -544,6 +544,19 @@ int GPSDriverUBX::configureDevicePreV27(const GNSSSystemsMask &gnssSystems)
 		return -1;
 	}
 
+	// RXM raw measurements (M8 only, pre-v27 path)
+	if (_board == Board::u_blox8) {
+		const uint8_t raw_rate = _ppk_output ? 1 : 0;
+
+		if (!configureMessageRateAndAck(UBX_MSG_RXM_RAWX, raw_rate, true)) {
+			return -1;
+		}
+
+		if (!configureMessageRateAndAck(UBX_MSG_RXM_SFRBX, raw_rate, true)) {
+			return -1;
+		}
+	}
+
 	return 0;
 }
 
@@ -922,6 +935,10 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 	if ((_board == Board::u_blox9) || (_board == Board::u_blox9_F9P_L1L2) || (_board == Board::u_blox9_F9P_L1L5)) {
 		cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_RXM_RTCM_I2C, 1, cfg_valset_msg_size);
 	}
+
+	const uint8_t raw_rate = _ppk_output ? 1 : 0;
+	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_RXM_RAWX_I2C, raw_rate, cfg_valset_msg_size);
+	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_RXM_SFRBX_I2C, raw_rate, cfg_valset_msg_size);
 
 	if (!sendMessage(UBX_MSG_CFG_VALSET, (uint8_t *)&_buf, cfg_valset_msg_size)) {
 		return -1;
@@ -1534,6 +1551,15 @@ GPSDriverUBX::parseChar(const uint8_t b)
 		addByteToChecksum(b);
 
 		switch (_rx_msg) {
+
+		case UBX_MSG_RXM_RAWX:
+			ret = payloadRxAddRawx(b);
+			break;
+
+		case UBX_MSG_RXM_SFRBX:
+			ret = payloadRxAddSfrbx(b);
+			break;
+
 		case UBX_MSG_NAV_SAT:
 			ret = payloadRxAddNavSat(b);	// add a NAV-SAT payload byte
 			break;
@@ -1632,6 +1658,28 @@ GPSDriverUBX::payloadRxInit()
 	case UBX_MSG_INF_WARNING:
 		if (_rx_payload_length >= sizeof(ubx_buf_t)) {
 			_rx_payload_length = sizeof(ubx_buf_t) - 1; //avoid buffer overflow
+		}
+
+		break;
+
+	case UBX_MSG_RXM_RAWX:
+		if (_rx_payload_length < sizeof(ubx_payload_rx_rxm_rawx_part1_t)
+		    || (_rx_payload_length - sizeof(ubx_payload_rx_rxm_rawx_part1_t)) % sizeof(ubx_payload_rx_rxm_rawx_part2_t) != 0) {
+			_rx_state = UBX_RXMSG_ERROR_LENGTH;
+
+		} else if (!_configured) {
+			_rx_state = UBX_RXMSG_IGNORE;        // ignore if not _configured
+		}
+
+		break;
+
+	case UBX_MSG_RXM_SFRBX:
+		if (_rx_payload_length < sizeof(ubx_payload_rx_rxm_sfrbx_part1_t)
+		    || (_rx_payload_length - sizeof(ubx_payload_rx_rxm_sfrbx_part1_t)) % sizeof(ubx_payload_rx_rxm_sfrbx_part2_t) != 0) {
+			_rx_state = UBX_RXMSG_ERROR_LENGTH;
+
+		} else if (!_configured) {
+			_rx_state = UBX_RXMSG_IGNORE;        // ignore if not _configured
 		}
 
 		break;
@@ -1902,6 +1950,54 @@ GPSDriverUBX::payloadRxAdd(const uint8_t b)
 	uint8_t *p_buf = (uint8_t *)&_buf;
 
 	p_buf[_rx_payload_index] = b;
+
+	if (++_rx_payload_index >= _rx_payload_length) {
+		ret = 1;	// payload received completely
+	}
+
+	return ret;
+}
+
+int	// -1 = error, 0 = ok, 1 = payload completed
+GPSDriverUBX::payloadRxAddRawx(const uint8_t b)
+{
+	int ret = 0;
+	uint8_t *p_buf = (uint8_t *)&_buf;
+
+	if (_rx_payload_index < sizeof(ubx_payload_rx_rxm_rawx_part1_t)) {
+		// Fill Part 1 buffer
+		p_buf[_rx_payload_index] = b;
+
+	} else {
+		// Fill repeated Part 2 measurement block buffer
+		unsigned buf_index = (_rx_payload_index - sizeof(ubx_payload_rx_rxm_rawx_part1_t)) % sizeof(
+					     ubx_payload_rx_rxm_rawx_part2_t);
+		p_buf[buf_index] = b;
+	}
+
+	if (++_rx_payload_index >= _rx_payload_length) {
+		ret = 1;	// payload received completely
+	}
+
+	return ret;
+}
+
+int	// -1 = error, 0 = ok, 1 = payload completed
+GPSDriverUBX::payloadRxAddSfrbx(const uint8_t b)
+{
+	int ret = 0;
+	uint8_t *p_buf = (uint8_t *)&_buf;
+
+	if (_rx_payload_index < sizeof(ubx_payload_rx_rxm_sfrbx_part1_t)) {
+		// Fill Part 1 buffer
+		p_buf[_rx_payload_index] = b;
+
+	} else {
+		// Fill repeated Part 2 word block buffer
+		unsigned buf_index = (_rx_payload_index - sizeof(ubx_payload_rx_rxm_sfrbx_part1_t)) % sizeof(
+					     ubx_payload_rx_rxm_sfrbx_part2_t);
+		p_buf[buf_index] = b;
+	}
 
 	if (++_rx_payload_index >= _rx_payload_length) {
 		ret = 1;	// payload received completely
@@ -2219,6 +2315,52 @@ GPSDriverUBX::payloadRxDone()
 
 	// handle message
 	switch (_rx_msg) {
+
+	case UBX_MSG_RXM_RAWX: {
+			UBX_TRACE_RXMSG("Rx RXM-RAWX");
+
+			const uint16_t num_meas = _buf.payload_rx_rxm_rawx_part1.numMeas;
+			const size_t expected_len = sizeof(ubx_payload_rx_rxm_rawx_part1_t)
+						    + num_meas * sizeof(ubx_payload_rx_rxm_rawx_part2_t);
+
+			if (_rx_payload_length != expected_len) {
+				break; // malformed or inconsistent payload
+			}
+
+			// Optional: first measurement debug/use
+			if (num_meas > 0) {
+				const double cp_mes = _buf.payload_rx_rxm_rawx_part2.cpMes;
+				const double pr_mes = _buf.payload_rx_rxm_rawx_part2.prMes;
+				const float do_mes = _buf.payload_rx_rxm_rawx_part2.doMes;
+				(void)cp_mes;
+				(void)pr_mes;
+				(void)do_mes;
+			}
+
+			ret = 1;
+			break;
+		}
+
+	case UBX_MSG_RXM_SFRBX: {
+			UBX_TRACE_RXMSG("Rx RXM-SFRBX");
+
+			const uint8_t num_words = _buf.payload_rx_rxm_sfrbx_part1.numWords;
+			const size_t expected_len = sizeof(ubx_payload_rx_rxm_sfrbx_part1_t)
+						    + num_words * sizeof(ubx_payload_rx_rxm_sfrbx_part2_t);
+
+			if (_rx_payload_length != expected_len) {
+				break; // malformed or inconsistent payload
+			}
+
+			// Optional: first word debug/use
+			if (num_words > 0) {
+				const uint32_t word0 = _buf.payload_rx_rxm_sfrbx_part2.dwrd;
+				(void)word0;
+			}
+
+			ret = 1;
+			break;
+		}
 
 	case UBX_MSG_NAV_PVT:
 		UBX_TRACE_RXMSG("Rx NAV-PVT");
