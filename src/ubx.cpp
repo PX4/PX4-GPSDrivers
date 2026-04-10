@@ -1971,6 +1971,7 @@ GPSDriverUBX::payloadRxAddRawx(const uint8_t b)
 
 		if (_rx_payload_index == sizeof(ubx_payload_rx_rxm_rawx_part1_t) - 1) {
 			_raw_observations = {};
+			_rawx_num_meas = _buf.payload_rx_rxm_rawx_part1.numMeas;
 			_raw_observations.timestamp_sample = gps_absolute_time();
 		}
 
@@ -2368,7 +2369,7 @@ GPSDriverUBX::payloadRxDone()
 	case UBX_MSG_RXM_RAWX: {
 			UBX_TRACE_RXMSG("Rx RXM-RAWX");
 
-			const uint16_t num_meas = _buf.payload_rx_rxm_rawx_part1.numMeas;
+			const uint16_t num_meas = _rawx_num_meas;
 			const size_t expected_len = sizeof(ubx_payload_rx_rxm_rawx_part1_t)
 						    + num_meas * sizeof(ubx_payload_rx_rxm_rawx_part2_t);
 
@@ -2376,7 +2377,7 @@ GPSDriverUBX::payloadRxDone()
 				break; // malformed or inconsistent payload
 			}
 
-			if (_raw_observations.nsats > 0) {
+			if (_raw_observations.nsats > 0 && num_meas > 0) {
 				gotRawObservationsMessage(_raw_observations);
 			}
 

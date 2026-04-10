@@ -1246,6 +1246,7 @@ private:
 	uint16_t _rx_payload_index{0};
 	uint16_t _rx_payload_length{0};
 	sensor_gps_raw_s _raw_observations{};
+	uint8_t _rawx_num_meas{0};
 
 	uint32_t _ubx_version{0};
 
