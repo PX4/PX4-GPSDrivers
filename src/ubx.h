@@ -145,7 +145,7 @@
 #define UBX_MSG_NAV_RELPOSNED ((UBX_CLASS_NAV) | UBX_ID_NAV_RELPOSNED << 8)
 #define UBX_MSG_RXM_SFRBX     ((UBX_CLASS_RXM) | UBX_ID_RXM_SFRBX << 8)
 #define UBX_MSG_RXM_RAWX      ((UBX_CLASS_RXM) | UBX_ID_RXM_RAWX << 8)
-#define UBX_MSG_RXM_MEASX     ((UBX_CLASS_RXM) | UBX_ID_RXM_MEASX << 8)
+#define UBX_MSG_RXM_RTCM      ((UBX_CLASS_RXM) | UBX_ID_RXM_RTCM << 8)
 #define UBX_MSG_INF_DEBUG     ((UBX_CLASS_INF) | UBX_ID_INF_DEBUG << 8)
 #define UBX_MSG_INF_ERROR     ((UBX_CLASS_INF) | UBX_ID_INF_ERROR << 8)
 #define UBX_MSG_INF_NOTICE    ((UBX_CLASS_INF) | UBX_ID_INF_NOTICE << 8)
@@ -1194,6 +1194,11 @@ private:
 	int payloadRxAddMonVer(const uint8_t b);
 	int payloadRxAddNavSat(const uint8_t b);
 	int payloadRxAddNavSvinfo(const uint8_t b);
+
+
+	int payloadRxAddRawx(const uint8_t b);
+	int payloadRxAddSfrbx(const uint8_t b);
+
 
 	/**
 	 * Finish payload rx

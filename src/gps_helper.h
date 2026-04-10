@@ -312,7 +312,7 @@ protected:
 	}
 
 	/** got a raw measurements message from the device */
-	void gotRawObservationsMessage(const sensor_gps_raw_s &raw)
+	void gotRawObservationsMessage(sensor_gps_raw_s &raw)
 	{
 		_callback(GPSCallbackType::gotRawObservationsMessage, &raw, sizeof(sensor_gps_raw_s), _callback_user);
 	}
