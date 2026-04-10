@@ -546,7 +546,7 @@ int GPSDriverUBX::configureDevicePreV27(const GNSSSystemsMask &gnssSystems)
 
 	// RXM raw measurements (M8 only, pre-v27 path)
 	if (_board == Board::u_blox8) {
-		const uint8_t raw_rate = _ppk_output ? 1 : 0;
+		const uint8_t raw_rate = 1;
 
 		if (!configureMessageRateAndAck(UBX_MSG_RXM_RAWX, raw_rate, true)) {
 			return -1;
@@ -936,7 +936,7 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 		cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_RXM_RTCM_I2C, 1, cfg_valset_msg_size);
 	}
 
-	const uint8_t raw_rate = _ppk_output ? 1 : 0;
+	const uint8_t raw_rate = 1;
 	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_RXM_RAWX_I2C, raw_rate, cfg_valset_msg_size);
 	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_RXM_SFRBX_I2C, raw_rate, cfg_valset_msg_size);
 
@@ -2377,9 +2377,7 @@ GPSDriverUBX::payloadRxDone()
 				break; // malformed or inconsistent payload
 			}
 
-			if (_raw_observations.nsats > 0 && num_meas > 0) {
-				gotRawObservationsMessage(_raw_observations);
-			}
+			gotRawObservationsMessage(_raw_observations);
 
 			ret = 1;
 			break;
