@@ -1963,16 +1963,65 @@ GPSDriverUBX::payloadRxAddRawx(const uint8_t b)
 {
 	int ret = 0;
 	uint8_t *p_buf = (uint8_t *)&_buf;
+	constexpr uint8_t max_observations = 32;
 
 	if (_rx_payload_index < sizeof(ubx_payload_rx_rxm_rawx_part1_t)) {
 		// Fill Part 1 buffer
 		p_buf[_rx_payload_index] = b;
 
+		if (_rx_payload_index == sizeof(ubx_payload_rx_rxm_rawx_part1_t) - 1) {
+			_raw_observations = {};
+			_raw_observations.timestamp_sample = gps_absolute_time();
+		}
+
 	} else {
 		// Fill repeated Part 2 measurement block buffer
-		unsigned buf_index = (_rx_payload_index - sizeof(ubx_payload_rx_rxm_rawx_part1_t)) % sizeof(
-					     ubx_payload_rx_rxm_rawx_part2_t);
+		const unsigned payload_part2_index = _rx_payload_index - sizeof(ubx_payload_rx_rxm_rawx_part1_t);
+		const unsigned buf_index = payload_part2_index % sizeof(ubx_payload_rx_rxm_rawx_part2_t);
 		p_buf[buf_index] = b;
+
+		if (buf_index == sizeof(ubx_payload_rx_rxm_rawx_part2_t) - 1) {
+			const uint8_t meas_index = payload_part2_index / sizeof(ubx_payload_rx_rxm_rawx_part2_t);
+
+			if (meas_index < max_observations) {
+				_raw_observations.gnss_id[meas_index] = _buf.payload_rx_rxm_rawx_part2.gnssId;
+				_raw_observations.sv_id[meas_index] = _buf.payload_rx_rxm_rawx_part2.svId;
+				_raw_observations.sig_id[meas_index] = _buf.payload_rx_rxm_rawx_part2.sigId;
+				_raw_observations.freq_id[meas_index] = _buf.payload_rx_rxm_rawx_part2.freqId;
+				_raw_observations.pseudorange[meas_index] = _buf.payload_rx_rxm_rawx_part2.prMes;
+				_raw_observations.carrier_phase[meas_index] = _buf.payload_rx_rxm_rawx_part2.cpMes;
+				_raw_observations.doppler[meas_index] = _buf.payload_rx_rxm_rawx_part2.doMes;
+				_raw_observations.cn0[meas_index] = _buf.payload_rx_rxm_rawx_part2.cno;
+				_raw_observations.locktime_ms[meas_index] = _buf.payload_rx_rxm_rawx_part2.locktime;
+				_raw_observations.pr_stdev[meas_index] = _buf.payload_rx_rxm_rawx_part2.prStdev;
+				_raw_observations.cp_stdev[meas_index] = _buf.payload_rx_rxm_rawx_part2.cpStdev;
+				_raw_observations.do_stdev[meas_index] = _buf.payload_rx_rxm_rawx_part2.doStdev;
+
+				uint8_t flags = 0;
+
+				if (_buf.payload_rx_rxm_rawx_part2.trkStat & (1 << 0)) {
+					flags |= sensor_gps_raw_s::FLAG_PR_VALID;
+				}
+
+				if (_buf.payload_rx_rxm_rawx_part2.trkStat & (1 << 1)) {
+					flags |= sensor_gps_raw_s::FLAG_CP_VALID;
+					flags |= sensor_gps_raw_s::FLAG_CARR_LOCK;
+				}
+
+				if (_buf.payload_rx_rxm_rawx_part2.trkStat & (1 << 2)) {
+					flags |= sensor_gps_raw_s::FLAG_HALF_CYCLE;
+				}
+
+				if (_buf.payload_rx_rxm_rawx_part2.trkStat & (1 << 3)) {
+					flags |= sensor_gps_raw_s::FLAG_SUB_HALF_CYC;
+				}
+
+				flags |= sensor_gps_raw_s::FLAG_DO_VALID;
+				flags |= sensor_gps_raw_s::FLAG_CODE_LOCK;
+				_raw_observations.flags[meas_index] = flags;
+				_raw_observations.nsats = meas_index + 1;
+			}
+		}
 	}
 
 	if (++_rx_payload_index >= _rx_payload_length) {
@@ -2327,14 +2376,8 @@ GPSDriverUBX::payloadRxDone()
 				break; // malformed or inconsistent payload
 			}
 
-			// Optional: first measurement debug/use
-			if (num_meas > 0) {
-				const double cp_mes = _buf.payload_rx_rxm_rawx_part2.cpMes;
-				const double pr_mes = _buf.payload_rx_rxm_rawx_part2.prMes;
-				const float do_mes = _buf.payload_rx_rxm_rawx_part2.doMes;
-				(void)cp_mes;
-				(void)pr_mes;
-				(void)do_mes;
+			if (_raw_observations.nsats > 0) {
+				gotRawObservationsMessage(_raw_observations);
 			}
 
 			ret = 1;

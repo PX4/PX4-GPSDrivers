@@ -1192,8 +1192,6 @@ private:
 	 */
 	int payloadRxAdd(const uint8_t b);
 	int payloadRxAddMonVer(const uint8_t b);
-	int payloadRxAddRawx(const uint8_t b);
-	int payloadRxAddSfrbx(const uint8_t b);
 	int payloadRxAddNavSat(const uint8_t b);
 	int payloadRxAddNavSvinfo(const uint8_t b);
 
@@ -1242,6 +1240,7 @@ private:
 	uint16_t _rx_msg{};
 	uint16_t _rx_payload_index{0};
 	uint16_t _rx_payload_length{0};
+	sensor_gps_raw_s _raw_observations{};
 
 	uint32_t _ubx_version{0};
 
