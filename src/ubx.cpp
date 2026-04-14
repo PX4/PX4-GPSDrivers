@@ -2317,38 +2317,6 @@ GPSDriverUBX::payloadRxDone()
 			}
 		}
 
-		// Derive fix_quality from fix_type
-		switch (_gps_position->fix_type) {
-		case 0: // no fix
-		case 1: // no fix
-			_gps_position->fix_quality = 0;
-			break;
-
-		case 2: // 2D
-			_gps_position->fix_quality = 30;
-			break;
-
-		case 3: // 3D
-			_gps_position->fix_quality = 60;
-			break;
-
-		case 4: // DGPS
-			_gps_position->fix_quality = 75;
-			break;
-
-		case 5: // RTK float
-			_gps_position->fix_quality = 85;
-			break;
-
-		case 6: // RTK fixed
-			_gps_position->fix_quality = 100;
-			break;
-
-		default:
-			_gps_position->fix_quality = 0;
-			break;
-		}
-
 		_gps_position->timestamp = gps_absolute_time();
 		_last_timestamp_time = _gps_position->timestamp;
 
