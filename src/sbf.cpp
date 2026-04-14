@@ -508,17 +508,27 @@ int GPSDriverSBF::payloadRxDone()
 		if (_buf.payload_pvt_geodetic.mode_type < 1) {
 			_gps_position->fix_type = 1;
 
-		} else if (_buf.payload_pvt_geodetic.mode_type == 6) {
-			_gps_position->fix_type = 4;
-
-		} else if (_buf.payload_pvt_geodetic.mode_type == 5 || _buf.payload_pvt_geodetic.mode_type == 8) {
-			_gps_position->fix_type = 5;
-
-		} else if (_buf.payload_pvt_geodetic.mode_type == 4 || _buf.payload_pvt_geodetic.mode_type == 7) {
-			_gps_position->fix_type = 6;
-
 		} else {
-			_gps_position->fix_type = 3;
+		
+			switch (_buf.payload_pvt_geodetic.mode_type) {
+			case 6:
+				_gps_position->fix_type = 4;
+				break;
+
+			case 5:
+			case 8:
+				_gps_position->fix_type = 5;
+				break;
+
+			case 4:
+			case 7:
+				_gps_position->fix_type = 6;
+				break;
+
+			default:
+				_gps_position->fix_type = 3;
+				break;
+			}
 		}
 
 		// Check fix and error code
