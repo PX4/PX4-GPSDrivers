@@ -897,8 +897,11 @@ int GPSDriverNMEA::handleMessage(int len)
 			_gps_position->vel_ned_valid = true; /** Flag to indicate if NED speed is valid */
 			_gps_position->c_variance_rad = 0.1f;
 			_gps_position->s_variance_m_s = 0;
-			_VEL_received = true;
-			_rate_count_vel++;
+
+			if (!_VEL_received) {
+				_VEL_received = true;
+				_rate_count_vel++;
+			}
 
 			_gps_position->cog_rad = track_rad;
 		}
