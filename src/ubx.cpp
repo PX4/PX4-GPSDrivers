@@ -1184,9 +1184,17 @@ template<typename T>
 bool GPSDriverUBX::cfgValset(uint32_t key_id, T value, int &msg_size)
 {
 	if (msg_size + sizeof(key_id) + sizeof(value) > sizeof(_buf)) {
-		// If this happens use several CFG-VALSET messages instead of one
-		UBX_WARN("buf for CFG_VALSET too small");
-		return false;
+		// Buffer would overflow - send current message and start a new one
+		if (!sendMessage(UBX_MSG_CFG_VALSET, (uint8_t *)&_buf, msg_size)) {
+			return false;
+		}
+
+		if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, false) < 0) {
+			UBX_WARN("CFG_VALSET ack failed");
+			return false;
+		}
+
+		msg_size = initCfgValset();
 	}
 
 	uint8_t *buffer = (uint8_t *)&_buf.payload_tx_cfg_valset;
