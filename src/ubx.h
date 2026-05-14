@@ -77,6 +77,7 @@
 #define UBX_CLASS_ACK         0x05
 #define UBX_CLASS_CFG         0x06
 #define UBX_CLASS_MON         0x0A
+#define UBX_CLASS_SEC         0x27
 #define UBX_CLASS_RTCM3       0xF5
 
 /* Message IDs */
@@ -117,6 +118,7 @@
 #define UBX_ID_MON_VER        0x04
 #define UBX_ID_MON_HW         0x09 // deprecated in protocol version >= 27 -> use MON_RF
 #define UBX_ID_MON_RF         0x38
+#define UBX_ID_SEC_SIG        0x09
 
 /* UBX ID for RTCM3 output messages */
 /* Minimal messages for RTK: 1005, 1077 + (1087 or 1127) */
@@ -172,6 +174,7 @@
 #define UBX_MSG_MON_HW        ((UBX_CLASS_MON) | UBX_ID_MON_HW << 8)
 #define UBX_MSG_MON_VER       ((UBX_CLASS_MON) | UBX_ID_MON_VER << 8)
 #define UBX_MSG_MON_RF        ((UBX_CLASS_MON) | UBX_ID_MON_RF << 8)
+#define UBX_MSG_SEC_SIG       ((UBX_CLASS_SEC) | UBX_ID_SEC_SIG << 8)
 #define UBX_MSG_RTCM3_1005    ((UBX_CLASS_RTCM3) | UBX_ID_RTCM3_1005 << 8)
 #define UBX_MSG_RTCM3_1077    ((UBX_CLASS_RTCM3) | UBX_ID_RTCM3_1077 << 8)
 #define UBX_MSG_RTCM3_1087    ((UBX_CLASS_RTCM3) | UBX_ID_RTCM3_1087 << 8)
@@ -188,6 +191,12 @@
 /*   Bitfield "flags" masks */
 #define UBX_RX_NAV_STATUS_SPOOFDETSTATE_MASK    0b00011000 /**< spoofDetState (Spoofing detection state) */
 #define UBX_RX_NAV_STATUS_SPOOFDETSTATE_SHIFT   3
+
+/* RX SEC_SIG message content details */
+#define UBX_RX_SEC_SIG_JAMMINGSTATE_MASK         0b00000110 /**< jammingState (Jamming/interference state) */
+#define UBX_RX_SEC_SIG_JAMMINGSTATE_SHIFT        1
+#define UBX_RX_SEC_SIG_SPOOFINGSTATE_MASK        0b00001110 /**< spoofingState (GNSS spoofing state) */
+#define UBX_RX_SEC_SIG_SPOOFINGSTATE_SHIFT       1
 
 /* RX NAV-PVT message content details */
 /*   Bitfield "valid" masks */
@@ -343,6 +352,10 @@
 #define UBX_CFG_KEY_ODO_OUTLPCOG                0x10220004
 
 #define UBX_CFG_KEY_ITFM_ENABLE                 0x1041000d
+#define UBX_CFG_KEY_ITFM_ANTSETTING             0x20410010
+#define UBX_CFG_ITFM_ANTSETTING_ACTIVE          2
+#define UBX_CFG_KEY_HW_ANT_CFG_VOLTCTRL         0x10a3002e
+#define UBX_CFG_HW_ANT_CFG_VOLTCTRL_ENABLE      1
 
 #define UBX_CFG_KEY_SEC_JAMDET_SENSITIVITY_HI   0x10f60051
 
@@ -370,6 +383,7 @@
 #define UBX_CFG_KEY_MSGOUT_UBX_NAV_PVT_I2C       0x20910006
 #define UBX_CFG_KEY_MSGOUT_UBX_NAV_HPPOSLLH_I2C  0x20910033
 #define UBX_CFG_KEY_MSGOUT_UBX_NAV_RELPOSNED_I2C 0x2091008d
+#define UBX_CFG_KEY_MSGOUT_UBX_SEC_SIG_I2C       0x20910634
 #define UBX_CFG_KEY_MSGOUT_UBX_RXM_SFRBX_I2C     0x20910231
 #define UBX_CFG_KEY_MSGOUT_UBX_RXM_RAWX_I2C      0x209102a4
 #define UBX_CFG_KEY_MSGOUT_UBX_RXM_RTCM_I2C      0x20910268
@@ -690,6 +704,9 @@ typedef struct {
 } ubx_payload_rx_mon_hw_deprecated_t;
 
 /* Rx MON-RF (replaces MON-HW, protocol 27+) */
+#define UBX_RX_MON_RF_HEADER_SIZE                4
+#define UBX_RX_MON_RF_MAX_BLOCKS                 2
+
 typedef struct {
 	uint8_t version;
 	uint8_t nBlocks;         /**< number of RF blocks included */
@@ -712,8 +729,18 @@ typedef struct {
 		uint8_t  reserved3[3];
 	};
 
-	ubx_payload_rx_mon_rf_block_t block[1]; ///< only read out the first block
+	ubx_payload_rx_mon_rf_block_t block[UBX_RX_MON_RF_MAX_BLOCKS];
 } ubx_payload_rx_mon_rf_t;
+
+/* Rx SEC-SIG */
+typedef struct {
+	uint8_t version;         /**< Message version */
+	uint8_t reserved0[3];
+	uint8_t jamFlags;        /**< Jamming/interference flags */
+	uint8_t reserved1[3];
+	uint8_t spfFlags;        /**< Spoofing flags */
+	uint8_t reserved2[3];
+} ubx_payload_rx_sec_sig_t;
 
 /* Rx MON-VER Part 1 */
 typedef struct {
@@ -938,6 +965,7 @@ typedef union {
 	ubx_payload_rx_mon_hw_ubx7_t      payload_rx_mon_hw_ubx7;
 	ubx_payload_rx_mon_hw_deprecated_t ubx_payload_rx_mon_hw_deprecated;
 	ubx_payload_rx_mon_rf_t           payload_rx_mon_rf;
+	ubx_payload_rx_sec_sig_t          payload_rx_sec_sig;
 	ubx_payload_rx_mon_ver_part1_t    payload_rx_mon_ver_part1;
 	ubx_payload_rx_mon_ver_part2_t    payload_rx_mon_ver_part2;
 	ubx_payload_rx_rxm_rtcm_t         payload_rx_rxm_rtcm;
@@ -1203,6 +1231,9 @@ private:
 	uint64_t _last_timestamp_time{0};
 
 	Board _board{Board::unknown};
+	uint8_t _mon_rf_logged_ant_status[UBX_RX_MON_RF_MAX_BLOCKS]{0xff, 0xff};
+	uint8_t _mon_rf_logged_ant_power[UBX_RX_MON_RF_MAX_BLOCKS]{0xff, 0xff};
+	uint8_t _mon_rf_logged_block_count{0xff};
 
 	OutputMode _output_mode{OutputMode::GPS};
 
@@ -1214,4 +1245,3 @@ private:
 	const bool _ppk_output {};
 	const bool _jam_det_sensitivity_hi {};
 };
-
