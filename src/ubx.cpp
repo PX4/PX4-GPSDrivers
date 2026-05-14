@@ -811,7 +811,7 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 
 		if (sendMessage(UBX_MSG_CFG_VALSET, _tx_cfg_valset_buf, cfg_valset_msg_size)) {
 			if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, false) < 0) {
-				UBX_WARN("CFG-ITFM-ANTSETTING not supported by this receiver");
+				GPS_INFO("u-blox optional CFG-ITFM-ANTSETTING not accepted by this receiver");
 			}
 		}
 
@@ -821,7 +821,7 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 
 		if (sendMessage(UBX_MSG_CFG_VALSET, _tx_cfg_valset_buf, cfg_valset_msg_size)) {
 			if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, false) < 0) {
-				UBX_WARN("CFG-HW-ANT_CFG_VOLTCTRL not supported by this receiver");
+				GPS_INFO("u-blox optional CFG-HW-ANT_CFG_VOLTCTRL not accepted by this receiver");
 			}
 		}
 	}
@@ -834,7 +834,7 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 
 	if (sendMessage(UBX_MSG_CFG_VALSET, _tx_cfg_valset_buf, cfg_valset_msg_size)) {
 		if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, false) < 0) {
-			UBX_WARN("CFG-SEC-JAMDET_SENSITIVITY_HI not supported by this receiver");
+			GPS_INFO("u-blox optional CFG-SEC-JAMDET_SENSITIVITY_HI not accepted by this receiver");
 		}
 	}
 
