@@ -903,7 +903,7 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 		cfg_valset_msg_size = initCfgValset();
 		cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_L5_HEALTH_OVERRIDE, 1, cfg_valset_msg_size);
 
-		UBX_DEBUG("Enabling L5 health override");
+		GPS_INFO("u-blox L5 health override enabled");
 
 		if (!sendMessage(UBX_MSG_CFG_VALSET, _tx_cfg_valset_buf, cfg_valset_msg_size)) {
 			return -1;
@@ -2200,9 +2200,9 @@ GPSDriverUBX::payloadRxAddMonVer(const uint8_t b)
 					}
 
 				} else if (_board == Board::u_blox10) {
-					if (strstr(mod_str, "DAN-F10N")) {
+					if (strstr(mod_str, "DAN-F10N") || strstr(mod_str, "NEO-F10N")) {
 						_board = Board::u_blox10_L1L5;
-						UBX_DEBUG("DAN-F10N detected");
+						GPS_INFO("u-blox F10N L1/L5 support enabled");
 					}
 				}
 
@@ -2648,6 +2648,7 @@ GPSDriverUBX::payloadRxDone()
 		UBX_TRACE_RXMSG("Rx MON-RF");
 
 		_gps_position->noise_per_ms		= _buf.payload_rx_mon_rf.block[0].noisePerMS;
+		_gps_position->automatic_gain_control	= _buf.payload_rx_mon_rf.block[0].agcCnt;
 		_gps_position->jamming_indicator	= _buf.payload_rx_mon_rf.block[0].jamInd;
 		_gps_position->jamming_state		= _buf.payload_rx_mon_rf.block[0].flags;
 

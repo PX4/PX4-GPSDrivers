@@ -1035,7 +1035,7 @@ public:
 		u_blox9_F9P_L1L2 = 10, ///< F9P
 		u_blox10 = 11,
 		u_blox9_F9P_L1L5 = 12, ///< ZED-F9P-15B
-		u_blox10_L1L5 = 13, ///< DAN-F10N
+		u_blox10_L1L5 = 13, ///< F10N L1/L5 modules
 		u_blox_X20 = 14,
 	};
 
@@ -1214,5 +1214,4 @@ private:
 	const bool _ppk_output {};
 	const bool _jam_det_sensitivity_hi {};
 };
-
 
