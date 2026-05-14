@@ -2874,10 +2874,32 @@ GPSDriverUBX::payloadRxDone()
 	case UBX_MSG_SEC_SIG:
 		UBX_TRACE_RXMSG("Rx SEC-SIG");
 
-		_gps_position->jamming_state = (_buf.payload_rx_sec_sig.jamFlags & UBX_RX_SEC_SIG_JAMMINGSTATE_MASK) >>
-					       UBX_RX_SEC_SIG_JAMMINGSTATE_SHIFT;
-		_gps_position->spoofing_state = (_buf.payload_rx_sec_sig.spfFlags & UBX_RX_SEC_SIG_SPOOFINGSTATE_MASK) >>
-						UBX_RX_SEC_SIG_SPOOFINGSTATE_SHIFT;
+		{
+			const uint8_t jamming_state = (_buf.payload_rx_sec_sig.jamFlags & UBX_RX_SEC_SIG_JAMMINGSTATE_MASK) >>
+						      UBX_RX_SEC_SIG_JAMMINGSTATE_SHIFT;
+			const uint8_t spoofing_state = (_buf.payload_rx_sec_sig.spfFlags & UBX_RX_SEC_SIG_SPOOFINGSTATE_MASK) >>
+						       UBX_RX_SEC_SIG_SPOOFINGSTATE_SHIFT;
+
+			_gps_position->jamming_state = jamming_state;
+			_gps_position->spoofing_state = spoofing_state;
+
+			if (_board == Board::u_blox10_L1L5 || _board == Board::u_blox_X20) {
+				if (_sec_sig_logged_jamming_state != jamming_state ||
+				    _sec_sig_logged_spoofing_state != spoofing_state ||
+				    _sec_sig_logged_jam_flags != _buf.payload_rx_sec_sig.jamFlags ||
+				    _sec_sig_logged_spf_flags != _buf.payload_rx_sec_sig.spfFlags) {
+					GPS_INFO("u-blox SEC-SIG: jam=%u spoof=%u jamFlags=0x%02x spfFlags=0x%02x",
+						 static_cast<unsigned>(jamming_state),
+						 static_cast<unsigned>(spoofing_state),
+						 static_cast<unsigned>(_buf.payload_rx_sec_sig.jamFlags),
+						 static_cast<unsigned>(_buf.payload_rx_sec_sig.spfFlags));
+					_sec_sig_logged_jamming_state = jamming_state;
+					_sec_sig_logged_spoofing_state = spoofing_state;
+					_sec_sig_logged_jam_flags = _buf.payload_rx_sec_sig.jamFlags;
+					_sec_sig_logged_spf_flags = _buf.payload_rx_sec_sig.spfFlags;
+				}
+			}
+		}
 
 		ret = 1;
 		break;

@@ -1234,6 +1234,10 @@ private:
 	uint8_t _mon_rf_logged_ant_status[UBX_RX_MON_RF_MAX_BLOCKS]{0xff, 0xff};
 	uint8_t _mon_rf_logged_ant_power[UBX_RX_MON_RF_MAX_BLOCKS]{0xff, 0xff};
 	uint8_t _mon_rf_logged_block_count{0xff};
+	uint8_t _sec_sig_logged_jamming_state{0xff};
+	uint8_t _sec_sig_logged_spoofing_state{0xff};
+	uint8_t _sec_sig_logged_jam_flags{0xff};
+	uint8_t _sec_sig_logged_spf_flags{0xff};
 
 	OutputMode _output_mode{OutputMode::GPS};
 
