@@ -509,7 +509,7 @@ int GPSDriverSBF::payloadRxDone()
 			_gps_position->fix_type = 1;
 
 		} else {
-		
+
 			switch (_buf.payload_pvt_geodetic.mode_type) {
 			case 6:
 				_gps_position->fix_type = 4;
