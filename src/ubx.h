@@ -1174,7 +1174,7 @@ private:
 	satellite_info_s       *_satellite_info {nullptr};
 	ubx_ack_state_t         _ack_state{UBX_ACK_IDLE};
 	ubx_buf_t               _buf{};
-	uint8_t                 _tx_cfg_valset_buf[UBX_CFG_VALSET_BUF_SIZE]{};
+	uint8_t                 _tx_cfg_valset_buf[UBX_CFG_VALSET_BUF_SIZE] {};
 	ubx_decode_state_t      _decode_state{};
 	ubx_rxmsg_state_t       _rx_state{UBX_RXMSG_IGNORE};
 
