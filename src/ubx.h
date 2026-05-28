@@ -1025,6 +1025,11 @@ public:
 
 	bool shouldInjectRTCM() override { return _configured && _mode != UBXMode::RoverWithMovingBase; }
 
+	bool isMovingBase() const override
+	{
+		return _mode == UBXMode::MovingBase || _mode == UBXMode::MovingBaseUART1;
+	}
+
 	enum class Board : uint8_t {
 		unknown = 0,
 		u_blox5 = 5,

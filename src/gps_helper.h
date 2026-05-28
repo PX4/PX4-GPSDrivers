@@ -248,6 +248,12 @@ public:
 	 */
 	virtual bool shouldInjectRTCM() { return true; }
 
+	/**
+	 * True if this GPS is configured as a moving base (its RTCM output is
+	 * moving-baseline data intended for a rover, not external corrections).
+	 */
+	virtual bool isMovingBase() const { return false; }
+
 protected:
 
 	/**
