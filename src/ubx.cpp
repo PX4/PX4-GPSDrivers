@@ -921,7 +921,7 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 	if (_board != Board::u_blox10 && _board != Board::u_blox9 && _board != Board::u_blox10_L1L5) {
 		cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_HPPOSLLH_I2C, 1, cfg_valset_msg_size);
 		cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_RELPOSNED_I2C,
-			      _mode == UBXMode::RoverWithMovingBase || _mode == UBXMode::RoverWithMovingBaseUART1 ? 1 : 0,
+			      _mode == UBXMode::RoverWithMovingBaseUART2 || _mode == UBXMode::RoverWithMovingBaseUART1 ? 1 : 0,
 			      cfg_valset_msg_size);
 	}
 
@@ -1001,7 +1001,7 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 			return -1;
 		}
 
-	} else if (_mode == UBXMode::RoverWithStaticBaseUart2 || _mode == UBXMode::RoverWithMovingBase) {
+	} else if (_mode == UBXMode::RoverWithStaticBaseUART2 || _mode == UBXMode::RoverWithMovingBaseUART2) {
 		UBX_DEBUG("Configuring UART2 for rover");
 		cfg_valset_msg_size = initCfgValset();
 		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1OUTPROT_UBX, 1, cfg_valset_msg_size);
@@ -1025,7 +1025,7 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 			return -1;
 		}
 
-	} else if (_mode == UBXMode::MovingBase) {
+	} else if (_mode == UBXMode::MovingBaseUART2) {
 		UBX_DEBUG("Configuring UART2 for moving base");
 		// enable RTCM output on uart2 + set baudrate
 		cfg_valset_msg_size = initCfgValset();

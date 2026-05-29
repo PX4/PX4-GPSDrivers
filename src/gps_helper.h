@@ -244,9 +244,20 @@ public:
 	void storeUpdateRates();
 
 	/**
-	 * Allow a driver to disable RTCM injection
+	 * Whether external (fixed-base / GCS) RTCM corrections should be injected into this
+	 * receiver. True for any configured receiver - rover, moving base, or plain GPS - since
+	 * all of them can use fixed-base corrections.
 	 */
-	virtual bool shouldInjectRTCM() { return true; }
+	virtual bool shouldInjectRTCMCorrections() const { return true; }
+
+	/**
+	 * Whether moving-baseline RTCM (e.g. RTCM 4072 from a peer moving-base GPS) should be
+	 * injected into this receiver over its main link. True only for a heading rover that
+	 * receives the baseline through the flight controller (UART1 / CAN). A rover wired
+	 * directly to the moving base (UART2) gets it in hardware, and a moving base produces
+	 * rather than consumes it - both return false.
+	 */
+	virtual bool shouldInjectMovingBaseline() const { return false; }
 
 	/**
 	 * True if this GPS is configured as a moving base (its RTCM output is

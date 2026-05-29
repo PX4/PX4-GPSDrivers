@@ -992,12 +992,12 @@ class GPSDriverUBX : public GPSBaseStationSupport
 public:
 	enum class UBXMode : uint8_t {
 		Normal,                    ///< all non-heading configurations
-		RoverWithMovingBase,       ///< expect RTCM input on UART2 from a moving base for heading output
-		MovingBase,                ///< RTCM output on UART2 to a rover (GPS is installed on the vehicle)
-		RoverWithMovingBaseUART1, ///< expect RTCM input on UART1 from a moving base for heading output
-		MovingBaseUART1,          ///< RTCM output on UART1 to a rover (GPS is installed on the vehicle)
-		RoverWithStaticBaseUart2,  ///< expect RTCM input on UART2 from a static base.
-		GroundControlStation, ///< NMEA output on UART2 to a ground control station (GPS is installed in GCS)
+		RoverWithMovingBaseUART2,  ///< heading rover; receives moving-base RTCM on UART2 (wired directly to the moving base)
+		MovingBaseUART2,           ///< moving base; outputs RTCM on UART2 (wired directly to the rover)
+		RoverWithMovingBaseUART1,  ///< heading rover; receives moving-base RTCM on UART1 (relayed via the flight controller)
+		MovingBaseUART1,           ///< moving base; outputs RTCM on UART1 (relayed to the rover via the flight controller)
+		RoverWithStaticBaseUART2,  ///< heading rover; receives static-base RTCM on UART2
+		GroundControlStation,      ///< NMEA output to a ground control station (GPS is installed in the GCS)
 	};
 
 	struct Settings {
@@ -1023,11 +1023,18 @@ public:
 	int receive(unsigned timeout) override;
 	int reset(GPSRestartType restart_type) override;
 
-	bool shouldInjectRTCM() override { return _configured && _mode != UBXMode::RoverWithMovingBase; }
+	bool shouldInjectRTCMCorrections() const override { return _configured; }
+
+	bool shouldInjectMovingBaseline() const override
+	{
+		// Only the UART1 heading rover receives the moving baseline over its main link; the UART2
+		// rover gets it directly in hardware and a moving base produces rather than consumes it.
+		return _configured && _mode == UBXMode::RoverWithMovingBaseUART1;
+	}
 
 	bool isMovingBase() const override
 	{
-		return _mode == UBXMode::MovingBase || _mode == UBXMode::MovingBaseUART1;
+		return _mode == UBXMode::MovingBaseUART2 || _mode == UBXMode::MovingBaseUART1;
 	}
 
 	enum class Board : uint8_t {
