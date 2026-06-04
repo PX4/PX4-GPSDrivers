@@ -1023,7 +1023,7 @@ public:
 	int receive(unsigned timeout) override;
 	int reset(GPSRestartType restart_type) override;
 
-	bool shouldInjectRTCMCorrections() const override { return _configured; }
+	bool receiverReady() const override { return _configured; }
 
 	bool shouldInjectMovingBaseline() const override
 	{

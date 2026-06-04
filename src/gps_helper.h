@@ -244,11 +244,11 @@ public:
 	void storeUpdateRates();
 
 	/**
-	 * Whether external (fixed-base / GCS) RTCM corrections should be injected into this
-	 * receiver. True for any configured receiver - rover, moving base, or plain GPS - since
-	 * all of them can use fixed-base corrections.
+	 * Whether the receiver is configured and ready to accept injected data. Gates all
+	 * injection (RTCM corrections and moving-baseline) so nothing is written to the device
+	 * mid-configuration. Defaults to true; drivers with a configuration handshake override it.
 	 */
-	virtual bool shouldInjectRTCMCorrections() const { return true; }
+	virtual bool receiverReady() const { return true; }
 
 	/**
 	 * Whether moving-baseline RTCM (e.g. RTCM 4072 from a peer moving-base GPS) should be
