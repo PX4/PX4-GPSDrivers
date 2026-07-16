@@ -554,8 +554,9 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 
 		int cfg_valset_msg_size = initCfgValset();
 
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1INPROT_RTCM3X, _output_mode == OutputMode::RTCM ? 0 : 1,
-				   cfg_valset_msg_size);
+		const uint8_t enable_corrections_in = (_output_mode == OutputMode::RTCM) ? 0 : 1;
+
+		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1INPROT_RTCM3X, enable_corrections_in, cfg_valset_msg_size);
 
 		if (_output_mode != OutputMode::GPS) {
 			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1OUTPROT_RTCM3X, 1, cfg_valset_msg_size);
@@ -563,8 +564,7 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 
 		// USB
 		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_USBINPROT_UBX, 1, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_USBINPROT_RTCM3X, _output_mode == OutputMode::RTCM ? 0 : 1,
-				   cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_USBINPROT_RTCM3X, enable_corrections_in, cfg_valset_msg_size);
 		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_USBINPROT_NMEA, 0, cfg_valset_msg_size);
 		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_USBOUTPROT_UBX, 1, cfg_valset_msg_size);
 
@@ -580,6 +580,20 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 
 		if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true) < 0) {
 			return -1;
+		}
+
+		// Optional SPARTN input (PointPerfect). Sent separately so modules without
+		// SPARTN support can NACK without failing the rest of configuration.
+		cfg_valset_msg_size = initCfgValset();
+		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1INPROT_SPARTN, enable_corrections_in, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_USBINPROT_SPARTN, enable_corrections_in, cfg_valset_msg_size);
+
+		if (_interface == Interface::SPI) {
+			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_SPIINPROT_SPARTN, enable_corrections_in, cfg_valset_msg_size);
+		}
+
+		if (sendMessage(UBX_MSG_CFG_VALSET, _tx_cfg_valset_buf, cfg_valset_msg_size)) {
+			(void)waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, false);
 		}
 	}
 
@@ -981,6 +995,17 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 
 		if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true) < 0) {
 			return -1;
+		}
+
+		// Optional SPARTN on I2C (best-effort; NACK is fine on non-SPARTN firmware)
+		if (_board != Board::u_blox10 && _board != Board::u_blox10_L1L5) {
+			cfg_valset_msg_size = initCfgValset();
+			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_I2CINPROT_SPARTN,
+					   config.interface_protocols & InterfaceProtocolsMask::I2C_IN_PROT_RTCM3X, cfg_valset_msg_size);
+
+			if (sendMessage(UBX_MSG_CFG_VALSET, _tx_cfg_valset_buf, cfg_valset_msg_size)) {
+				(void)waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, false);
+			}
 		}
 	}
 
