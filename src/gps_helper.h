@@ -244,9 +244,20 @@ public:
 	void storeUpdateRates();
 
 	/**
-	 * Allow a driver to disable RTCM injection
+	 * Whether the receiver is configured and ready to accept injected data. Gates all
+	 * injection (RTCM corrections and moving-baseline) so nothing is written to the device
+	 * mid-configuration. Defaults to true; drivers with a configuration handshake override it.
 	 */
-	virtual bool shouldInjectRTCM() { return true; }
+	virtual bool receiverReady() const { return true; }
+
+	/**
+	 * Whether moving-baseline RTCM (e.g. RTCM 4072 from a peer moving-base GPS) should be
+	 * injected into this receiver over its main link. True only for a heading rover that
+	 * receives the baseline through the flight controller (UART1 / CAN). A rover wired
+	 * directly to the moving base (UART2) gets it in hardware, and a moving base produces
+	 * rather than consumes it - both return false.
+	 */
+	virtual bool shouldInjectMovingBaseline() const { return false; }
 
 	/**
 	 * True if this GPS is configured as a moving base (its RTCM output is
