@@ -93,6 +93,7 @@
 #define UBX_ID_NAV_STATUS     0x03
 #define UBX_ID_NAV_SVIN       0x3B
 #define UBX_ID_NAV_RELPOSNED  0x3C
+#define UBX_ID_NAV_DAHEADING  0x45
 #define UBX_ID_RXM_SFRBX      0x13
 #define UBX_ID_RXM_RAWX       0x15
 #define UBX_ID_RXM_RTCM       0x32
@@ -148,6 +149,7 @@
 #define UBX_MSG_NAV_STATUS    ((UBX_CLASS_NAV) | UBX_ID_NAV_STATUS << 8)
 #define UBX_MSG_NAV_SVIN      ((UBX_CLASS_NAV) | UBX_ID_NAV_SVIN << 8)
 #define UBX_MSG_NAV_RELPOSNED ((UBX_CLASS_NAV) | UBX_ID_NAV_RELPOSNED << 8)
+#define UBX_MSG_NAV_DAHEADING ((UBX_CLASS_NAV) | UBX_ID_NAV_DAHEADING << 8)
 #define UBX_MSG_RXM_SFRBX     ((UBX_CLASS_RXM) | UBX_ID_RXM_SFRBX << 8)
 #define UBX_MSG_RXM_RAWX      ((UBX_CLASS_RXM) | UBX_ID_RXM_RAWX << 8)
 #define UBX_MSG_RXM_RTCM      ((UBX_CLASS_RXM) | UBX_ID_RXM_RTCM << 8)
@@ -375,6 +377,7 @@
 #define UBX_CFG_KEY_MSGOUT_UBX_NAV_PVT_I2C       0x20910006
 #define UBX_CFG_KEY_MSGOUT_UBX_NAV_HPPOSLLH_I2C  0x20910033
 #define UBX_CFG_KEY_MSGOUT_UBX_NAV_RELPOSNED_I2C 0x2091008d
+#define UBX_CFG_KEY_MSGOUT_UBX_NAV_DAHEADING_I2C 0x209103df
 #define UBX_CFG_KEY_MSGOUT_UBX_RXM_SFRBX_I2C     0x20910231
 #define UBX_CFG_KEY_MSGOUT_UBX_RXM_RAWX_I2C      0x209102a4
 #define UBX_CFG_KEY_MSGOUT_UBX_RXM_RTCM_I2C      0x20910268
@@ -906,6 +909,26 @@ typedef struct {
 	uint32_t    flags;
 } ubx_payload_rx_nav_relposned_t;
 
+/* NAV DAHEADING */
+typedef struct {
+	uint8_t     version;         /**< message version (expected 0x02) */
+	uint8_t     reserved0[3];
+	uint32_t    iTOW;            /**< [ms] GPS time of week of the navigation epoch */
+	int32_t     relPosN;         /**< [mm] North component of the vector from antenna 1 to antenna 2 */
+	int32_t     relPosE;         /**< [mm] East component of the vector from antenna 1 to antenna 2 */
+	int32_t     relPosD;         /**< [mm] Down component of the vector from antenna 1 to antenna 2 */
+	int32_t     relPosLength;    /**< [mm] Length of the vector from antenna 1 to antenna 2 */
+	int32_t     relPosHeading;   /**< [1e-5 deg] Heading of the vector from antenna 1 to antenna 2 */
+	uint8_t     reserved1[4];
+	uint32_t    accN;            /**< [mm] Accuracy of the relative position North component */
+	uint32_t    accE;            /**< [mm] Accuracy of the relative position East component */
+	uint32_t    accD;            /**< [mm] Accuracy of the relative position Down component */
+	uint32_t    accLength;       /**< [mm] Accuracy of the length of the relative position vector */
+	uint32_t    accHeading;      /**< [1e-5 deg] Accuracy of the heading of the relative position vector */
+	uint8_t     reserved2[4];
+	uint32_t    flags;
+} ubx_payload_rx_nav_daheading_t;
+
 /* NAV HPPOSLLH (protocol version 27+) */
 typedef struct {
 	uint8_t     version;         /**< message version (expected 0x00) */
@@ -958,6 +981,7 @@ typedef union {
 	ubx_payload_tx_cfg_cfg_t          payload_tx_cfg_cfg;
 	ubx_payload_tx_cfg_gnss_t         payload_tx_cfg_gnss;
 	ubx_payload_rx_nav_relposned_t    payload_rx_nav_relposned;
+	ubx_payload_rx_nav_daheading_t    payload_rx_nav_daheading;
 } ubx_buf_t;
 
 #pragma pack(pop)
@@ -1060,6 +1084,13 @@ public:
 
 private:
 	int activateRTCMOutput(bool reduce_update_rate);
+
+	/**
+	 * Convert a relative position heading into a vehicle heading.
+	 * @param heading baseline heading as reported by the receiver [1e-5 deg]
+	 * @return heading corrected by GPS_YAW_OFFSET, normalized to [-pi, pi]
+	 */
+	float relPosHeadingToYaw(int32_t heading) const;
 
 	/**
 	 * While parsing add every byte (except the sync bytes) to the checksum
