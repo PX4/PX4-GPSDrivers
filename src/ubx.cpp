@@ -963,14 +963,15 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 		return -1;
 	}
 
-	// Dual antenna heading. Not requested in the moving base rover modes, where NAV-RELPOSNED already
-	// provides a heading from a different baseline that GPS_YAW_OFFSET is expected to describe.
-	// Separate, non-fatal VALSET: CFG-MSGOUT-UBX_NAV_DAHEADING only exists on the dual antenna
-	// firmware (X20D), so a NAK from a position-only X20P must not abort config.
-	if (_board == Board::u_blox_X20 && _mode != UBXMode::RoverWithMovingBaseUART2
-	    && _mode != UBXMode::RoverWithMovingBaseUART1) {
+	// Dual antenna heading, not used in a moving base setup where NAV-RELPOSNED provides it. The rate is
+	// always written so a mode change is idempotent; a NAK from a position-only X20P must not abort config.
+	if (_board == Board::u_blox_X20) {
+		const bool moving_base_setup = (_mode == UBXMode::RoverWithMovingBaseUART2)
+					       || (_mode == UBXMode::RoverWithMovingBaseUART1)
+					       || isMovingBase();
+
 		cfg_valset_msg_size = initCfgValset();
-		cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_DAHEADING_I2C, 1, cfg_valset_msg_size);
+		cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_DAHEADING_I2C, moving_base_setup ? 0 : 1, cfg_valset_msg_size);
 
 		if (sendMessage(UBX_MSG_CFG_VALSET, _tx_cfg_valset_buf, cfg_valset_msg_size)) {
 			if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, false) < 0) {
@@ -2588,12 +2589,14 @@ GPSDriverUBX::payloadRxDone()
 		UBX_TRACE_RXMSG("Rx NAV-RELPOSNED");
 		{
 			const float rel_length_cm = _buf.payload_rx_nav_relposned.relPosLength + _buf.payload_rx_nav_relposned.relPosHPLength * 1e-2f;
+			const float rel_length_m = rel_length_cm * 1e-2f; // cm -> m
 			const uint32_t flags = _buf.payload_rx_nav_relposned.flags;
 			const bool heading_valid_flag = flags & (1 << 8);
 			const bool rel_pos_valid = flags & (1 << 2);
 			const bool carrier_solution_fixed = flags & (1 << 4);
 
-			const bool heading_qualified = heading_valid_flag && rel_pos_valid && (rel_length_cm < 1000.f) && carrier_solution_fixed;
+			const bool heading_qualified = heading_valid_flag && rel_pos_valid
+						       && (rel_length_m < UBX_HEADING_MAX_BASELINE_M) && carrier_solution_fixed;
 
 			float heading_rad = NAN;
 			float heading_acc_rad = NAN;
@@ -2617,7 +2620,7 @@ GPSDriverUBX::payloadRxDone()
 			gps_rel.position[1] = (_buf.payload_rx_nav_relposned.relPosE + _buf.payload_rx_nav_relposned.relPosHPE * 1e-2f) * 1e-2f;
 			gps_rel.position[2] = (_buf.payload_rx_nav_relposned.relPosD + _buf.payload_rx_nav_relposned.relPosHPD * 1e-2f) * 1e-2f;
 
-			gps_rel.position_length = rel_length_cm * 1e-2f; // cm -> m
+			gps_rel.position_length = rel_length_m;
 
 			gps_rel.heading = heading_rad;
 			gps_rel.heading_accuracy = heading_acc_rad;
@@ -2660,8 +2663,8 @@ GPSDriverUBX::payloadRxDone()
 			const bool rel_pos_valid = flags & (1 << 2);
 			const bool carrier_solution_fixed = flags & (1 << 4);
 
-			const bool heading_qualified = heading_valid_flag && rel_pos_valid && (rel_length_m < 10.f)
-						       && carrier_solution_fixed;
+			const bool heading_qualified = heading_valid_flag && rel_pos_valid
+						       && (rel_length_m < UBX_HEADING_MAX_BASELINE_M) && carrier_solution_fixed;
 
 			float heading_rad = NAN;
 			float heading_acc_rad = NAN;

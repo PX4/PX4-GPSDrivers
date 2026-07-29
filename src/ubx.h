@@ -191,6 +191,9 @@
 #define UBX_RX_NAV_STATUS_SPOOFDETSTATE_MASK    0b00011000 /**< spoofDetState (Spoofing detection state) */
 #define UBX_RX_NAV_STATUS_SPOOFDETSTATE_SHIFT   3
 
+/** Longest antenna baseline for which a reported GNSS heading is used [m] */
+#define UBX_HEADING_MAX_BASELINE_M              10.f
+
 /* RX NAV-PVT message content details */
 /*   Bitfield "valid" masks */
 #define UBX_RX_NAV_PVT_VALID_VALIDDATE          0x01    /**< validDate (Valid UTC Date) */
