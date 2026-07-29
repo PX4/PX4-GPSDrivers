@@ -965,6 +965,7 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 
 	// Dual antenna heading, not used in a moving base setup where NAV-RELPOSNED provides it. The rate is
 	// always written so a mode change is idempotent; a NAK from a position-only X20P must not abort config.
+	// The receiver side heading offset is zeroed, leaving GPS_YAW_OFFSET as the only offset applied.
 	if (_board == Board::u_blox_X20) {
 		const bool moving_base_setup = (_mode == UBXMode::RoverWithMovingBaseUART2)
 					       || (_mode == UBXMode::RoverWithMovingBaseUART1)
@@ -972,6 +973,7 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 
 		cfg_valset_msg_size = initCfgValset();
 		cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_DAHEADING_I2C, moving_base_setup ? 0 : 1, cfg_valset_msg_size);
+		cfgValset<int32_t>(UBX_CFG_KEY_NAVSPG_DAHEADING_OFFSET, 0, cfg_valset_msg_size);
 
 		if (sendMessage(UBX_MSG_CFG_VALSET, _tx_cfg_valset_buf, cfg_valset_msg_size)) {
 			if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, false) < 0) {
@@ -2652,11 +2654,6 @@ GPSDriverUBX::payloadRxDone()
 	case UBX_MSG_NAV_DAHEADING:
 		UBX_TRACE_RXMSG("Rx NAV-DAHEADING");
 		{
-			if (_buf.payload_rx_nav_daheading.version != 2) {
-				UBX_DEBUG("NAV-DAHEADING version %u unsupported", (unsigned)_buf.payload_rx_nav_daheading.version);
-				break;
-			}
-
 			const float rel_length_m = _buf.payload_rx_nav_daheading.relPosLength * 1e-3f; // mm -> m
 			const uint32_t flags = _buf.payload_rx_nav_daheading.flags;
 			const bool heading_valid_flag = flags & (1 << 6); // bit 8 in NAV-RELPOSNED
