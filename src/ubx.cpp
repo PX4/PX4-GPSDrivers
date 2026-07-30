@@ -1115,8 +1115,9 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1127_UART2, 0, cfg_valset_msg_size); // BeiDou MSM7
 		}
 
-		if (_board == Board::u_blox9_F9P_L1L2) {
-			// F9P-15B doesn't support 4072
+		// 4072.0 marks the base as moving, without it the rover solves against it as a
+		// static base and never reports a heading. The F9P-15B doesn't support 4072.
+		if (_board == Board::u_blox9_F9P_L1L2 || _board == Board::u_blox_X20) {
 			UBX_DEBUG("Configuring ublox 4072");
 			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE4072_0_UART2, 1, cfg_valset_msg_size);
 		}
@@ -1183,8 +1184,9 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1127_UART1, 0, cfg_valset_msg_size); // BeiDou MSM7
 		}
 
-		if (_board == Board::u_blox9_F9P_L1L2) {
-			// F9P-15B doesn't support 4072
+		// 4072.0 marks the base as moving, without it the rover solves against it as a
+		// static base and never reports a heading. The F9P-15B doesn't support 4072.
+		if (_board == Board::u_blox9_F9P_L1L2 || _board == Board::u_blox_X20) {
 			UBX_DEBUG("Configuring ublox 4072");
 			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE4072_0_UART1, 1, cfg_valset_msg_size);
 		}
