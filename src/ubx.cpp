@@ -963,6 +963,25 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 		return -1;
 	}
 
+	// Dual antenna heading, not used in a moving base setup where NAV-RELPOSNED provides it. The rate is
+	// always written so a mode change is idempotent; a NAK from a position-only X20P must not abort config.
+	// The receiver side heading offset is zeroed, leaving GPS_YAW_OFFSET as the only offset applied.
+	if (_board == Board::u_blox_X20) {
+		const bool moving_base_setup = (_mode == UBXMode::RoverWithMovingBaseUART2)
+					       || (_mode == UBXMode::RoverWithMovingBaseUART1)
+					       || isMovingBase();
+
+		cfg_valset_msg_size = initCfgValset();
+		cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_DAHEADING_I2C, moving_base_setup ? 0 : 1, cfg_valset_msg_size);
+		cfgValset<int32_t>(UBX_CFG_KEY_NAVSPG_DAHEADING_OFFSET, 0, cfg_valset_msg_size);
+
+		if (sendMessage(UBX_MSG_CFG_VALSET, _tx_cfg_valset_buf, cfg_valset_msg_size)) {
+			if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, false) < 0) {
+				UBX_DEBUG("NAV-DAHEADING not supported by this receiver");
+			}
+		}
+	}
+
 	if (_interface == Interface::UART || _interface == Interface::SPI) {
 
 		// Enable/Disable GPS protocols at I2C interface
@@ -1096,8 +1115,9 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1127_UART2, 0, cfg_valset_msg_size); // BeiDou MSM7
 		}
 
-		if (_board == Board::u_blox9_F9P_L1L2) {
-			// F9P-15B doesn't support 4072
+		// 4072.0 marks the base as moving, without it the rover solves against it as a
+		// static base and never reports a heading. The F9P-15B doesn't support 4072.
+		if (_board == Board::u_blox9_F9P_L1L2 || _board == Board::u_blox_X20) {
 			UBX_DEBUG("Configuring ublox 4072");
 			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE4072_0_UART2, 1, cfg_valset_msg_size);
 		}
@@ -1164,8 +1184,9 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1127_UART1, 0, cfg_valset_msg_size); // BeiDou MSM7
 		}
 
-		if (_board == Board::u_blox9_F9P_L1L2) {
-			// F9P-15B doesn't support 4072
+		// 4072.0 marks the base as moving, without it the rover solves against it as a
+		// static base and never reports a heading. The F9P-15B doesn't support 4072.
+		if (_board == Board::u_blox9_F9P_L1L2 || _board == Board::u_blox_X20) {
 			UBX_DEBUG("Configuring ublox 4072");
 			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE4072_0_UART1, 1, cfg_valset_msg_size);
 		}
@@ -1732,6 +1753,17 @@ GPSDriverUBX::payloadRxInit()
 
 	case UBX_MSG_NAV_RELPOSNED:
 		if (_rx_payload_length != sizeof(ubx_payload_rx_nav_relposned_t)) {
+			_rx_state = UBX_RXMSG_ERROR_LENGTH;
+
+		} else if (!_configured) {
+			_rx_state = UBX_RXMSG_IGNORE;        // ignore if not _configured
+
+		}
+
+		break;
+
+	case UBX_MSG_NAV_DAHEADING:
+		if (_rx_payload_length != sizeof(ubx_payload_rx_nav_daheading_t)) {
 			_rx_state = UBX_RXMSG_ERROR_LENGTH;
 
 		} else if (!_configured) {
@@ -2561,32 +2593,21 @@ GPSDriverUBX::payloadRxDone()
 		UBX_TRACE_RXMSG("Rx NAV-RELPOSNED");
 		{
 			const float rel_length_cm = _buf.payload_rx_nav_relposned.relPosLength + _buf.payload_rx_nav_relposned.relPosHPLength * 1e-2f;
+			const float rel_length_m = rel_length_cm * 1e-2f; // cm -> m
 			const uint32_t flags = _buf.payload_rx_nav_relposned.flags;
 			const bool heading_valid_flag = flags & (1 << 8);
 			const bool rel_pos_valid = flags & (1 << 2);
 			const bool carrier_solution_fixed = flags & (1 << 4);
 
-			const bool heading_qualified = heading_valid_flag && rel_pos_valid && (rel_length_cm < 1000.f) && carrier_solution_fixed;
+			const bool heading_qualified = heading_valid_flag && rel_pos_valid
+						       && (rel_length_m < UBX_HEADING_MAX_BASELINE_M) && carrier_solution_fixed;
 
 			float heading_rad = NAN;
 			float heading_acc_rad = NAN;
 
 			if (heading_qualified) {
-				const float heading_deg = _buf.payload_rx_nav_relposned.relPosHeading * 1e-5f;
-				const float heading_acc_deg = _buf.payload_rx_nav_relposned.accHeading * 1e-5f;
-
-				heading_rad = heading_deg * M_PI_F / 180.0f;
-				heading_rad -= _heading_offset;
-
-				// Normalize to [-pi, pi]
-				if (heading_rad > M_PI_F) {
-					heading_rad -= 2.f * M_PI_F;
-
-				} else if (heading_rad < -M_PI_F) {
-					heading_rad += 2.f * M_PI_F;
-				}
-
-				heading_acc_rad = heading_acc_deg * M_PI_F / 180.0f;
+				heading_rad = relPosHeadingToYaw(_buf.payload_rx_nav_relposned.relPosHeading);
+				heading_acc_rad = _buf.payload_rx_nav_relposned.accHeading * M_DEG_TO_RAD_F * 1e-5f;
 			}
 
 			_gps_position->heading = heading_rad;
@@ -2603,7 +2624,7 @@ GPSDriverUBX::payloadRxDone()
 			gps_rel.position[1] = (_buf.payload_rx_nav_relposned.relPosE + _buf.payload_rx_nav_relposned.relPosHPE * 1e-2f) * 1e-2f;
 			gps_rel.position[2] = (_buf.payload_rx_nav_relposned.relPosD + _buf.payload_rx_nav_relposned.relPosHPD * 1e-2f) * 1e-2f;
 
-			gps_rel.position_length = rel_length_cm * 1e-2f; // cm -> m
+			gps_rel.position_length = rel_length_m;
 
 			gps_rel.heading = heading_rad;
 			gps_rel.heading_accuracy = heading_acc_rad;
@@ -2624,6 +2645,66 @@ GPSDriverUBX::payloadRxDone()
 			gps_rel.reference_observations_miss  = flags & (1 << 7);
 			gps_rel.heading_valid                = heading_qualified;
 			gps_rel.relative_position_normalized = flags & (1 << 9);
+
+			gotRelativePositionMessage(gps_rel);
+
+			ret = 1;
+		}
+
+		break;
+
+	case UBX_MSG_NAV_DAHEADING:
+		UBX_TRACE_RXMSG("Rx NAV-DAHEADING");
+		{
+			const float rel_length_m = _buf.payload_rx_nav_daheading.relPosLength * 1e-3f; // mm -> m
+			const uint32_t flags = _buf.payload_rx_nav_daheading.flags;
+			const bool heading_valid_flag = flags & (1 << 6); // bit 8 in NAV-RELPOSNED
+			const bool rel_pos_valid = flags & (1 << 2);
+			const bool carrier_solution_fixed = flags & (1 << 4);
+
+			const bool heading_qualified = heading_valid_flag && rel_pos_valid
+						       && (rel_length_m < UBX_HEADING_MAX_BASELINE_M) && carrier_solution_fixed;
+
+			float heading_rad = NAN;
+			float heading_acc_rad = NAN;
+
+			if (heading_qualified) {
+				heading_rad = relPosHeadingToYaw(_buf.payload_rx_nav_daheading.relPosHeading);
+				heading_acc_rad = _buf.payload_rx_nav_daheading.accHeading * M_DEG_TO_RAD_F * 1e-5f;
+			}
+
+			_gps_position->heading = heading_rad;
+			_gps_position->heading_accuracy = heading_acc_rad;
+
+			sensor_gnss_relative_s gps_rel{};
+
+			gps_rel.timestamp_sample = gps_absolute_time();
+
+			// time_utc_usec is left at 0 (documented as unavailable): NAV-DAHEADING only carries
+			// iTOW, which cannot be converted to UTC without the week number and leap seconds.
+
+			gps_rel.position[0] = _buf.payload_rx_nav_daheading.relPosN * 1e-3f; // mm -> m
+			gps_rel.position[1] = _buf.payload_rx_nav_daheading.relPosE * 1e-3f;
+			gps_rel.position[2] = _buf.payload_rx_nav_daheading.relPosD * 1e-3f;
+
+			gps_rel.position_length = rel_length_m;
+
+			gps_rel.heading = heading_rad;
+			gps_rel.heading_accuracy = heading_acc_rad;
+
+			gps_rel.position_accuracy[0] = _buf.payload_rx_nav_daheading.accN * 1e-3f;
+			gps_rel.position_accuracy[1] = _buf.payload_rx_nav_daheading.accE * 1e-3f;
+			gps_rel.position_accuracy[2] = _buf.payload_rx_nav_daheading.accD * 1e-3f;
+
+			gps_rel.accuracy_length = _buf.payload_rx_nav_daheading.accLength * 1e-3f;
+
+			// NAV-DAHEADING has no reference station, moving base or normalized position flags
+			gps_rel.gnss_fix_ok               = flags & (1 << 0);
+			gps_rel.differential_solution     = flags & (1 << 1);
+			gps_rel.relative_position_valid   = rel_pos_valid;
+			gps_rel.carrier_solution_floating = flags & (1 << 3);
+			gps_rel.carrier_solution_fixed    = carrier_solution_fixed;
+			gps_rel.heading_valid             = heading_qualified;
 
 			gotRelativePositionMessage(gps_rel);
 
@@ -2803,6 +2884,23 @@ GPSDriverUBX::decodeInit()
 	_rx_ck_b = 0;
 	_rx_payload_length = 0;
 	_rx_payload_index = 0;
+}
+
+float
+GPSDriverUBX::relPosHeadingToYaw(int32_t heading) const
+{
+	float heading_rad = heading * M_DEG_TO_RAD_F * 1e-5f;
+	heading_rad -= _heading_offset;
+
+	// Normalize to [-pi, pi]
+	if (heading_rad > M_PI_F) {
+		heading_rad -= 2.f * M_PI_F;
+
+	} else if (heading_rad < -M_PI_F) {
+		heading_rad += 2.f * M_PI_F;
+	}
+
+	return heading_rad;
 }
 
 void
