@@ -955,6 +955,15 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 		cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_RXM_RTCM_I2C, 1, cfg_valset_msg_size);
 	}
 
+	// Explicitly disable the messages this driver never consumes. We do not enable them,
+	// but they can be left on in the receiver's non-volatile config by other software
+	// (u-center, or another firmware such as ArduPilot, which writes CFG-VALSET to the
+	// BBR/FLASH layers). Clearing them here rather than waiting for payloadRxInit() to
+	// notice them avoids wasting UART bandwidth on every boot.
+	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_TIMEGPS_I2C, 0, cfg_valset_msg_size);
+	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_RXM_RAWX_I2C, 0, cfg_valset_msg_size);
+	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_RXM_SFRBX_I2C, 0, cfg_valset_msg_size);
+
 	if (!sendMessage(UBX_MSG_CFG_VALSET, _tx_cfg_valset_buf, cfg_valset_msg_size)) {
 		return -1;
 	}
