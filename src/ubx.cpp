@@ -3039,6 +3039,7 @@ GPSDriverUBX::reset(GPSRestartType restart_type)
 	}
 
 	if (sendMessage(UBX_MSG_CFG_RST, (uint8_t *)&_buf, sizeof(_buf.payload_tx_cfg_rst))) {
+		_configured = false;
 		return 0;
 	}
 
