@@ -2931,10 +2931,6 @@ GPSDriverUBX::reset(GPSRestartType restart_type)
 	}
 
 	if (sendMessage(UBX_MSG_CFG_RST, (uint8_t *)&_buf, sizeof(_buf.payload_tx_cfg_rst))) {
-		// The receiver reboots onto its saved configuration, so ours is gone.
-		// receiverReady() gates correction injection, and writes landing in a
-		// rebooting receiver are lost - assistance data especially, since the
-		// caster only sends it once per connection.
 		_configured = false;
 		return 0;
 	}
