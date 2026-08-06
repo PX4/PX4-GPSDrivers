@@ -120,13 +120,10 @@ GPSDriverUBX::configure(unsigned &baudrate, const GPSConfig &config)
 		unsigned baud_i;
 		unsigned desired_baudrate = auto_baudrate ? UBX_BAUDRATE_M8_AND_NEWER : baudrate;
 
-		if ((_mode == UBXMode::RoverWithMovingBaseUART1) || (_mode == UBXMode::MovingBaseUART1)) {
-			desired_baudrate = UART1_BAUDRATE_HEADING;
-		}
-
-		// An explicit UART1 target wins. The probe scan is unaffected, so this
-		// cannot lock the driver out of a receiver at its power-on default the
-		// way a fixed baudrate does.
+		// uart1_baudrate (GPS_UBX_BAUD1) is the sole UART1 target after auto-detect.
+		// 0 keeps the driver default (115200). The probe scan is unaffected, so this
+		// cannot lock the driver out of a receiver at its power-on default the way a
+		// fixed baudrate does.
 		if (_uart1_baudrate > 0) {
 			desired_baudrate = _uart1_baudrate;
 		}
