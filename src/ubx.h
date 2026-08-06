@@ -1040,6 +1040,11 @@ public:
 		int8_t min_elev;
 		uint8_t output_rate;
 		float heading_offset;
+		// Target baudrate for the receiver's UART1, applied after the link is
+		// auto-detected. 0 keeps the driver default (115200; heading modes
+		// 921600). Unlike a fixed baudrate this never prevents connecting to a
+		// receiver still at its power-on default.
+		int32_t uart1_baudrate;
 		int32_t uart2_baudrate;
 		bool ppk_output;
 		bool jam_det_sensitivity_hi;
@@ -1262,6 +1267,7 @@ private:
 
 	const UBXMode _mode {};
 	const float _heading_offset {};
+	const int32_t _uart1_baudrate {};
 	const int32_t _uart2_baudrate {};
 	const bool _ppk_output {};
 	const bool _jam_det_sensitivity_hi {};
