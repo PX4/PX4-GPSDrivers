@@ -68,8 +68,6 @@
 #define UBX_SYNC1             0xB5
 #define UBX_SYNC2             0x62
 
-#define UART1_BAUDRATE_HEADING 921600
-
 /* Message Classes */
 #define UBX_CLASS_NAV         0x01
 #define UBX_CLASS_RXM         0x02
@@ -1041,9 +1039,9 @@ public:
 		uint8_t output_rate;
 		float heading_offset;
 		// Target baudrate for the receiver's UART1, applied after the link is
-		// auto-detected. 0 keeps the driver default (115200; heading modes
-		// 921600). Unlike a fixed baudrate this never prevents connecting to a
-		// receiver still at its power-on default.
+		// auto-detected. 0 keeps the driver default (115200). Unlike a fixed
+		// baudrate this never prevents connecting to a receiver still at its
+		// power-on default.
 		int32_t uart1_baudrate;
 		int32_t uart2_baudrate;
 		bool ppk_output;
