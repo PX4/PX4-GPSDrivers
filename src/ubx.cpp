@@ -81,6 +81,7 @@ GPSDriverUBX::GPSDriverUBX(Interface gpsInterface, GPSCallbackPtr callback, void
 	_output_rate(settings.output_rate),
 	_mode(settings.mode),
 	_heading_offset(settings.heading_offset),
+	_uart1_baudrate(settings.uart1_baudrate),
 	_uart2_baudrate(settings.uart2_baudrate),
 	_ppk_output(settings.ppk_output),
 	_jam_det_sensitivity_hi(settings.jam_det_sensitivity_hi)
@@ -121,6 +122,13 @@ GPSDriverUBX::configure(unsigned &baudrate, const GPSConfig &config)
 
 		if ((_mode == UBXMode::RoverWithMovingBaseUART1) || (_mode == UBXMode::MovingBaseUART1)) {
 			desired_baudrate = UART1_BAUDRATE_HEADING;
+		}
+
+		// An explicit UART1 target wins. The probe scan is unaffected, so this
+		// cannot lock the driver out of a receiver at its power-on default the
+		// way a fixed baudrate does.
+		if (_uart1_baudrate > 0) {
+			desired_baudrate = _uart1_baudrate;
 		}
 
 		for (baud_i = 0; baud_i < sizeof(baudrates) / sizeof(baudrates[0]); baud_i++) {
@@ -223,7 +231,7 @@ GPSDriverUBX::configure(unsigned &baudrate, const GPSConfig &config)
 					continue;
 				}
 
-				if (auto_baudrate) {
+				if (auto_baudrate && _uart1_baudrate == 0) {
 					desired_baudrate = UBX_TX_CFG_PRT_BAUDRATE;
 				}
 
@@ -2398,6 +2406,12 @@ GPSDriverUBX::payloadRxDone()
 #else
 			_gps_position->time_utc_usec = 0;
 #endif
+
+		} else {
+			// The struct is reused across messages, so without this a receiver
+			// that lost time in a reset keeps reporting the last time it knew.
+			// 0 is the defined "unavailable" value.
+			_gps_position->time_utc_usec = 0;
 		}
 
 		_gps_position->timestamp = gps_absolute_time();
@@ -2536,6 +2550,12 @@ GPSDriverUBX::payloadRxDone()
 #else
 			_gps_position->time_utc_usec = 0;
 #endif
+
+		} else {
+			// The struct is reused across messages, so without this a receiver
+			// that lost time in a reset keeps reporting the last time it knew.
+			// 0 is the defined "unavailable" value.
+			_gps_position->time_utc_usec = 0;
 		}
 
 		_last_timestamp_time = gps_absolute_time();
