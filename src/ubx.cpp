@@ -1868,7 +1868,8 @@ GPSDriverUBX::payloadRxInit()
 		break;
 
 	case UBX_MSG_MON_RF:
-		if (_rx_payload_length < sizeof(ubx_payload_rx_mon_rf_t) ||
+		if (_rx_payload_length > sizeof(ubx_payload_rx_mon_rf_t) ||
+		    (_rx_payload_length == 4) ||
 		    (_rx_payload_length - 4) % sizeof(ubx_payload_rx_mon_rf_t::ubx_payload_rx_mon_rf_block_t) != 0) {
 
 			_rx_state = UBX_RXMSG_ERROR_LENGTH;
@@ -2787,11 +2788,41 @@ GPSDriverUBX::payloadRxDone()
 
 	case UBX_MSG_MON_RF:
 		UBX_TRACE_RXMSG("Rx MON-RF");
+		{
+			// Fill fields for SensorGps
+			// todo: remove them from the message definition, as they're now logged twice ?
+			_gps_position->noise_per_ms		= _buf.payload_rx_mon_rf.block[0].noisePerMS;
+			_gps_position->automatic_gain_control	= _buf.payload_rx_mon_rf.block[0].agcCnt;
+			_gps_position->jamming_indicator	= _buf.payload_rx_mon_rf.block[0].jamInd;
+			_gps_position->jamming_state		= _buf.payload_rx_mon_rf.block[0].flags;
 
-		_gps_position->noise_per_ms		= _buf.payload_rx_mon_rf.block[0].noisePerMS;
-		_gps_position->automatic_gain_control	= _buf.payload_rx_mon_rf.block[0].agcCnt;
-		_gps_position->jamming_indicator	= _buf.payload_rx_mon_rf.block[0].jamInd;
-		_gps_position->jamming_state		= _buf.payload_rx_mon_rf.block[0].flags;
+			const uint64_t timestamp_sample = gps_absolute_time(); // TODO: adjust with delay estimate
+
+			int rf_blocks = _buf.payload_rx_mon_rf.nBlocks;
+
+			if (rf_blocks > kMaxBlocks) {
+				rf_blocks = kMaxBlocks;
+			}
+
+			// Extract all RF metrics
+			for (int i = 0; i < rf_blocks; i++) {
+				sensor_gnss_rf_s gnss_rf{};
+				gnss_rf.timestamp_sample = timestamp_sample;
+				gnss_rf.block_id = _buf.payload_rx_mon_rf.block[i].blockId;;
+				gnss_rf.antenna_status = _buf.payload_rx_mon_rf.block[i].antStatus;
+				gnss_rf.antenna_power = _buf.payload_rx_mon_rf.block[i].antPower;
+				gnss_rf.post_status = _buf.payload_rx_mon_rf.block[i].postStatus;
+				gnss_rf.noise_per_ms = _buf.payload_rx_mon_rf.block[i].noisePerMS;
+				gnss_rf.automatic_gain_control = _buf.payload_rx_mon_rf.block[i].agcCnt;
+				gnss_rf.jamming_indicator = _buf.payload_rx_mon_rf.block[i].jamInd;
+				gnss_rf.i_offset = _buf.payload_rx_mon_rf.block[i].ofsI;
+				gnss_rf.i_magnitude = _buf.payload_rx_mon_rf.block[i].magI;
+				gnss_rf.q_offset = _buf.payload_rx_mon_rf.block[i].ofsQ;
+				gnss_rf.q_magnitude = _buf.payload_rx_mon_rf.block[i].magQ;
+
+				gotRFMessage(gnss_rf);
+			}
+		}
 
 		ret = 1;
 		break;

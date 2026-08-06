@@ -701,6 +701,8 @@ typedef struct {
 	uint8_t reserved0[56];
 } ubx_payload_rx_mon_hw_deprecated_t;
 
+static constexpr uint8_t kMaxBlocks = 2;  ///< handle up to 2 blocks
+
 /* Rx MON-RF (replaces MON-HW, protocol 27+) */
 typedef struct {
 	uint8_t version;
@@ -724,7 +726,7 @@ typedef struct {
 		uint8_t  reserved3[3];
 	};
 
-	ubx_payload_rx_mon_rf_block_t block[1]; ///< only read out the first block
+	ubx_payload_rx_mon_rf_block_t block[kMaxBlocks];
 } ubx_payload_rx_mon_rf_t;
 
 /* Rx MON-VER Part 1 */
@@ -1272,5 +1274,3 @@ private:
 	const bool _ppk_output {};
 	const bool _jam_det_sensitivity_hi {};
 };
-
-
