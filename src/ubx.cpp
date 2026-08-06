@@ -2815,6 +2815,7 @@ GPSDriverUBX::payloadRxDone()
 				gnss_rf.noise_per_ms = _buf.payload_rx_mon_rf.block[i].noisePerMS;
 				gnss_rf.automatic_gain_control = _buf.payload_rx_mon_rf.block[i].agcCnt;
 				gnss_rf.jamming_indicator = _buf.payload_rx_mon_rf.block[i].jamInd;
+				gnss_rf.jamming_state = _buf.payload_rx_mon_rf.block[i].flags;
 				gnss_rf.i_offset = _buf.payload_rx_mon_rf.block[i].ofsI;
 				gnss_rf.i_magnitude = _buf.payload_rx_mon_rf.block[i].magI;
 				gnss_rf.q_offset = _buf.payload_rx_mon_rf.block[i].ofsQ;
