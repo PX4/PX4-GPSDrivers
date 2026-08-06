@@ -114,6 +114,24 @@ enum class GPSCallbackType {
 	 * return: ignored
 	 */
 	setClock,
+
+	/**
+	 * Got an RF message from the device.
+	 * data1: pointer to the message
+	 * data2: message length
+	 * return: ignored
+	 */
+	gotRFMessage,
+
+#if defined(CONFIG_GPS_UBX_SPAN)
+	/**
+	 * Got a spectrum message from the device.
+	 * data1: pointer to the message
+	 * data2: message length
+	 * return: ignored
+	 */
+	gotSpectrumMessage,
+#endif
 };
 
 enum class GPSRestartType {
@@ -319,6 +337,20 @@ protected:
 	{
 		_callback(GPSCallbackType::gotRelativePositionMessage, &gnss_relative, sizeof(sensor_gnss_relative_s), _callback_user);
 	}
+
+	/** got an RF message from the device */
+	void gotRFMessage(sensor_gnss_rf_s &gnss_rf)
+	{
+		_callback(GPSCallbackType::gotRFMessage, &gnss_rf, sizeof(sensor_gnss_rf_s), _callback_user);
+	}
+
+#if defined(CONFIG_GPS_UBX_SPAN)
+	/** got a spectrum message from the device */
+	void gotSpectrumMessage(sensor_gnss_spectrum_s &gnss_spectrum)
+	{
+		_callback(GPSCallbackType::gotSpectrumMessage, &gnss_spectrum, sizeof(sensor_gnss_spectrum_s), _callback_user);
+	}
+#endif
 
 	void setClock(timespec &t)
 	{
