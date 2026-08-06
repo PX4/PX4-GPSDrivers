@@ -2398,6 +2398,12 @@ GPSDriverUBX::payloadRxDone()
 #else
 			_gps_position->time_utc_usec = 0;
 #endif
+
+		} else {
+			// The struct is reused across messages, so without this a receiver
+			// that lost time in a reset keeps reporting the last time it knew.
+			// 0 is the defined "unavailable" value.
+			_gps_position->time_utc_usec = 0;
 		}
 
 		_gps_position->timestamp = gps_absolute_time();
@@ -2536,6 +2542,12 @@ GPSDriverUBX::payloadRxDone()
 #else
 			_gps_position->time_utc_usec = 0;
 #endif
+
+		} else {
+			// The struct is reused across messages, so without this a receiver
+			// that lost time in a reset keeps reporting the last time it knew.
+			// 0 is the defined "unavailable" value.
+			_gps_position->time_utc_usec = 0;
 		}
 
 		_last_timestamp_time = gps_absolute_time();
