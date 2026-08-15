@@ -745,8 +745,12 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_QZSS_ENA, 1);
 			UBX_DEBUG("GNSS Systems: Enable QZSS L1CA");
 			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_QZSS_L1CA_ENA, 1);
-			UBX_DEBUG("GNSS Systems: Enable QZSS L1S");
-			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_QZSS_L1S_ENA, 1);
+
+			// M9 (SPG) has no CFG-SIGNAL key for QZSS L1S
+			if (_board != Board::u_blox9) {
+				UBX_DEBUG("GNSS Systems: Enable QZSS L1S");
+				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_QZSS_L1S_ENA, 1);
+			}
 
 			if (_board == Board::u_blox_X20) {
 				UBX_DEBUG("GNSS Systems: Use GPS L2C + L5, QZSS L2C + L5");
@@ -909,9 +913,38 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 			}
 		}
 
-		if (sendCfgValsetAcked() < 0) {
-			UBX_DEBUG("UBX GNSS config failed");
+		if (!sendCfgValset()) {
+			UBX_DEBUG("UBX GNSS config send failed");
 			return -1;
+		}
+
+		if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true) < 0) {
+			// The receiver NAKs the whole message and applies nothing if it does not know a
+			// single key, so a signal key missing on this generation would leave the receiver
+			// unconfigured. Retry with the constellation enables, those exist everywhere.
+			UBX_WARN("GNSS signal config rejected, retrying without signal bands");
+
+			initCfgValset();
+
+			const uint8_t use_gps = (config.gnss_systems & GNSSSystemsMask::ENABLE_GPS) ? 1 : 0;
+			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GPS_ENA, use_gps);
+			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_QZSS_ENA, use_gps);
+			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GAL_ENA, (config.gnss_systems & GNSSSystemsMask::ENABLE_GALILEO) ? 1 : 0);
+			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_BDS_ENA, (config.gnss_systems & GNSSSystemsMask::ENABLE_BEIDOU) ? 1 : 0);
+
+			if (_board != Board::u_blox10_L1L5 && _board != Board::u_blox_X20) {
+				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GLO_ENA, (config.gnss_systems & GNSSSystemsMask::ENABLE_GLONASS) ? 1 : 0);
+			}
+
+			if (!sendCfgValset()) {
+				return -1;
+			}
+
+			if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true) < 0) {
+				// Keep going with whatever the receiver already has, a refused constellation
+				// selection must not cost us the fix
+				UBX_WARN("GNSS constellation config rejected, keeping receiver config");
+			}
 		}
 
 		// send SBAS config separately, because it seems to be buggy (with u-center, too)
