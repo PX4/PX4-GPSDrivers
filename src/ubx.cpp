@@ -1149,18 +1149,25 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 		cfgValset(RTCM_MSM7_UART2, _ppk_output ? 1 : 0);
 		cfgValset(RTCM_MSM4_UART2, _ppk_output ? 0 : 1);
 
-		// 4072.0 marks the base as moving, without it the rover solves against it as a
-		// static base and never reports a heading. The F9P-15B doesn't support 4072.
-		if (_board == Board::u_blox9_F9P_L1L2 || _board == Board::u_blox_X20) {
-			UBX_DEBUG("Configuring ublox 4072");
-			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE4072_0_UART2, 1);
-		}
-
 		if (sendCfgValsetAcked() < 0) {
 			return -1;
 		}
 
 		GPS_INFO("UART2: RTCM3 out @ %d baud (rover)", (int)uart2_baudrate);
+
+		// 4072.0 marks the base as moving, without it the rover solves against it as a
+		// static base and never reports a heading. The F9P-15B doesn't support 4072, and
+		// neither does the X20 before HPG 2.10, so it goes out on its own: losing the
+		// heading is bad, losing the receiver is worse.
+		if (_board == Board::u_blox9_F9P_L1L2 || _board == Board::u_blox_X20) {
+			UBX_DEBUG("Configuring ublox 4072");
+			initCfgValset();
+			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE4072_0_UART2, 1);
+
+			if (sendCfgValsetAcked(false) < 0) {
+				UBX_WARN("RTCM 4072.0 not supported, no moving base heading");
+			}
+		}
 
 	} else if (_mode == UBXMode::RoverWithMovingBaseUART1) {
 		UBX_DEBUG("Configuring UART1 for rover");
@@ -1196,15 +1203,22 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 		cfgValset(RTCM_MSM7_UART1, _ppk_output ? 1 : 0);
 		cfgValset(RTCM_MSM4_UART1, _ppk_output ? 0 : 1);
 
-		// 4072.0 marks the base as moving, without it the rover solves against it as a
-		// static base and never reports a heading. The F9P-15B doesn't support 4072.
-		if (_board == Board::u_blox9_F9P_L1L2 || _board == Board::u_blox_X20) {
-			UBX_DEBUG("Configuring ublox 4072");
-			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE4072_0_UART1, 1);
-		}
-
 		if (sendCfgValsetAcked() < 0) {
 			return -1;
+		}
+
+		// 4072.0 marks the base as moving, without it the rover solves against it as a
+		// static base and never reports a heading. The F9P-15B doesn't support 4072, and
+		// neither does the X20 before HPG 2.10, so it goes out on its own: losing the
+		// heading is bad, losing the receiver is worse.
+		if (_board == Board::u_blox9_F9P_L1L2 || _board == Board::u_blox_X20) {
+			UBX_DEBUG("Configuring ublox 4072");
+			initCfgValset();
+			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE4072_0_UART1, 1);
+
+			if (sendCfgValsetAcked(false) < 0) {
+				UBX_WARN("RTCM 4072.0 not supported, no moving base heading");
+			}
 		}
 
 	} else if (_mode == UBXMode::GroundControlStation) {
