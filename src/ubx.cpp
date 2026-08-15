@@ -1001,18 +1001,28 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 		cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_RXM_RTCM_I2C, 1);
 	}
 
+	if (sendCfgValsetAcked() < 0) {
+		return -1;
+	}
+
 	// Explicitly disable the messages this driver never consumes. We do not enable them,
 	// but they can be left on in the receiver's non-volatile config by other software
 	// (u-center, or another firmware such as ArduPilot, which writes CFG-VALSET to the
 	// BBR/FLASH layers). Clearing them here rather than waiting for payloadRxInit() to
 	// notice them avoids wasting UART bandwidth on every boot.
-	static constexpr uint32_t unused_msgout[] = {
-		UBX_CFG_KEY_MSGOUT_UBX_NAV_TIMEGPS_I2C, UBX_CFG_KEY_MSGOUT_UBX_RXM_RAWX_I2C, UBX_CFG_KEY_MSGOUT_UBX_RXM_SFRBX_I2C
-	};
-	cfgValsetPort(unused_msgout, 0);
+	// Separate, non-fatal VALSET: these messages do not exist on every generation, and
+	// bandwidth we failed to save is not worth losing the receiver over.
+	initCfgValset();
+	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_TIMEGPS_I2C, 0);
+	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_RXM_SFRBX_I2C, 0);
 
-	if (sendCfgValsetAcked() < 0) {
-		return -1;
+	// M10 and F10 have no raw measurement output
+	if (_board != Board::u_blox10 && _board != Board::u_blox10_L1L5) {
+		cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_RXM_RAWX_I2C, 0);
+	}
+
+	if (sendCfgValsetAcked(false) < 0) {
+		UBX_WARN("Could not disable unused messages");
 	}
 
 	// Dual antenna heading, not used in a moving base setup where NAV-RELPOSNED provides it. The rate is
