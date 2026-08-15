@@ -518,8 +518,10 @@ int GPSDriverUBX::configureDevicePreV27(const GNSSSystemsMask &gnssSystems)
 		}
 
 		if (waitForAck(UBX_MSG_CFG_GNSS, UBX_CONFIG_TIMEOUT, true) < 0) {
-			UBX_DEBUG("UBX CFG-GNSS message ACK failed");
-			return -1;
+			// The receiver rejects the configuration as a whole if it names a constellation it
+			// cannot receive, e.g. BeiDou on a SAM-M8Q, or more of them than it can track at
+			// once. Keep the receiver's own selection rather than losing the fix over it.
+			UBX_WARN("GNSS constellation config rejected, keeping receiver config");
 		}
 	}
 
