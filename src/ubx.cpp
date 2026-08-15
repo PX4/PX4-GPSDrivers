@@ -691,11 +691,14 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 
 	// Disable odometer. Separate, non-fatal VALSET: CFG-ODO-* was removed on the
 	// F20 platform (ZED-X20P HPG 2.10+), so a NAK here must not abort config.
-	static constexpr uint32_t odo_keys[] = {
-		UBX_CFG_KEY_ODO_USE_ODO, UBX_CFG_KEY_ODO_USE_COG, UBX_CFG_KEY_ODO_OUTLPVEL, UBX_CFG_KEY_ODO_OUTLPCOG
-	};
 	initCfgValset();
-	cfgValset(odo_keys, 0);
+	cfgValset<uint8_t>(UBX_CFG_KEY_ODO_USE_ODO, 0);
+
+	// M9 (SPG) only has USE_ODO and PROFILE in CFG-ODO
+	if (_board != Board::u_blox9) {
+		static constexpr uint32_t odo_keys[] = {UBX_CFG_KEY_ODO_USE_COG, UBX_CFG_KEY_ODO_OUTLPVEL, UBX_CFG_KEY_ODO_OUTLPCOG};
+		cfgValset(odo_keys, 0);
+	}
 
 	sendCfgValsetAcked(false);
 
