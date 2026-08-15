@@ -758,7 +758,6 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 				UBX_DEBUG("GNSS Systems: Use GPS L2C + L5, QZSS L2C + L5");
 				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GPS_L2C_ENA, 1);
 				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GPS_L5_ENA, 1);
-				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_L5_HEALTH_OVERRIDE, 1);
 				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_QZSS_L2C_ENA, 1);
 				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_QZSS_L5_ENA, 1);
 
@@ -771,8 +770,6 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 			} else if (_board == Board::u_blox9_F9P_L1L5 || _board == Board::u_blox10_L1L5) {
 				UBX_DEBUG("GNSS Systems: Use GPS L5");
 				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GPS_L5_ENA, 1);
-				UBX_DEBUG("GNSS Systems: Enable GPS L5 health override");
-				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_L5_HEALTH_OVERRIDE, 1);
 				UBX_DEBUG("GNSS Systems: Use QZSS L5");
 				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_QZSS_L5_ENA, 1);
 			}
@@ -787,7 +784,6 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 				UBX_DEBUG("GNSS Systems: Disable GPS L2C + L5");
 				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GPS_L2C_ENA, 0);
 				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GPS_L5_ENA, 0);
-				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_L5_HEALTH_OVERRIDE, 0);
 
 			} else if (_board == Board::u_blox9_F9P_L1L2) {
 				UBX_DEBUG("GNSS Systems: Disable GPS L2C");
@@ -796,7 +792,6 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 			} else if (_board == Board::u_blox9_F9P_L1L5 || _board == Board::u_blox10_L1L5) {
 				UBX_DEBUG("GNSS Systems: Disable GPS L5");
 				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GPS_L5_ENA, 0);
-				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_L5_HEALTH_OVERRIDE, 0);
 			}
 		}
 
@@ -966,19 +961,24 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 		}
 
 		waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true);
+	}
 
-	} else if (_board == Board::u_blox10_L1L5 || _board == Board::u_blox_X20) {
-		// Enable L5 health override, use version 0 of the message
+	// GPS L5 is broadcast unhealthy while it is pre-operational, so tell the receiver to take
+	// the L1 health flag instead. The key is not in any interface description, only in app note
+	// UBX-21038688, so it gets a message of its own rather than putting the constellation
+	// config at the mercy of a firmware that has never heard of it.
+	if (_board == Board::u_blox9_F9P_L1L5 || _board == Board::u_blox10_L1L5 || _board == Board::u_blox_X20) {
+		const bool use_gps = (static_cast<int32_t>(config.gnss_systems) == 0)
+				     || (config.gnss_systems & GNSSSystemsMask::ENABLE_GPS);
+
+		UBX_DEBUG("%s L5 health override", use_gps ? "Enabling" : "Disabling");
+
 		initCfgValset();
-		cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_L5_HEALTH_OVERRIDE, 1);
+		cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_L5_HEALTH_OVERRIDE, use_gps ? 1 : 0);
 
-		UBX_DEBUG("Enabling L5 health override");
-
-		if (!sendCfgValset()) {
-			return -1;
+		if (sendCfgValsetAcked(false) < 0) {
+			UBX_WARN("GPS L5 health override not supported by this receiver");
 		}
-
-		waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true);
 	}
 
 	// Configure message rates
