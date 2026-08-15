@@ -530,6 +530,8 @@ int GPSDriverUBX::configureDevicePreV27(const GNSSSystemsMask &gnssSystems)
 		if (gnssSystems & GNSSSystemsMask::ENABLE_GALILEO) {
 			UBX_WARN("Galileo needs a receiver power cycle to take effect");
 		}
+
+		waitForGnssReset();
 	}
 
 	/* configure message rates */
@@ -954,6 +956,8 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 			}
 		}
 
+		waitForGnssReset();
+
 		// send SBAS config separately, because it seems to be buggy (with u-center, too)
 		initCfgValset();
 
@@ -971,6 +975,8 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 		}
 
 		waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true);
+
+		waitForGnssReset();
 	}
 
 	// GPS L5 is broadcast unhealthy while it is pre-operational, so tell the receiver to take
@@ -1632,6 +1638,19 @@ GPSDriverUBX::waitForAck(const uint16_t msg, const unsigned timeout, const bool 
 
 	_ack_state = UBX_ACK_IDLE;
 	return ret;
+}
+
+void
+GPSDriverUBX::waitForGnssReset()
+{
+	// Changing the enabled constellations resets the GNSS subsystem, and every u-blox
+	// interface description asks for 0.5 s after the acknowledgement before the next
+	// command. Keep reading while we wait, the receiver is still streaming.
+	const gps_abstime time_started = gps_absolute_time();
+
+	while (gps_absolute_time() < time_started + UBX_GNSS_RESET_TIME) {
+		receive(UBX_CONFIG_TIMEOUT);
+	}
 }
 
 int	// -1 = error, 0 = no message handled, 1 = message handled, 2 = sat info message handled

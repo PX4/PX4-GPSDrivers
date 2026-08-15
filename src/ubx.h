@@ -53,6 +53,7 @@
 
 
 #define UBX_CONFIG_TIMEOUT    250 // ms, timeout for waiting ACK
+#define UBX_GNSS_RESET_TIME   500000 // us, GNSS subsystem reset after a constellation change
 #define UBX_PACKET_TIMEOUT    8   // ms, if now data during this delay assume that full update received
 
 // Dedicated TX buffer for CFG-VALSET. Sized independently of ubx_buf_t (the RX
@@ -1291,6 +1292,11 @@ private:
 	 * Wait for message acknowledge
 	 */
 	int waitForAck(const uint16_t msg, const unsigned timeout, const bool report);
+
+	/**
+	 * Wait out the GNSS subsystem reset that follows a constellation change
+	 */
+	void waitForGnssReset();
 
 	const Interface _interface{};
 
