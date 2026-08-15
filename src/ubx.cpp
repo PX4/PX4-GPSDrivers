@@ -523,6 +523,13 @@ int GPSDriverUBX::configureDevicePreV27(const GNSSSystemsMask &gnssSystems)
 			// once. Keep the receiver's own selection rather than losing the fix over it.
 			UBX_WARN("GNSS constellation config rejected, keeping receiver config");
 		}
+
+		// On u-blox 8 the Galileo change only takes effect once the configuration has been
+		// saved and the receiver hardware reset, which we cannot do without dropping the
+		// rest of this session's configuration
+		if (gnssSystems & GNSSSystemsMask::ENABLE_GALILEO) {
+			UBX_WARN("Galileo needs a receiver power cycle to take effect");
+		}
 	}
 
 	/* configure message rates */
