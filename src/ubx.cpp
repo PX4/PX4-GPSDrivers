@@ -712,16 +712,16 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 
 	waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, false);
 
-	initCfgValset();
+	// enable jamming monitor. CFG-ITFM is gone on the F9 L1L5 and F20 platforms, those
+	// report interference through CFG-SEC-JAMDET instead
+	if (_board != Board::u_blox9_F9P_L1L5 && _board != Board::u_blox_X20) {
+		initCfgValset();
+		cfgValset<uint8_t>(UBX_CFG_KEY_ITFM_ENABLE, 1);
 
-	// enable jamming monitor
-	cfgValset<uint8_t>(UBX_CFG_KEY_ITFM_ENABLE, 1);
-
-	if (!sendCfgValset()) {
-		return -1;
+		if (sendCfgValsetAcked(false) < 0) {
+			UBX_WARN("Jamming monitor not supported by this receiver");
+		}
 	}
-
-	waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, false);
 
 	// configure jamming detection sensitivity (CFG-SEC-JAMDET_SENSITIVITY_HI)
 	// Note: This configuration key may not be supported on older firmware versions.
