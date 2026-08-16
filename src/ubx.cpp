@@ -2094,6 +2094,11 @@ GPSDriverUBX::payloadRxAddNavSat(const uint8_t b)
 				_satellite_info->svid[sat_index]	  = svinfo_svid;
 				// NAV-SAT flags: bits 2..0 qualityInd, bit 3 svUsed
 				_satellite_info->used[sat_index]	  = static_cast<uint8_t>((_buf.payload_rx_nav_sat_part2.flags >> 3) & 0x01);
+				// TODO: elev (I1, +/-90, out of range = unknown) and azim (I2) are stored unsigned in
+				// satellite_info, so negatives wrap: -91 deg elevation publishes as 165, and a negative
+				// azim scaled by 255/360 is a UB float->unsigned conversion. Needs SatelliteInfo.msg to
+				// carry signed angles and an unknown marker; clamping here would only turn "unknown"
+				// into "on the horizon". Its elevation comment is inverted too (90 is overhead, not 0).
 				_satellite_info->elevation[sat_index] = static_cast<uint8_t>(_buf.payload_rx_nav_sat_part2.elev);
 				_satellite_info->azimuth[sat_index]	  = static_cast<uint8_t>(static_cast<float>(_buf.payload_rx_nav_sat_part2.azim) *
 						255.0f / 360.0f);
@@ -2154,6 +2159,7 @@ GPSDriverUBX::payloadRxAddNavSvinfo(const uint8_t b)
 				_satellite_info->svid[sat_index]      = static_cast<uint8_t>(_buf.payload_rx_nav_svinfo_part2.svid);
 				// NAV-SVINFO flags: bit 0 svUsed
 				_satellite_info->used[sat_index]      = static_cast<uint8_t>(_buf.payload_rx_nav_svinfo_part2.flags & 0x01);
+				// TODO: same elev/azim wrap as NAV-SAT above
 				_satellite_info->elevation[sat_index] = static_cast<uint8_t>(_buf.payload_rx_nav_svinfo_part2.elev);
 				_satellite_info->azimuth[sat_index]   = static_cast<uint8_t>(static_cast<float>(_buf.payload_rx_nav_svinfo_part2.azim) *
 									255.0f / 360.0f);
