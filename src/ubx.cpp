@@ -2092,7 +2092,11 @@ GPSDriverUBX::payloadRxAddNavSat(const uint8_t b)
 				}
 
 				_satellite_info->svid[sat_index]	  = svinfo_svid;
-				_satellite_info->used[sat_index]	  = static_cast<uint8_t>(_buf.payload_rx_nav_sat_part2.flags & 0x01);
+				// NAV-SAT flags: bits 2..0 qualityInd, bit 3 svUsed
+				_satellite_info->used[sat_index]	  = static_cast<uint8_t>((_buf.payload_rx_nav_sat_part2.flags >> 3) & 0x01);
+				// TODO: elev and azim are signed on the wire but unsigned in satellite_info, so
+				// negatives wrap. Needs SatelliteInfo.msg to carry signed angles and an unknown
+				// marker; its elevation comment is inverted too.
 				_satellite_info->elevation[sat_index] = static_cast<uint8_t>(_buf.payload_rx_nav_sat_part2.elev);
 				_satellite_info->azimuth[sat_index]	  = static_cast<uint8_t>(static_cast<float>(_buf.payload_rx_nav_sat_part2.azim) *
 						255.0f / 360.0f);
@@ -2151,7 +2155,9 @@ GPSDriverUBX::payloadRxAddNavSvinfo(const uint8_t b)
 				unsigned sat_index = (_rx_payload_index - sizeof(ubx_payload_rx_nav_svinfo_part1_t)) /
 						     sizeof(ubx_payload_rx_nav_svinfo_part2_t);
 				_satellite_info->svid[sat_index]      = static_cast<uint8_t>(_buf.payload_rx_nav_svinfo_part2.svid);
-				_satellite_info->used[sat_index]      = static_cast<uint8_t>(_buf.payload_rx_nav_svinfo_part2.flags >> 3 & 0x01);
+				// NAV-SVINFO flags: bit 0 svUsed
+				_satellite_info->used[sat_index]      = static_cast<uint8_t>(_buf.payload_rx_nav_svinfo_part2.flags & 0x01);
+				// TODO: same elev/azim wrap as NAV-SAT above
 				_satellite_info->elevation[sat_index] = static_cast<uint8_t>(_buf.payload_rx_nav_svinfo_part2.elev);
 				_satellite_info->azimuth[sat_index]   = static_cast<uint8_t>(static_cast<float>(_buf.payload_rx_nav_svinfo_part2.azim) *
 									255.0f / 360.0f);
