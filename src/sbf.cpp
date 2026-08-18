@@ -706,9 +706,10 @@ int GPSDriverSBF::payloadRxDone()
 			int error_aux2 = _buf.payload_att_cov_euler.error_aux2;
 
 			if (error_aux1 == 0 && error_aux2 == 0) {
-				float heading_acc = _buf.payload_att_cov_euler.cov_headhead;
-				heading_acc *= M_PI_F / 180.0f; // deg to rad, now in range [0, 2pi]
-				_gps_position->heading_accuracy = heading_acc;
+				// Cov_HeadHead is a variance in deg^2; heading_accuracy is a 1-sigma
+				// angle in radians.
+				const float heading_stddev_deg = sqrtf(_buf.payload_att_cov_euler.cov_headhead);
+				_gps_position->heading_accuracy = heading_stddev_deg * M_DEG_TO_RAD_F;
 				// SBF_DEBUG("Heading-Accuracy: %.3f rad", (double) _gps_position->heading_accuracy)
 				//SBF_DEBUG("AttCovEuler handled");
 
