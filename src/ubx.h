@@ -1029,6 +1029,7 @@ public:
 		MovingBaseUART1,           ///< moving base; outputs RTCM on UART1 (relayed to the rover via the flight controller)
 		RoverWithStaticBaseUART2,  ///< heading rover; receives static-base RTCM on UART2
 		GroundControlStation,      ///< NMEA output to a ground control station (GPS is installed in the GCS)
+		UCenterUART2,              ///< UBX diagnostics on UART2 for u-center, while the driver keeps UART1
 	};
 
 	struct Settings {
@@ -1159,6 +1160,17 @@ private:
 	 * @return true on success, false if buffer too small
 	 */
 	bool cfgValsetPort(uint32_t key_id, uint8_t value, int &msg_size);
+
+	/**
+	 * Add a port-specific (MSGOUT) configuration value for UART2, which is never the port this
+	 * driver talks on. Same key ordering assumption as cfgValsetPort().
+	 *
+	 * @param key_id I2C key ID
+	 * @param value configuration value
+	 * @param msg_size CFG-VALSET message size: this is an input & output param
+	 * @return true on success, false if buffer too small
+	 */
+	bool cfgValsetUart2(uint32_t key_id, uint8_t value, int &msg_size);
 
 	/**
 	 * Reset the parse state machine for a fresh start
