@@ -1243,7 +1243,7 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 			UBX_WARN("Receiver has no UART2, u-center mode not configured");
 
 		} else {
-			UBX_DEBUG("Configuring UART2 for u-center");
+			GPS_INFO("Configuring UART2 for u-center");
 
 			// On its own, because the platforms that wire UART2 permanently on have no such key
 			// and a NAK would otherwise take the port settings down with it.
