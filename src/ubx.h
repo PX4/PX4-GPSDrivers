@@ -1090,6 +1090,11 @@ public:
 
 	const Board &board() const { return _board; }
 
+	/**
+	 * What UART1 carries in a given mode, for status output
+	 */
+	static const char *uart1Protocols(UBXMode mode, bool ppk_output);
+
 private:
 	int activateRTCMOutput(bool reduce_update_rate);
 

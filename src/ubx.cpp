@@ -1089,6 +1089,9 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 			return -1;
 		}
 
+		GPS_INFO("UART2: RTCM3 in @ %d baud (%s)", (int)uart2_baudrate,
+			 _mode == UBXMode::RoverWithMovingBaseUART2 ? "moving base" : "static base");
+
 	} else if (_mode == UBXMode::MovingBaseUART2) {
 		UBX_DEBUG("Configuring UART2 for moving base");
 		// enable RTCM output on uart2 + set baudrate
@@ -1143,6 +1146,8 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 		if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true) < 0) {
 			return -1;
 		}
+
+		GPS_INFO("UART2: RTCM3 out @ %d baud (rover)", (int)uart2_baudrate);
 
 	} else if (_mode == UBXMode::RoverWithMovingBaseUART1) {
 		UBX_DEBUG("Configuring UART1 for rover");
@@ -1235,6 +1240,8 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 			return -1;
 		}
 
+		GPS_INFO("UART2: NMEA out @ %d baud (ground control station)", (int)uart2_baudrate);
+
 	} else if (_mode == UBXMode::UCenterUART2) {
 		// Diagnostic port. UART1 keeps carrying the flight controller's own session, UART2 gets
 		// UBX in both directions so u-center can watch and poll the receiver. Nothing below is
@@ -1243,8 +1250,6 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 			UBX_WARN("Receiver has no UART2, u-center mode not configured");
 
 		} else {
-			GPS_INFO("Configuring UART2 for u-center");
-
 			// On its own, because the platforms that wire UART2 permanently on have no such key
 			// and a NAK would otherwise take the port settings down with it.
 			cfg_valset_msg_size = initCfgValset();
@@ -1297,10 +1302,32 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 					UBX_WARN("UART2 message rates for u-center rejected");
 				}
 			}
+
+			GPS_INFO("UART2: UBX in/out @ %d baud (u-center)", (int)uart2_baudrate);
 		}
 	}
 
 	return 0;
+}
+
+const char *GPSDriverUBX::uart1Protocols(UBXMode mode, bool ppk_output)
+{
+	switch (mode) {
+	case UBXMode::Normal: return ppk_output ? "UBX in/out + RTCM3 out" : "UBX in/out";
+
+	case UBXMode::RoverWithMovingBaseUART2:
+	case UBXMode::RoverWithStaticBaseUART2: return "UBX out";
+
+	case UBXMode::RoverWithMovingBaseUART1: return "UBX in/out + RTCM3 in";
+
+	case UBXMode::MovingBaseUART1: return "UBX in/out + RTCM3 in/out";
+
+	case UBXMode::MovingBaseUART2:
+	case UBXMode::GroundControlStation:
+	case UBXMode::UCenterUART2: return "UBX in/out";
+	}
+
+	return "UBX in/out";
 }
 
 int GPSDriverUBX::initCfgValset()
