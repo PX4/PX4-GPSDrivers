@@ -1089,6 +1089,9 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 			return -1;
 		}
 
+		GPS_INFO("UART2: RTCM3 in @ %d baud (%s)", (int)uart2_baudrate,
+			 _mode == UBXMode::RoverWithMovingBaseUART2 ? "moving base" : "static base");
+
 	} else if (_mode == UBXMode::MovingBaseUART2) {
 		UBX_DEBUG("Configuring UART2 for moving base");
 		// enable RTCM output on uart2 + set baudrate
@@ -1143,6 +1146,8 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 		if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true) < 0) {
 			return -1;
 		}
+
+		GPS_INFO("UART2: RTCM3 out @ %d baud (rover)", (int)uart2_baudrate);
 
 	} else if (_mode == UBXMode::RoverWithMovingBaseUART1) {
 		UBX_DEBUG("Configuring UART1 for rover");
@@ -1234,9 +1239,95 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 		if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true) < 0) {
 			return -1;
 		}
+
+		GPS_INFO("UART2: NMEA out @ %d baud (ground control station)", (int)uart2_baudrate);
+
+	} else if (_mode == UBXMode::UCenterUART2) {
+		// Diagnostic port. UART1 keeps carrying the flight controller's own session, UART2 gets
+		// UBX in both directions so u-center can watch and poll the receiver. Nothing below is
+		// fatal: a debug port that will not come up must not cost us the GPS.
+		if (_board == Board::u_blox10 || _board == Board::u_blox10_L1L5) {
+			UBX_WARN("Receiver has no UART2, u-center mode not configured");
+
+		} else {
+			// On its own, because the platforms that wire UART2 permanently on have no such key
+			// and a NAK would otherwise take the port settings down with it.
+			cfg_valset_msg_size = initCfgValset();
+			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2_ENABLED, 1, cfg_valset_msg_size);
+
+			if (sendMessage(UBX_MSG_CFG_VALSET, _tx_cfg_valset_buf, cfg_valset_msg_size)) {
+				(void)waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, false);
+			}
+
+			cfg_valset_msg_size = initCfgValset();
+			cfgValset<uint32_t>(UBX_CFG_KEY_CFG_UART2_BAUDRATE, uart2_baudrate, cfg_valset_msg_size);
+			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2_STOPBITS, 1, cfg_valset_msg_size);
+			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2_DATABITS, 0, cfg_valset_msg_size);
+			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2_PARITY, 0, cfg_valset_msg_size);
+			// Input stays open so u-center can poll MON-VER and drive the configuration view
+			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2INPROT_UBX, 1, cfg_valset_msg_size);
+			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2INPROT_NMEA, 0, cfg_valset_msg_size);
+			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2INPROT_RTCM3X, 0, cfg_valset_msg_size);
+			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2OUTPROT_UBX, 1, cfg_valset_msg_size);
+			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2OUTPROT_NMEA, 0, cfg_valset_msg_size);
+			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2OUTPROT_RTCM3X, 0, cfg_valset_msg_size);
+
+			if (sendMessage(UBX_MSG_CFG_VALSET, _tx_cfg_valset_buf, cfg_valset_msg_size)) {
+				if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, false) < 0) {
+					UBX_WARN("UART2 port config for u-center rejected");
+				}
+			}
+
+			// Message rates are per port, so the set enabled for the driver's own port leaves UART2
+			// silent. u-center shows nothing at all without these.
+			cfg_valset_msg_size = initCfgValset();
+			cfgValsetUart2(UBX_CFG_KEY_MSGOUT_UBX_NAV_PVT_I2C, 1, cfg_valset_msg_size);
+			cfgValsetUart2(UBX_CFG_KEY_MSGOUT_UBX_NAV_DOP_I2C, 1, cfg_valset_msg_size);
+			cfgValsetUart2(UBX_CFG_KEY_MSGOUT_UBX_NAV_STATUS_I2C, 1, cfg_valset_msg_size);
+			cfgValsetUart2(UBX_CFG_KEY_MSGOUT_UBX_MON_RF_I2C, 1, cfg_valset_msg_size);
+			// NAV-SAT is 12 bytes per satellite against ~250 for all of the above together, so it
+			// gets the same decimation the driver uses for itself rather than setting the link speed
+			cfgValsetUart2(UBX_CFG_KEY_MSGOUT_UBX_NAV_SAT_I2C, 10, cfg_valset_msg_size);
+
+			if (_board != Board::u_blox9) {
+				cfgValsetUart2(UBX_CFG_KEY_MSGOUT_UBX_NAV_HPPOSLLH_I2C, 1, cfg_valset_msg_size);
+			}
+
+			if (_board == Board::u_blox9 || _board == Board::u_blox9_F9P_L1L2 || _board == Board::u_blox9_F9P_L1L5) {
+				cfgValsetUart2(UBX_CFG_KEY_MSGOUT_UBX_RXM_RTCM_I2C, 1, cfg_valset_msg_size);
+			}
+
+			if (sendMessage(UBX_MSG_CFG_VALSET, _tx_cfg_valset_buf, cfg_valset_msg_size)) {
+				if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, false) < 0) {
+					UBX_WARN("UART2 message rates for u-center rejected");
+				}
+			}
+
+			GPS_INFO("UART2: UBX in/out @ %d baud (u-center)", (int)uart2_baudrate);
+		}
 	}
 
 	return 0;
+}
+
+const char *GPSDriverUBX::uart1Protocols(UBXMode mode, bool ppk_output)
+{
+	switch (mode) {
+	case UBXMode::Normal: return ppk_output ? "UBX in/out + RTCM3 out" : "UBX in/out";
+
+	case UBXMode::RoverWithMovingBaseUART2:
+	case UBXMode::RoverWithStaticBaseUART2: return "UBX out";
+
+	case UBXMode::RoverWithMovingBaseUART1: return "UBX in/out + RTCM3 in";
+
+	case UBXMode::MovingBaseUART1: return "UBX in/out + RTCM3 in/out";
+
+	case UBXMode::MovingBaseUART2:
+	case UBXMode::GroundControlStation:
+	case UBXMode::UCenterUART2: return "UBX in/out";
+	}
+
+	return "UBX in/out";
 }
 
 int GPSDriverUBX::initCfgValset()
@@ -1288,6 +1379,11 @@ bool GPSDriverUBX::cfgValsetPort(uint32_t key_id, uint8_t value, int &msg_size)
 	}
 
 	return true;
+}
+
+bool GPSDriverUBX::cfgValsetUart2(uint32_t key_id, uint8_t value, int &msg_size)
+{
+	return cfgValset<uint8_t>(key_id + 2, value, msg_size);
 }
 
 int GPSDriverUBX::restartSurveyInPreV27()
