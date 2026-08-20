@@ -518,9 +518,20 @@ int GPSDriverUBX::configureDevicePreV27(const GNSSSystemsMask &gnssSystems)
 		}
 
 		if (waitForAck(UBX_MSG_CFG_GNSS, UBX_CONFIG_TIMEOUT, true) < 0) {
-			UBX_DEBUG("UBX CFG-GNSS message ACK failed");
-			return -1;
+			// The receiver rejects the configuration as a whole if it names a constellation it
+			// cannot receive, e.g. BeiDou on a SAM-M8Q, or more of them than it can track at
+			// once. Keep the receiver's own selection rather than losing the fix over it.
+			UBX_WARN("GNSS constellation config rejected, keeping receiver config");
 		}
+
+		// On u-blox 8 the Galileo change only takes effect once the configuration has been
+		// saved and the receiver hardware reset, which we cannot do without dropping the
+		// rest of this session's configuration
+		if (gnssSystems & GNSSSystemsMask::ENABLE_GALILEO) {
+			UBX_WARN("Galileo needs a receiver power cycle to take effect");
+		}
+
+		waitForGnssReset();
 	}
 
 	/* configure message rates */
@@ -689,11 +700,14 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 
 	// Disable odometer. Separate, non-fatal VALSET: CFG-ODO-* was removed on the
 	// F20 platform (ZED-X20P HPG 2.10+), so a NAK here must not abort config.
-	static constexpr uint32_t odo_keys[] = {
-		UBX_CFG_KEY_ODO_USE_ODO, UBX_CFG_KEY_ODO_USE_COG, UBX_CFG_KEY_ODO_OUTLPVEL, UBX_CFG_KEY_ODO_OUTLPCOG
-	};
 	initCfgValset();
-	cfgValset(odo_keys, 0);
+	cfgValset<uint8_t>(UBX_CFG_KEY_ODO_USE_ODO, 0);
+
+	// M9 (SPG) only has USE_ODO and PROFILE in CFG-ODO
+	if (_board != Board::u_blox9) {
+		static constexpr uint32_t odo_keys[] = {UBX_CFG_KEY_ODO_USE_COG, UBX_CFG_KEY_ODO_OUTLPVEL, UBX_CFG_KEY_ODO_OUTLPCOG};
+		cfgValset(odo_keys, 0);
+	}
 
 	sendCfgValsetAcked(false);
 
@@ -707,16 +721,16 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 
 	waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, false);
 
-	initCfgValset();
+	// enable jamming monitor. CFG-ITFM is gone on the F9 L1L5 and F20 platforms, those
+	// report interference through CFG-SEC-JAMDET instead
+	if (_board != Board::u_blox9_F9P_L1L5 && _board != Board::u_blox_X20) {
+		initCfgValset();
+		cfgValset<uint8_t>(UBX_CFG_KEY_ITFM_ENABLE, 1);
 
-	// enable jamming monitor
-	cfgValset<uint8_t>(UBX_CFG_KEY_ITFM_ENABLE, 1);
-
-	if (!sendCfgValset()) {
-		return -1;
+		if (sendCfgValsetAcked(false) < 0) {
+			UBX_WARN("Jamming monitor not supported by this receiver");
+		}
 	}
-
-	waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, false);
 
 	// configure jamming detection sensitivity (CFG-SEC-JAMDET_SENSITIVITY_HI)
 	// Note: This configuration key may not be supported on older firmware versions.
@@ -745,14 +759,17 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_QZSS_ENA, 1);
 			UBX_DEBUG("GNSS Systems: Enable QZSS L1CA");
 			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_QZSS_L1CA_ENA, 1);
-			UBX_DEBUG("GNSS Systems: Enable QZSS L1S");
-			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_QZSS_L1S_ENA, 1);
+
+			// M9 (SPG) has no CFG-SIGNAL key for QZSS L1S
+			if (_board != Board::u_blox9) {
+				UBX_DEBUG("GNSS Systems: Enable QZSS L1S");
+				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_QZSS_L1S_ENA, 1);
+			}
 
 			if (_board == Board::u_blox_X20) {
 				UBX_DEBUG("GNSS Systems: Use GPS L2C + L5, QZSS L2C + L5");
 				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GPS_L2C_ENA, 1);
 				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GPS_L5_ENA, 1);
-				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_L5_HEALTH_OVERRIDE, 1);
 				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_QZSS_L2C_ENA, 1);
 				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_QZSS_L5_ENA, 1);
 
@@ -765,8 +782,6 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 			} else if (_board == Board::u_blox9_F9P_L1L5 || _board == Board::u_blox10_L1L5) {
 				UBX_DEBUG("GNSS Systems: Use GPS L5");
 				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GPS_L5_ENA, 1);
-				UBX_DEBUG("GNSS Systems: Enable GPS L5 health override");
-				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_L5_HEALTH_OVERRIDE, 1);
 				UBX_DEBUG("GNSS Systems: Use QZSS L5");
 				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_QZSS_L5_ENA, 1);
 			}
@@ -781,7 +796,6 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 				UBX_DEBUG("GNSS Systems: Disable GPS L2C + L5");
 				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GPS_L2C_ENA, 0);
 				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GPS_L5_ENA, 0);
-				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_L5_HEALTH_OVERRIDE, 0);
 
 			} else if (_board == Board::u_blox9_F9P_L1L2) {
 				UBX_DEBUG("GNSS Systems: Disable GPS L2C");
@@ -790,7 +804,6 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 			} else if (_board == Board::u_blox9_F9P_L1L5 || _board == Board::u_blox10_L1L5) {
 				UBX_DEBUG("GNSS Systems: Disable GPS L5");
 				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GPS_L5_ENA, 0);
-				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_L5_HEALTH_OVERRIDE, 0);
 			}
 		}
 
@@ -909,10 +922,41 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 			}
 		}
 
-		if (sendCfgValsetAcked() < 0) {
-			UBX_DEBUG("UBX GNSS config failed");
+		if (!sendCfgValset()) {
+			UBX_DEBUG("UBX GNSS config send failed");
 			return -1;
 		}
+
+		if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true) < 0) {
+			// The receiver NAKs the whole message and applies nothing if it does not know a
+			// single key, so a signal key missing on this generation would leave the receiver
+			// unconfigured. Retry with the constellation enables, those exist everywhere.
+			UBX_WARN("GNSS signal config rejected, retrying without signal bands");
+
+			initCfgValset();
+
+			const uint8_t use_gps = (config.gnss_systems & GNSSSystemsMask::ENABLE_GPS) ? 1 : 0;
+			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GPS_ENA, use_gps);
+			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_QZSS_ENA, use_gps);
+			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GAL_ENA, (config.gnss_systems & GNSSSystemsMask::ENABLE_GALILEO) ? 1 : 0);
+			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_BDS_ENA, (config.gnss_systems & GNSSSystemsMask::ENABLE_BEIDOU) ? 1 : 0);
+
+			if (_board != Board::u_blox10_L1L5 && _board != Board::u_blox_X20) {
+				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GLO_ENA, (config.gnss_systems & GNSSSystemsMask::ENABLE_GLONASS) ? 1 : 0);
+			}
+
+			if (!sendCfgValset()) {
+				return -1;
+			}
+
+			if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true) < 0) {
+				// Keep going with whatever the receiver already has, a refused constellation
+				// selection must not cost us the fix
+				UBX_WARN("GNSS constellation config rejected, keeping receiver config");
+			}
+		}
+
+		waitForGnssReset();
 
 		// send SBAS config separately, because it seems to be buggy (with u-center, too)
 		initCfgValset();
@@ -932,18 +976,25 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 
 		waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true);
 
-	} else if (_board == Board::u_blox10_L1L5 || _board == Board::u_blox_X20) {
-		// Enable L5 health override, use version 0 of the message
+		waitForGnssReset();
+	}
+
+	// GPS L5 is broadcast unhealthy while it is pre-operational, so tell the receiver to take
+	// the L1 health flag instead. The key is not in any interface description, only in app note
+	// UBX-21038688, so it gets a message of its own rather than putting the constellation
+	// config at the mercy of a firmware that has never heard of it.
+	if (_board == Board::u_blox9_F9P_L1L5 || _board == Board::u_blox10_L1L5 || _board == Board::u_blox_X20) {
+		const bool use_gps = (static_cast<int32_t>(config.gnss_systems) == 0)
+				     || (config.gnss_systems & GNSSSystemsMask::ENABLE_GPS);
+
+		UBX_DEBUG("%s L5 health override", use_gps ? "Enabling" : "Disabling");
+
 		initCfgValset();
-		cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_L5_HEALTH_OVERRIDE, 1);
+		cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_L5_HEALTH_OVERRIDE, use_gps ? 1 : 0);
 
-		UBX_DEBUG("Enabling L5 health override");
-
-		if (!sendCfgValset()) {
-			return -1;
+		if (sendCfgValsetAcked(false) < 0) {
+			UBX_WARN("GPS L5 health override not supported by this receiver");
 		}
-
-		waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true);
 	}
 
 	// Configure message rates
@@ -968,18 +1019,28 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 		cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_RXM_RTCM_I2C, 1);
 	}
 
+	if (sendCfgValsetAcked() < 0) {
+		return -1;
+	}
+
 	// Explicitly disable the messages this driver never consumes. We do not enable them,
 	// but they can be left on in the receiver's non-volatile config by other software
 	// (u-center, or another firmware such as ArduPilot, which writes CFG-VALSET to the
 	// BBR/FLASH layers). Clearing them here rather than waiting for payloadRxInit() to
 	// notice them avoids wasting UART bandwidth on every boot.
-	static constexpr uint32_t unused_msgout[] = {
-		UBX_CFG_KEY_MSGOUT_UBX_NAV_TIMEGPS_I2C, UBX_CFG_KEY_MSGOUT_UBX_RXM_RAWX_I2C, UBX_CFG_KEY_MSGOUT_UBX_RXM_SFRBX_I2C
-	};
-	cfgValsetPort(unused_msgout, 0);
+	// Separate, non-fatal VALSET: these messages do not exist on every generation, and
+	// bandwidth we failed to save is not worth losing the receiver over.
+	initCfgValset();
+	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_TIMEGPS_I2C, 0);
+	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_RXM_SFRBX_I2C, 0);
 
-	if (sendCfgValsetAcked() < 0) {
-		return -1;
+	// M10 and F10 have no raw measurement output
+	if (_board != Board::u_blox10 && _board != Board::u_blox10_L1L5) {
+		cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_RXM_RAWX_I2C, 0);
+	}
+
+	if (sendCfgValsetAcked(false) < 0) {
+		UBX_WARN("Could not disable unused messages");
 	}
 
 	// Dual antenna heading, not used in a moving base setup where NAV-RELPOSNED provides it. The rate is
@@ -1104,18 +1165,25 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 		cfgValset(RTCM_MSM7_UART2, _ppk_output ? 1 : 0);
 		cfgValset(RTCM_MSM4_UART2, _ppk_output ? 0 : 1);
 
-		// 4072.0 marks the base as moving, without it the rover solves against it as a
-		// static base and never reports a heading. The F9P-15B doesn't support 4072.
-		if (_board == Board::u_blox9_F9P_L1L2 || _board == Board::u_blox_X20) {
-			UBX_DEBUG("Configuring ublox 4072");
-			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE4072_0_UART2, 1);
-		}
-
 		if (sendCfgValsetAcked() < 0) {
 			return -1;
 		}
 
 		GPS_INFO("UART2: RTCM3 out @ %d baud (rover)", (int)uart2_baudrate);
+
+		// 4072.0 marks the base as moving, without it the rover solves against it as a
+		// static base and never reports a heading. The F9P-15B doesn't support 4072, and
+		// neither does the X20 before HPG 2.10, so it goes out on its own: losing the
+		// heading is bad, losing the receiver is worse.
+		if (_board == Board::u_blox9_F9P_L1L2 || _board == Board::u_blox_X20) {
+			UBX_DEBUG("Configuring ublox 4072");
+			initCfgValset();
+			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE4072_0_UART2, 1);
+
+			if (sendCfgValsetAcked(false) < 0) {
+				UBX_WARN("RTCM 4072.0 not supported, no moving base heading");
+			}
+		}
 
 	} else if (_mode == UBXMode::RoverWithMovingBaseUART1) {
 		UBX_DEBUG("Configuring UART1 for rover");
@@ -1151,15 +1219,22 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 		cfgValset(RTCM_MSM7_UART1, _ppk_output ? 1 : 0);
 		cfgValset(RTCM_MSM4_UART1, _ppk_output ? 0 : 1);
 
-		// 4072.0 marks the base as moving, without it the rover solves against it as a
-		// static base and never reports a heading. The F9P-15B doesn't support 4072.
-		if (_board == Board::u_blox9_F9P_L1L2 || _board == Board::u_blox_X20) {
-			UBX_DEBUG("Configuring ublox 4072");
-			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE4072_0_UART1, 1);
-		}
-
 		if (sendCfgValsetAcked() < 0) {
 			return -1;
+		}
+
+		// 4072.0 marks the base as moving, without it the rover solves against it as a
+		// static base and never reports a heading. The F9P-15B doesn't support 4072, and
+		// neither does the X20 before HPG 2.10, so it goes out on its own: losing the
+		// heading is bad, losing the receiver is worse.
+		if (_board == Board::u_blox9_F9P_L1L2 || _board == Board::u_blox_X20) {
+			UBX_DEBUG("Configuring ublox 4072");
+			initCfgValset();
+			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE4072_0_UART1, 1);
+
+			if (sendCfgValsetAcked(false) < 0) {
+				UBX_WARN("RTCM 4072.0 not supported, no moving base heading");
+			}
 		}
 
 	} else if (_mode == UBXMode::GroundControlStation) {
@@ -1563,6 +1638,19 @@ GPSDriverUBX::waitForAck(const uint16_t msg, const unsigned timeout, const bool 
 
 	_ack_state = UBX_ACK_IDLE;
 	return ret;
+}
+
+void
+GPSDriverUBX::waitForGnssReset()
+{
+	// Changing the enabled constellations resets the GNSS subsystem, and every u-blox
+	// interface description asks for 0.5 s after the acknowledgement before the next
+	// command. Keep reading while we wait, the receiver is still streaming.
+	const gps_abstime time_started = gps_absolute_time();
+
+	while (gps_absolute_time() < time_started + UBX_GNSS_RESET_TIME) {
+		receive(UBX_CONFIG_TIMEOUT);
+	}
 }
 
 int	// -1 = error, 0 = no message handled, 1 = message handled, 2 = sat info message handled
