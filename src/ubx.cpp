@@ -1340,10 +1340,13 @@ int GPSDriverUBX::initCfgValset()
 	return sizeof(*header) - sizeof(header->cfgData);
 }
 
-template<typename T>
-bool GPSDriverUBX::cfgValset(uint32_t key_id, T value, int &msg_size)
+bool GPSDriverUBX::cfgValsetRaw(uint32_t key_id, uint32_t value, int &msg_size)
 {
-	if (msg_size + sizeof(key_id) + sizeof(value) > sizeof(_tx_cfg_valset_buf)) {
+	// Size field: 1 = L, 2 = U1/I1/E1/X1, 3 = 2 bytes, 4 = 4 bytes (5 = 8 bytes, unsupported here)
+	const unsigned size_field = (key_id >> 28) & 0x7;
+	const unsigned value_size = (size_field <= 2) ? 1 : (size_field == 3) ? 2 : 4;
+
+	if (msg_size + sizeof(key_id) + value_size > sizeof(_tx_cfg_valset_buf)) {
 		// If this ever fires, either bump UBX_CFG_VALSET_BUF_SIZE or split the
 		// batch into multiple CFG-VALSET messages at the call site.
 		UBX_WARN("buf for CFG_VALSET too small");
@@ -1352,8 +1355,9 @@ bool GPSDriverUBX::cfgValset(uint32_t key_id, T value, int &msg_size)
 
 	memcpy(_tx_cfg_valset_buf + msg_size, &key_id, sizeof(key_id));
 	msg_size += sizeof(key_id);
-	memcpy(_tx_cfg_valset_buf + msg_size, &value, sizeof(value));
-	msg_size += sizeof(value);
+	// little-endian: the low value_size bytes of value are the narrower type's bytes
+	memcpy(_tx_cfg_valset_buf + msg_size, &value, value_size);
+	msg_size += value_size;
 	return true;
 }
 

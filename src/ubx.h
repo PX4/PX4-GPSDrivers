@@ -1144,14 +1144,26 @@ private:
 	int configureDevicePreV27(const GNSSSystemsMask &gnssSystems);
 
 	/**
-	 * Add a configuration value to _tx_cfg_valset_buf and increase the message size msg_size as needed
+	 * Add a configuration value to _tx_cfg_valset_buf and increase the message size msg_size as needed.
+	 * The value width on the wire comes from the key ID's size field, not from T; T documents the
+	 * call site and must agree with the key.
 	 * @param key_id one of the UBX_CFG_KEY_* constants
 	 * @param value configuration value
 	 * @param msg_size CFG-VALSET message size: this is an input & output param
 	 * @return true on success, false if buffer too small
 	 */
 	template<typename T>
-	bool cfgValset(uint32_t key_id, T value, int &msg_size);
+	bool cfgValset(uint32_t key_id, T value, int &msg_size)
+	{
+		static_assert(sizeof(T) <= sizeof(uint32_t), "CFG-VALSET values wider than 4 bytes are not supported");
+		return cfgValsetRaw(key_id, static_cast<uint32_t>(value), msg_size);
+	}
+
+	/**
+	 * Non-template body for cfgValset(): appends key_id and the low N bytes of value, where N is
+	 * given by the key ID's size field (bits 28-30: 1 and 2 -> 1 byte, 3 -> 2 bytes, 4 -> 4 bytes).
+	 */
+	bool cfgValsetRaw(uint32_t key_id, uint32_t value, int &msg_size);
 
 	/**
 	 * Add a configuration value that is port-specific (MSGOUT messages).
