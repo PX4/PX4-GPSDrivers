@@ -337,6 +337,21 @@ protected:
 	 */
 	static void ECEF2lla(double ecef_x, double ecef_y, double ecef_z, double &latitude, double &longitude, float &altitude);
 
+	/**
+	 * Parse the next comma-separated NMEA field. p points at the character before the field (the previous
+	 * separator) and is advanced to the separator after it. An empty field leaves value untouched.
+	 * @return true if the field was non-empty
+	 */
+	static bool nmeaNextField(char *&p, double &value);
+	static bool nmeaNextField(char *&p, float &value);
+	static bool nmeaNextField(char *&p, int &value);
+	static bool nmeaNextField(char *&p, char &value);
+
+	/**
+	 * Convert an NMEA ddmm.mmmm (or dddmm.mmmm) coordinate to decimal degrees
+	 */
+	static double nmeaToDegrees(double ddmm);
+
 	GPSCallbackPtr _callback{nullptr};
 	void *_callback_user{};
 

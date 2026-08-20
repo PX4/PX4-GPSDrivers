@@ -109,17 +109,17 @@ int GPSDriverAshtech::handleMessage(int len)
 		ASH_UNUSED(local_time_off_min);
 		ASH_UNUSED(local_time_off_hour);
 
-		if (bufptr && *(++bufptr) != ',') { ashtech_time = strtod(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, ashtech_time);
 
-		if (bufptr && *(++bufptr) != ',') { day = strtol(bufptr, &endp, 10); bufptr = endp; }
+		nmeaNextField(bufptr, day);
 
-		if (bufptr && *(++bufptr) != ',') { month = strtol(bufptr, &endp, 10); bufptr = endp; }
+		nmeaNextField(bufptr, month);
 
-		if (bufptr && *(++bufptr) != ',') { year = strtol(bufptr, &endp, 10); bufptr = endp; }
+		nmeaNextField(bufptr, year);
 
-		if (bufptr && *(++bufptr) != ',') { local_time_off_hour = strtol(bufptr, &endp, 10); bufptr = endp; }
+		nmeaNextField(bufptr, local_time_off_hour);
 
-		if (bufptr && *(++bufptr) != ',') { local_time_off_min = strtol(bufptr, &endp, 10); bufptr = endp; }
+		nmeaNextField(bufptr, local_time_off_min);
 
 		int ashtech_hour = static_cast<int>(ashtech_time / 10000);
 		int ashtech_minute = static_cast<int>((ashtech_time - ashtech_hour * 10000) / 100);
@@ -213,23 +213,23 @@ int GPSDriverAshtech::handleMessage(int len)
 		ASH_UNUSED(num_of_sv);
 		ASH_UNUSED(hdop);
 
-		if (bufptr && *(++bufptr) != ',') { ashtech_time = strtod(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, ashtech_time);
 
-		if (bufptr && *(++bufptr) != ',') { lat = strtod(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, lat);
 
-		if (bufptr && *(++bufptr) != ',') { ns = *(bufptr++); }
+		nmeaNextField(bufptr, ns);
 
-		if (bufptr && *(++bufptr) != ',') { lon = strtod(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, lon);
 
-		if (bufptr && *(++bufptr) != ',') { ew = *(bufptr++); }
+		nmeaNextField(bufptr, ew);
 
-		if (bufptr && *(++bufptr) != ',') { fix_quality = strtol(bufptr, &endp, 10); bufptr = endp; }
+		nmeaNextField(bufptr, fix_quality);
 
-		if (bufptr && *(++bufptr) != ',') { num_of_sv = strtol(bufptr, &endp, 10); bufptr = endp; }
+		nmeaNextField(bufptr, num_of_sv);
 
-		if (bufptr && *(++bufptr) != ',') { hdop = strtod(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, hdop);
 
-		if (bufptr && *(++bufptr) != ',') { alt = strtod(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, alt);
 
 		if (ns == 'S') {
 			lat = -lat;
@@ -240,9 +240,8 @@ int GPSDriverAshtech::handleMessage(int len)
 		}
 
 		/* convert from degrees, minutes and seconds to degrees * 1e7 */
-		_gps_position->latitude_deg = static_cast<int>(lat * 0.01) + (lat * 0.01 - static_cast<int>(lat * 0.01)) * 100.0 / 60.0;
-		_gps_position->longitude_deg = static_cast<int>(lon * 0.01) + (lon * 0.01 - static_cast<int>
-					       (lon * 0.01)) * 100.0 / 60.0;
+		_gps_position->latitude_deg = nmeaToDegrees(lat);
+		_gps_position->longitude_deg = nmeaToDegrees(lon);
 		_gps_position->altitude_msl_m = alt;
 		_rate_count_lat_lon++;
 
@@ -285,8 +284,7 @@ int GPSDriverAshtech::handleMessage(int len)
 
 		float heading = 0.f;
 
-		if (bufptr && *(++bufptr) != ',') {
-			heading = strtof(bufptr, &endp); bufptr = endp;
+		if (nmeaNextField(bufptr, heading)) {
 
 			ASH_DEBUG("heading update: %.3f", (double)heading);
 
@@ -349,11 +347,11 @@ int GPSDriverAshtech::handleMessage(int len)
 		ASH_UNUSED(pdop);
 		ASH_UNUSED(tdop);
 
-		if (bufptr && *(++bufptr) != ',') { fix_quality = strtol(bufptr, &endp, 10); bufptr = endp; }
+		nmeaNextField(bufptr, fix_quality);
 
-		if (bufptr && *(++bufptr) != ',') { num_of_sv = strtol(bufptr, &endp, 10); bufptr = endp; }
+		nmeaNextField(bufptr, num_of_sv);
 
-		if (bufptr && *(++bufptr) != ',') { ashtech_time = strtod(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, ashtech_time);
 
 		if (bufptr && *(++bufptr) != ',') {
 			/*
@@ -367,7 +365,7 @@ int GPSDriverAshtech::handleMessage(int len)
 			bufptr = endp;
 		}
 
-		if (bufptr && *(++bufptr) != ',') { ns = *(bufptr++); }
+		nmeaNextField(bufptr, ns);
 
 		if (bufptr && *(++bufptr) != ',') {
 			lon = strtod(bufptr, &endp);
@@ -377,7 +375,7 @@ int GPSDriverAshtech::handleMessage(int len)
 			bufptr = endp;
 		}
 
-		if (bufptr && *(++bufptr) != ',') { ew = *(bufptr++); }
+		nmeaNextField(bufptr, ew);
 
 		if (bufptr && *(++bufptr) != ',') {
 			alt = strtod(bufptr, &endp);
@@ -387,21 +385,21 @@ int GPSDriverAshtech::handleMessage(int len)
 			bufptr = endp;
 		}
 
-		if (bufptr && *(++bufptr) != ',') { age_of_corr = strtod(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, age_of_corr);
 
-		if (bufptr && *(++bufptr) != ',') { track_true = strtod(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, track_true);
 
-		if (bufptr && *(++bufptr) != ',') { ground_speed = strtod(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, ground_speed);
 
-		if (bufptr && *(++bufptr) != ',') { vertic_vel = strtod(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, vertic_vel);
 
-		if (bufptr && *(++bufptr) != ',') { pdop = strtod(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, pdop);
 
-		if (bufptr && *(++bufptr) != ',') { hdop = strtod(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, hdop);
 
-		if (bufptr && *(++bufptr) != ',') { vdop = strtod(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, vdop);
 
-		if (bufptr && *(++bufptr) != ',') { tdop = strtod(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, tdop);
 
 		if (ns == 'S') {
 			lat = -lat;
@@ -411,9 +409,8 @@ int GPSDriverAshtech::handleMessage(int len)
 			lon = -lon;
 		}
 
-		_gps_position->latitude_deg = static_cast<int>(lat * 0.01) + (lat * 0.01 - static_cast<int>(lat * 0.01)) * 100.0 / 60.0;
-		_gps_position->longitude_deg = static_cast<int>(lon * 0.01) + (lon * 0.01 - static_cast<int>
-					       (lon * 0.01)) * 100.0 / 60.0;
+		_gps_position->latitude_deg = nmeaToDegrees(lat);
+		_gps_position->longitude_deg = nmeaToDegrees(lon);
 		_gps_position->altitude_msl_m = alt;
 		_gps_position->hdop = static_cast<float>(hdop);
 		_gps_position->vdop = static_cast<float>(vdop);
@@ -496,21 +493,21 @@ int GPSDriverAshtech::handleMessage(int len)
 		ASH_UNUSED(deg_from_north);
 		ASH_UNUSED(rms_err);
 
-		if (bufptr && *(++bufptr) != ',') { ashtech_time = strtod(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, ashtech_time);
 
-		if (bufptr && *(++bufptr) != ',') { rms_err = strtod(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, rms_err);
 
-		if (bufptr && *(++bufptr) != ',') { maj_err = strtod(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, maj_err);
 
-		if (bufptr && *(++bufptr) != ',') { min_err = strtod(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, min_err);
 
-		if (bufptr && *(++bufptr) != ',') { deg_from_north = strtod(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, deg_from_north);
 
-		if (bufptr && *(++bufptr) != ',') { lat_err = strtod(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, lat_err);
 
-		if (bufptr && *(++bufptr) != ',') { lon_err = strtod(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, lon_err);
 
-		if (bufptr && *(++bufptr) != ',') { alt_err = strtod(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, alt_err);
 
 		_gps_position->eph = sqrtf(static_cast<float>(lat_err) * static_cast<float>(lat_err)
 					   + static_cast<float>(lon_err) * static_cast<float>(lon_err));
@@ -563,11 +560,11 @@ int GPSDriverAshtech::handleMessage(int len)
 
 		memset(sat, 0, sizeof(sat));
 
-		if (bufptr && *(++bufptr) != ',') { all_msg_num = strtol(bufptr, &endp, 10); bufptr = endp; }
+		nmeaNextField(bufptr, all_msg_num);
 
-		if (bufptr && *(++bufptr) != ',') { this_msg_num = strtol(bufptr, &endp, 10); bufptr = endp; }
+		nmeaNextField(bufptr, this_msg_num);
 
-		if (bufptr && *(++bufptr) != ',') { tot_sv_visible = strtol(bufptr, &endp, 10); bufptr = endp; }
+		nmeaNextField(bufptr, tot_sv_visible);
 
 		if ((this_msg_num < 1) || (this_msg_num > all_msg_num)) {
 			return 0;
@@ -597,13 +594,13 @@ int GPSDriverAshtech::handleMessage(int len)
 
 		if (_satellite_info) {
 			for (int y = 0 ; y < end ; y++) {
-				if (bufptr && *(++bufptr) != ',') { sat[y].svid = strtol(bufptr, &endp, 10); bufptr = endp; }
+				nmeaNextField(bufptr, sat[y].svid);
 
-				if (bufptr && *(++bufptr) != ',') { sat[y].elevation = strtol(bufptr, &endp, 10); bufptr = endp; }
+				nmeaNextField(bufptr, sat[y].elevation);
 
-				if (bufptr && *(++bufptr) != ',') { sat[y].azimuth = strtol(bufptr, &endp, 10); bufptr = endp; }
+				nmeaNextField(bufptr, sat[y].azimuth);
 
-				if (bufptr && *(++bufptr) != ',') { sat[y].snr = strtol(bufptr, &endp, 10); bufptr = endp; }
+				nmeaNextField(bufptr, sat[y].snr);
 
 				_satellite_info->svid[y + (this_msg_num - 1) * 4]      = sat[y].svid;
 				_satellite_info->used[y + (this_msg_num - 1) * 4]      = (sat[y].snr > 0);
@@ -679,22 +676,22 @@ int GPSDriverAshtech::handleMessage(int len)
 
 				if (bufptr) { bufptr = strstr(bufptr + 1, ","); }
 
-				if (bufptr && *(++bufptr) != ',') { lat = strtod(bufptr, &endp); bufptr = endp; }
+				nmeaNextField(bufptr, lat);
 
-				if (bufptr && *(++bufptr) != ',') { ns = *(bufptr++); }
+				nmeaNextField(bufptr, ns);
 
-				if (bufptr && *(++bufptr) != ',') { lon = strtod(bufptr, &endp); bufptr = endp; }
+				nmeaNextField(bufptr, lon);
 
-				if (bufptr && *(++bufptr) != ',') { ew = *(bufptr++); }
+				nmeaNextField(bufptr, ew);
 
-				if (bufptr && *(++bufptr) != ',') { alt = strtod(bufptr, &endp); bufptr = endp; }
+				nmeaNextField(bufptr, alt);
 
 				if (ns == 'S') { lat = -lat; }
 
 				if (ew == 'W') { lon = -lon; }
 
-				lat = int(lat * 0.01) + (lat * 0.01 - int(lat * 0.01)) * 100.0 / 60.0;
-				lon = int(lon * 0.01) + (lon * 0.01 - int(lon * 0.01)) * 100.0 / 60.0;
+				lat = nmeaToDegrees(lat);
+				lon = nmeaToDegrees(lon);
 
 				sendSurveyInStatusUpdate(false, true, lat, lon, alt);
 

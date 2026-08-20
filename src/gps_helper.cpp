@@ -33,6 +33,7 @@
 
 #include "gps_helper.h"
 #include <math.h>
+#include <stdlib.h>
 
 #ifndef M_PI
 #define M_PI		3.141592653589793238462643383280
@@ -100,4 +101,49 @@ void GPSHelper::ECEF2lla(double ecef_x, double ecef_y, double ecef_z, double &la
 	latitude *= 180. / M_PI;
 
 	// correction for altitude near poles left out.
+}
+
+bool GPSHelper::nmeaNextField(char *&p, double &value)
+{
+	if (p && *(++p) != ',') {
+		value = strtod(p, &p);
+		return true;
+	}
+
+	return false;
+}
+
+bool GPSHelper::nmeaNextField(char *&p, float &value)
+{
+	if (p && *(++p) != ',') {
+		value = strtof(p, &p);
+		return true;
+	}
+
+	return false;
+}
+
+bool GPSHelper::nmeaNextField(char *&p, int &value)
+{
+	if (p && *(++p) != ',') {
+		value = strtol(p, &p, 10);
+		return true;
+	}
+
+	return false;
+}
+
+bool GPSHelper::nmeaNextField(char *&p, char &value)
+{
+	if (p && *(++p) != ',') {
+		value = *(p++);
+		return true;
+	}
+
+	return false;
+}
+
+double GPSHelper::nmeaToDegrees(double ddmm)
+{
+	return int(ddmm * 0.01) + (ddmm * 0.01 - int(ddmm * 0.01)) * 100.0 / 60.0;
 }

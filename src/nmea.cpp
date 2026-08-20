@@ -86,8 +86,6 @@ GPSDriverNMEA::~GPSDriverNMEA()
 
 int GPSDriverNMEA::handleMessage(int len)
 {
-	char *endp;
-
 	if (len < 7) {
 		return 0;
 	}
@@ -126,17 +124,17 @@ int GPSDriverNMEA::handleMessage(int len)
 		NMEA_UNUSED(local_time_off_hour);
 		NMEA_UNUSED(local_time_off_min);
 
-		if (bufptr && *(++bufptr) != ',') { utc_time = strtod(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, utc_time);
 
-		if (bufptr && *(++bufptr) != ',') { day = strtol(bufptr, &endp, 10); bufptr = endp; }
+		nmeaNextField(bufptr, day);
 
-		if (bufptr && *(++bufptr) != ',') { month = strtol(bufptr, &endp, 10); bufptr = endp; }
+		nmeaNextField(bufptr, month);
 
-		if (bufptr && *(++bufptr) != ',') { year = strtol(bufptr, &endp, 10); bufptr = endp; }
+		nmeaNextField(bufptr, year);
 
-		if (bufptr && *(++bufptr) != ',') { local_time_off_hour = strtol(bufptr, &endp, 10); bufptr = endp; }
+		nmeaNextField(bufptr, local_time_off_hour);
 
-		if (bufptr && *(++bufptr) != ',') { local_time_off_min = strtol(bufptr, &endp, 10); bufptr = endp; }
+		nmeaNextField(bufptr, local_time_off_min);
 
 		int utc_hour = static_cast<int>(utc_time / 10000);
 		int utc_minute = static_cast<int>((utc_time - utc_hour * 10000) / 100);
@@ -196,19 +194,19 @@ int GPSDriverNMEA::handleMessage(int len)
 		double utc_time = 0.0, lat = 0.0, lon = 0.0;
 		char ns = '?', ew = '?', dvalid = '?', modeind = '?';
 
-		if (bufptr && *(++bufptr) != ',') { lat = strtod(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, lat);
 
-		if (bufptr && *(++bufptr) != ',') { ns = *(bufptr++); }
+		nmeaNextField(bufptr, ns);
 
-		if (bufptr && *(++bufptr) != ',') { lon = strtod(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, lon);
 
-		if (bufptr && *(++bufptr) != ',') { ew = *(bufptr++); }
+		nmeaNextField(bufptr, ew);
 
-		if (bufptr && *(++bufptr) != ',') { utc_time = strtod(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, utc_time);
 
-		if (bufptr && *(++bufptr) != ',') { dvalid = *(bufptr++); }
+		nmeaNextField(bufptr, dvalid);
 
-		if (bufptr && *(++bufptr) != ',') { modeind = *(bufptr++); }
+		nmeaNextField(bufptr, modeind);
 
 		if (ns == 'S') {
 			lat = -lat;
@@ -221,8 +219,8 @@ int GPSDriverNMEA::handleMessage(int len)
 
 		/* only update the values if they are valid */
 		if (dvalid == 'A' && modeind == 'A') {
-			_gps_position->longitude_deg = int(lon * 0.01) + (lon * 0.01 - int(lon * 0.01)) * 100.0 / 60.0;
-			_gps_position->latitude_deg = int(lat * 0.01) + (lat * 0.01 - int(lat * 0.01)) * 100.0 / 60.0;
+			_gps_position->longitude_deg = nmeaToDegrees(lon);
+			_gps_position->latitude_deg = nmeaToDegrees(lat);
 
 			if (!_POS_received && (_last_POS_timeUTC < utc_time)) {
 				_last_POS_timeUTC = utc_time;
@@ -278,31 +276,31 @@ int GPSDriverNMEA::handleMessage(int len)
 
 		NMEA_UNUSED(dgps_age);
 
-		if (bufptr && *(++bufptr) != ',') { utc_time = strtod(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, utc_time);
 
-		if (bufptr && *(++bufptr) != ',') { lat = strtod(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, lat);
 
-		if (bufptr && *(++bufptr) != ',') { ns = *(bufptr++); }
+		nmeaNextField(bufptr, ns);
 
-		if (bufptr && *(++bufptr) != ',') { lon = strtod(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, lon);
 
-		if (bufptr && *(++bufptr) != ',') { ew = *(bufptr++); }
+		nmeaNextField(bufptr, ew);
 
-		if (bufptr && *(++bufptr) != ',') { fix_quality = strtol(bufptr, &endp, 10); bufptr = endp; }
+		nmeaNextField(bufptr, fix_quality);
 
-		if (bufptr && *(++bufptr) != ',') { num_of_sv = strtol(bufptr, &endp, 10); bufptr = endp; }
+		nmeaNextField(bufptr, num_of_sv);
 
-		if (bufptr && *(++bufptr) != ',') { hdop = strtof(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, hdop);
 
-		if (bufptr && *(++bufptr) != ',') { alt = strtof(bufptr, &endp); bufptr = endp; }
-
-		while (*(++bufptr) != ',') {} //skip M
-
-		if (bufptr && *(++bufptr) != ',') { geoid_h = strtof(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, alt);
 
 		while (*(++bufptr) != ',') {} //skip M
 
-		if (bufptr && *(++bufptr) != ',') { dgps_age = strtof(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, geoid_h);
+
+		while (*(++bufptr) != ',') {} //skip M
+
+		nmeaNextField(bufptr, dgps_age);
 
 		if (ns == 'S') {
 			lat = -lat;
@@ -313,8 +311,8 @@ int GPSDriverNMEA::handleMessage(int len)
 		}
 
 		/* convert from degrees, minutes and seconds to degrees */
-		_gps_position->longitude_deg = int(lon * 0.01) + (lon * 0.01 - int(lon * 0.01)) * 100.0 / 60.0;
-		_gps_position->latitude_deg = int(lat * 0.01) + (lat * 0.01 - int(lat * 0.01)) * 100.0 / 60.0;
+		_gps_position->longitude_deg = nmeaToDegrees(lon);
+		_gps_position->latitude_deg = nmeaToDegrees(lat);
 		_gps_position->hdop = hdop;
 		_gps_position->altitude_msl_m = (double)alt;
 		_gps_position->altitude_ellipsoid_m = (double)(alt + geoid_h);
@@ -361,8 +359,7 @@ int GPSDriverNMEA::handleMessage(int len)
 
 		float heading_deg = 0.f;
 
-		if (bufptr && *(++bufptr) != ',') {
-			heading_deg = strtof(bufptr, &endp); bufptr = endp;
+		if (nmeaNextField(bufptr, heading_deg)) {
 			handleHeading(heading_deg, NAN);
 		}
 
@@ -410,15 +407,15 @@ int GPSDriverNMEA::handleMessage(int len)
 		int i = 0;
 		NMEA_UNUSED(pos_Mode);
 
-		if (bufptr && *(++bufptr) != ',') { utc_time = strtod(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, utc_time);
 
-		if (bufptr && *(++bufptr) != ',') { lat = strtod(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, lat);
 
-		if (bufptr && *(++bufptr) != ',') { ns = *(bufptr++); }
+		nmeaNextField(bufptr, ns);
 
-		if (bufptr && *(++bufptr) != ',') { lon = strtod(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, lon);
 
-		if (bufptr && *(++bufptr) != ',') { ew = *(bufptr++);}
+		nmeaNextField(bufptr, ew);
 
 		/* as more GPS systems are added this string can grow, so only parse out the first X, but keep going until we hit the end of field */
 		do {
@@ -426,13 +423,13 @@ int GPSDriverNMEA::handleMessage(int len)
 
 		} while (*(++bufptr) != ',');
 
-		if (bufptr && *(++bufptr) != ',') { num_of_sv = strtol(bufptr, &endp, 10); bufptr = endp; }
+		nmeaNextField(bufptr, num_of_sv);
 
-		if (bufptr && *(++bufptr) != ',') { hdop = strtof(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, hdop);
 
-		if (bufptr && *(++bufptr) != ',') { alt = strtof(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, alt);
 
-		if (bufptr && *(++bufptr) != ',') { geoid_h = strtof(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, geoid_h);
 
 		if (ns == 'S') {
 			lat = -lat;
@@ -443,8 +440,8 @@ int GPSDriverNMEA::handleMessage(int len)
 		}
 
 		/* convert from degrees, minutes and seconds to degrees */
-		_gps_position->latitude_deg = int(lat * 0.01) + (lat * 0.01 - int(lat * 0.01)) * 100.0 / 60.0;
-		_gps_position->longitude_deg = int(lon * 0.01) + (lon * 0.01 - int(lon * 0.01)) * 100.0 / 60.0;
+		_gps_position->latitude_deg = nmeaToDegrees(lat);
+		_gps_position->longitude_deg = nmeaToDegrees(lon);
 		_gps_position->hdop = hdop;
 		_gps_position->altitude_msl_m = (double)alt;
 		_gps_position->altitude_ellipsoid_m = (double)(alt + geoid_h);
@@ -494,25 +491,25 @@ int GPSDriverNMEA::handleMessage(int len)
 		char ns = '?', ew = '?';
 		NMEA_UNUSED(Mag_var);
 
-		if (bufptr && *(++bufptr) != ',') { utc_time = strtod(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, utc_time);
 
-		if (bufptr && *(++bufptr) != ',') { Status = *(bufptr++); }
+		nmeaNextField(bufptr, Status);
 
-		if (bufptr && *(++bufptr) != ',') { lat = strtod(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, lat);
 
-		if (bufptr && *(++bufptr) != ',') { ns = *(bufptr++); }
+		nmeaNextField(bufptr, ns);
 
-		if (bufptr && *(++bufptr) != ',') { lon = strtod(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, lon);
 
-		if (bufptr && *(++bufptr) != ',') { ew = *(bufptr++); }
+		nmeaNextField(bufptr, ew);
 
-		if (bufptr && *(++bufptr) != ',') { ground_speed_K = strtof(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, ground_speed_K);
 
-		if (bufptr && *(++bufptr) != ',') { track_true = strtof(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, track_true);
 
-		if (bufptr && *(++bufptr) != ',') { nmea_date = static_cast<int>(strtol(bufptr, &endp, 10)); bufptr = endp; }
+		nmeaNextField(bufptr, nmea_date);
 
-		if (bufptr && *(++bufptr) != ',') { Mag_var = strtof(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, Mag_var);
 
 		if (ns == 'S') {
 			lat = -lat;
@@ -543,8 +540,8 @@ int GPSDriverNMEA::handleMessage(int len)
 			// We ignore RMC position for Unicore, because we have GGA configured at the rate we want.
 
 			/* convert from degrees, minutes and seconds to degrees */
-			_gps_position->latitude_deg = int(lat * 0.01) + (lat * 0.01 - int(lat * 0.01)) * 100.0 / 60.0;
-			_gps_position->longitude_deg = int(lon * 0.01) + (lon * 0.01 - int(lon * 0.01)) * 100.0 / 60.0;
+			_gps_position->latitude_deg = nmeaToDegrees(lat);
+			_gps_position->longitude_deg = nmeaToDegrees(lon);
 
 			if (!_POS_received && (_last_POS_timeUTC < utc_time)) {
 				_gps_position->timestamp = gps_absolute_time();
@@ -656,21 +653,21 @@ int GPSDriverNMEA::handleMessage(int len)
 		NMEA_UNUSED(deg_from_north);
 		NMEA_UNUSED(rms_err);
 
-		if (bufptr && *(++bufptr) != ',') { utc_time = strtod(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, utc_time);
 
-		if (bufptr && *(++bufptr) != ',') { rms_err = strtof(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, rms_err);
 
-		if (bufptr && *(++bufptr) != ',') { maj_err = strtof(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, maj_err);
 
-		if (bufptr && *(++bufptr) != ',') { min_err = strtof(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, min_err);
 
-		if (bufptr && *(++bufptr) != ',') { deg_from_north = strtof(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, deg_from_north);
 
-		if (bufptr && *(++bufptr) != ',') { lat_err = strtof(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, lat_err);
 
-		if (bufptr && *(++bufptr) != ',') { lon_err = strtof(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, lon_err);
 
-		if (bufptr && *(++bufptr) != ',') { alt_err = strtof(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, alt_err);
 
 		_gps_position->eph = sqrtf(static_cast<float>(lat_err) * static_cast<float>(lat_err)
 					   + static_cast<float>(lon_err) * static_cast<float>(lon_err));
@@ -708,19 +705,19 @@ int GPSDriverNMEA::handleMessage(int len)
 		NMEA_UNUSED(sat_id);
 		NMEA_UNUSED(pdop);
 
-		if (bufptr && *(++bufptr) != ',') { M_pos = *(bufptr++); }
+		nmeaNextField(bufptr, M_pos);
 
-		if (bufptr && *(++bufptr) != ',') { fix_mode = strtol(bufptr, &endp, 10); bufptr = endp; }
+		nmeaNextField(bufptr, fix_mode);
 
 		for (int y = 0; y < 12; y++) {
-			if (bufptr && *(++bufptr) != ',') {sat_id[y] = strtol(bufptr, &endp, 10); bufptr = endp; }
+			nmeaNextField(bufptr, sat_id[y]);
 		}
 
-		if (bufptr && *(++bufptr) != ',') { pdop = strtof(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, pdop);
 
-		if (bufptr && *(++bufptr) != ',') { hdop = strtof(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, hdop);
 
-		if (bufptr && *(++bufptr) != ',') { vdop = strtof(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, vdop);
 
 		if (fix_mode <= 1) {
 			_gps_position->fix_type = 0;
@@ -763,11 +760,11 @@ int GPSDriverNMEA::handleMessage(int len)
 			int snr;
 		} sat[4] {};
 
-		if (bufptr && *(++bufptr) != ',') { all_page_num = strtol(bufptr, &endp, 10); bufptr = endp; }
+		nmeaNextField(bufptr, all_page_num);
 
-		if (bufptr && *(++bufptr) != ',') { this_page_num = strtol(bufptr, &endp, 10); bufptr = endp; }
+		nmeaNextField(bufptr, this_page_num);
 
-		if (bufptr && *(++bufptr) != ',') { tot_sv_visible = strtol(bufptr, &endp, 10); bufptr = endp; }
+		nmeaNextField(bufptr, tot_sv_visible);
 
 		if ((this_page_num < 1) || (this_page_num > all_page_num)) {
 			return 0;
@@ -815,13 +812,13 @@ int GPSDriverNMEA::handleMessage(int len)
 
 		if (_satellite_info) {
 			for (int y = 0 ; y < end ; y++) {
-				if (bufptr && *(++bufptr) != ',') { sat[y].svid = strtol(bufptr, &endp, 10); bufptr = endp; }
+				nmeaNextField(bufptr, sat[y].svid);
 
-				if (bufptr && *(++bufptr) != ',') { sat[y].elevation = strtol(bufptr, &endp, 10); bufptr = endp; }
+				nmeaNextField(bufptr, sat[y].elevation);
 
-				if (bufptr && *(++bufptr) != ',') { sat[y].azimuth = strtol(bufptr, &endp, 10); bufptr = endp; }
+				nmeaNextField(bufptr, sat[y].azimuth);
 
-				if (bufptr && *(++bufptr) != ',') { sat[y].snr = strtol(bufptr, &endp, 10); bufptr = endp; }
+				nmeaNextField(bufptr, sat[y].snr);
 
 				_satellite_info->svid[y + (this_page_num - 1) * 4]      = sat[y].svid;
 				_satellite_info->used[y + (this_page_num - 1) * 4]      = (sat[y].snr > 0);
@@ -865,21 +862,21 @@ int GPSDriverNMEA::handleMessage(int len)
 		NMEA_UNUSED(ground_speed_K);
 		NMEA_UNUSED(K);
 
-		if (bufptr && *(++bufptr) != ',') {track_true = strtof(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, track_true);
 
-		if (bufptr && *(++bufptr) != ',') { T = *(bufptr++); }
+		nmeaNextField(bufptr, T);
 
-		if (bufptr && *(++bufptr) != ',') {track_mag = strtof(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, track_mag);
 
-		if (bufptr && *(++bufptr) != ',') { M = *(bufptr++); }
+		nmeaNextField(bufptr, M);
 
-		if (bufptr && *(++bufptr) != ',') { ground_speed = strtof(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, ground_speed);
 
-		if (bufptr && *(++bufptr) != ',') { N = *(bufptr++); }
+		nmeaNextField(bufptr, N);
 
-		if (bufptr && *(++bufptr) != ',') { ground_speed_K = strtof(bufptr, &endp); bufptr = endp; }
+		nmeaNextField(bufptr, ground_speed_K);
 
-		if (bufptr && *(++bufptr) != ',') { K = *(bufptr++); }
+		nmeaNextField(bufptr, K);
 
 		float track_rad = track_true * M_PI_F / 180.0f; // rad in range [0, 2pi]
 
