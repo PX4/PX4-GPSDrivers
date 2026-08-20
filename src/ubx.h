@@ -1144,26 +1144,25 @@ private:
 	int configureDevicePreV27(const GNSSSystemsMask &gnssSystems);
 
 	/**
-	 * Add a configuration value to _tx_cfg_valset_buf and increase the message size msg_size as needed.
+	 * Add a configuration value to the pending CFG-VALSET in _tx_cfg_valset_buf.
 	 * The value width on the wire comes from the key ID's size field, not from T; T documents the
 	 * call site and must agree with the key.
 	 * @param key_id one of the UBX_CFG_KEY_* constants
 	 * @param value configuration value
-	 * @param msg_size CFG-VALSET message size: this is an input & output param
 	 * @return true on success, false if buffer too small
 	 */
 	template<typename T>
-	bool cfgValset(uint32_t key_id, T value, int &msg_size)
+	bool cfgValset(uint32_t key_id, T value)
 	{
 		static_assert(sizeof(T) <= sizeof(uint32_t), "CFG-VALSET values wider than 4 bytes are not supported");
-		return cfgValsetRaw(key_id, static_cast<uint32_t>(value), msg_size);
+		return cfgValsetRaw(key_id, static_cast<uint32_t>(value));
 	}
 
 	/**
 	 * Non-template body for cfgValset(): appends key_id and the low N bytes of value, where N is
 	 * given by the key ID's size field (bits 28-30: 1 and 2 -> 1 byte, 3 -> 2 bytes, 4 -> 4 bytes).
 	 */
-	bool cfgValsetRaw(uint32_t key_id, uint32_t value, int &msg_size);
+	bool cfgValsetRaw(uint32_t key_id, uint32_t value);
 
 	/**
 	 * Add a configuration value that is port-specific (MSGOUT messages).
@@ -1173,10 +1172,9 @@ private:
 	 *
 	 * @param key_id I2C key ID
 	 * @param value configuration value
-	 * @param msg_size CFG-VALSET message size: this is an input & output param
 	 * @return true on success, false if buffer too small
 	 */
-	bool cfgValsetPort(uint32_t key_id, uint8_t value, int &msg_size);
+	bool cfgValsetPort(uint32_t key_id, uint8_t value);
 
 	/**
 	 * Add a port-specific (MSGOUT) configuration value for UART2, which is never the port this
@@ -1184,10 +1182,9 @@ private:
 	 *
 	 * @param key_id I2C key ID
 	 * @param value configuration value
-	 * @param msg_size CFG-VALSET message size: this is an input & output param
 	 * @return true on success, false if buffer too small
 	 */
-	bool cfgValsetUart2(uint32_t key_id, uint8_t value, int &msg_size);
+	bool cfgValsetUart2(uint32_t key_id, uint8_t value);
 
 	/**
 	 * Reset the parse state machine for a fresh start
@@ -1200,10 +1197,15 @@ private:
 	uint32_t fnv1_32_str(uint8_t *str, uint32_t hval);
 
 	/**
-	 * Init _tx_cfg_valset_buf as CFG-VALSET
-	 * @return size of the message (without any config values)
+	 * Start a new CFG-VALSET in _tx_cfg_valset_buf (header only, no config values yet)
 	 */
-	int initCfgValset();
+	void initCfgValset();
+
+	/**
+	 * Send the CFG-VALSET built up by initCfgValset() and cfgValset*() calls
+	 * @return true on success
+	 */
+	bool sendCfgValset();
 
 	/**
 	 * Start or restart the survey-in procees. This is only used in RTCM ouput mode.
@@ -1259,6 +1261,7 @@ private:
 	ubx_ack_state_t         _ack_state{UBX_ACK_IDLE};
 	ubx_buf_t               _buf{};
 	uint8_t                 _tx_cfg_valset_buf[UBX_CFG_VALSET_BUF_SIZE] {};
+	int                     _tx_cfg_valset_size{0};
 	ubx_decode_state_t      _decode_state{};
 	ubx_rxmsg_state_t       _rx_state{UBX_RXMSG_IGNORE};
 
