@@ -2296,35 +2296,30 @@ GPSDriverUBX::payloadRxAddMonVer(const uint8_t b)
 			UBX_DEBUG("VER sw  \"%30s\"", _buf.payload_rx_mon_ver_part1.swVersion);
 
 			// Device detection (See https://forum.u-blox.com/index.php/9432/need-help-decoding-ubx-mon-ver-hardware-string)
-			if (strncmp((const char *)_buf.payload_rx_mon_ver_part1.hwVersion, "00040005",
-				    sizeof(_buf.payload_rx_mon_ver_part1.hwVersion)) == 0) {
-				_board = Board::u_blox5;
+			static constexpr struct {
+				char hw_version[9];
+				Board board;
+			} known_boards[] = {
+				{"00040005", Board::u_blox5},
+				{"00040007", Board::u_blox6},
+				{"00070000", Board::u_blox7},
+				{"00080000", Board::u_blox8},
+				{"00190000", Board::u_blox9},
+				{"000A0000", Board::u_blox10},
+				{"000B0000", Board::u_blox_X20},
+			};
+			bool known = false;
 
-			} else if (strncmp((const char *)_buf.payload_rx_mon_ver_part1.hwVersion, "00040007",
-					   sizeof(_buf.payload_rx_mon_ver_part1.hwVersion)) == 0) {
-				_board = Board::u_blox6;
+			for (const auto &known_board : known_boards) {
+				if (strncmp((const char *)_buf.payload_rx_mon_ver_part1.hwVersion, known_board.hw_version,
+					    sizeof(_buf.payload_rx_mon_ver_part1.hwVersion)) == 0) {
+					_board = known_board.board;
+					known = true;
+					break;
+				}
+			}
 
-			} else if (strncmp((const char *)_buf.payload_rx_mon_ver_part1.hwVersion, "00070000",
-					   sizeof(_buf.payload_rx_mon_ver_part1.hwVersion)) == 0) {
-				_board = Board::u_blox7;
-
-			} else if (strncmp((const char *)_buf.payload_rx_mon_ver_part1.hwVersion, "00080000",
-					   sizeof(_buf.payload_rx_mon_ver_part1.hwVersion)) == 0) {
-				_board = Board::u_blox8;
-
-			} else if (strncmp((const char *)_buf.payload_rx_mon_ver_part1.hwVersion, "00190000",
-					   sizeof(_buf.payload_rx_mon_ver_part1.hwVersion)) == 0) {
-				_board = Board::u_blox9;
-
-			} else if (strncmp((const char *)_buf.payload_rx_mon_ver_part1.hwVersion, "000A0000",
-					   sizeof(_buf.payload_rx_mon_ver_part1.hwVersion)) == 0) {
-				_board = Board::u_blox10;
-
-			} else if (strncmp((const char *)_buf.payload_rx_mon_ver_part1.hwVersion, "000B0000",
-					   sizeof(_buf.payload_rx_mon_ver_part1.hwVersion)) == 0) {
-				_board = Board::u_blox_X20;
-
-			} else {
+			if (!known) {
 				UBX_WARN("unknown board hw: %s", _buf.payload_rx_mon_ver_part1.hwVersion);
 			}
 
