@@ -86,6 +86,9 @@ private:
 	int handleMessage(int len);
 	int parseChar(uint8_t b);
 
+	/** Set time_utc_usec from a UTC date and an NMEA hhmmss.ss time, and the system clock the first time */
+	void setTimeUtc(int year, int month, int day, double utc_hhmmss);
+
 	int32_t read_int();
 	double read_float();
 	char read_char();

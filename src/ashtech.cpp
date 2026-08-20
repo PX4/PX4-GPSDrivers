@@ -85,7 +85,6 @@ int GPSDriverAshtech::handleMessage(int len)
 	int ret = 0;
 
 	if ((memcmp(_rx_buffer + 3, "ZDA,", 3) == 0) && (uiCalcComma == 6)) {
-#ifndef NO_MKTIME
 		/*
 		UTC day, month, and year, and local time zone offset
 		An example of the ZDA message string is:
@@ -124,44 +123,16 @@ int GPSDriverAshtech::handleMessage(int len)
 		int ashtech_hour = static_cast<int>(ashtech_time / 10000);
 		int ashtech_minute = static_cast<int>((ashtech_time - ashtech_hour * 10000) / 100);
 		double ashtech_sec = static_cast<double>(ashtech_time - ashtech_hour * 10000 - ashtech_minute * 100);
+		uint64_t usecs = static_cast<uint64_t>((ashtech_sec - static_cast<uint64_t>(ashtech_sec))) * 1000000;
 
-		/*
-		 * convert to unix timestamp
-		 */
-		struct tm timeinfo = {};
+		tm timeinfo{};
 		timeinfo.tm_year = year - 1900;
 		timeinfo.tm_mon = month - 1;
 		timeinfo.tm_mday = day;
 		timeinfo.tm_hour = ashtech_hour;
 		timeinfo.tm_min = ashtech_minute;
 		timeinfo.tm_sec = int(ashtech_sec);
-		timeinfo.tm_isdst = 0;
-
-		time_t epoch = mktime(&timeinfo);
-
-		if (epoch > GPS_EPOCH_SECS) {
-			uint64_t usecs = static_cast<uint64_t>((ashtech_sec - static_cast<uint64_t>(ashtech_sec))) * 1000000;
-
-			// FMUv2+ boards have a hardware RTC, but GPS helps us to configure it
-			// and control its drift. Since we rely on the HRT for our monotonic
-			// clock, updating it from time to time is safe.
-
-			timespec ts{};
-			ts.tv_sec = epoch;
-			ts.tv_nsec = usecs * 1000;
-
-			setClock(ts);
-
-			_gps_position->time_utc_usec = static_cast<uint64_t>(epoch) * 1000000ULL;
-			_gps_position->time_utc_usec += usecs;
-
-		} else {
-			_gps_position->time_utc_usec = 0;
-		}
-
-#else
-		_gps_position->time_utc_usec = 0;
-#endif
+		_gps_position->time_utc_usec = timeFromUtc(timeinfo, usecs * 1000);
 
 		_last_timestamp_time = gps_absolute_time();
 	}

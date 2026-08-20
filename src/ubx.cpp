@@ -2477,8 +2477,6 @@ GPSDriverUBX::payloadRxDone()
 		if ((_buf.payload_rx_nav_pvt.valid & UBX_RX_NAV_PVT_VALID_VALIDDATE)
 		    && (_buf.payload_rx_nav_pvt.valid & UBX_RX_NAV_PVT_VALID_VALIDTIME)
 		    && (_buf.payload_rx_nav_pvt.valid & UBX_RX_NAV_PVT_VALID_FULLYRESOLVED)) {
-#ifndef NO_MKTIME
-			/* convert to unix timestamp */
 			tm timeinfo{};
 			timeinfo.tm_year	= _buf.payload_rx_nav_pvt.year - 1900;
 			timeinfo.tm_mon		= _buf.payload_rx_nav_pvt.month - 1;
@@ -2486,31 +2484,7 @@ GPSDriverUBX::payloadRxDone()
 			timeinfo.tm_hour	= _buf.payload_rx_nav_pvt.hour;
 			timeinfo.tm_min		= _buf.payload_rx_nav_pvt.min;
 			timeinfo.tm_sec		= _buf.payload_rx_nav_pvt.sec;
-
-
-			time_t epoch = mktime(&timeinfo);
-
-			if (epoch > GPS_EPOCH_SECS) {
-				// FMUv2+ boards have a hardware RTC, but GPS helps us to configure it
-				// and control its drift. Since we rely on the HRT for our monotonic
-				// clock, updating it from time to time is safe.
-
-				timespec ts{};
-				ts.tv_sec = epoch;
-				ts.tv_nsec = _buf.payload_rx_nav_pvt.nano;
-
-				setClock(ts);
-
-				_gps_position->time_utc_usec = static_cast<uint64_t>(epoch) * 1000000ULL;
-				_gps_position->time_utc_usec += _buf.payload_rx_nav_pvt.nano / 1000;
-
-			} else {
-				_gps_position->time_utc_usec = 0;
-			}
-
-#else
-			_gps_position->time_utc_usec = 0;
-#endif
+			_gps_position->time_utc_usec = timeFromUtc(timeinfo, _buf.payload_rx_nav_pvt.nano);
 
 		} else {
 			// The struct is reused across messages, so without this a receiver
@@ -2619,8 +2593,6 @@ GPSDriverUBX::payloadRxDone()
 		UBX_TRACE_RXMSG("Rx NAV-TIMEUTC");
 
 		if (_buf.payload_rx_nav_timeutc.valid & UBX_RX_NAV_TIMEUTC_VALID_VALIDUTC) {
-#ifndef NO_MKTIME
-			// convert to unix timestamp
 			tm timeinfo {};
 			timeinfo.tm_year	= _buf.payload_rx_nav_timeutc.year - 1900;
 			timeinfo.tm_mon		= _buf.payload_rx_nav_timeutc.month - 1;
@@ -2628,33 +2600,7 @@ GPSDriverUBX::payloadRxDone()
 			timeinfo.tm_hour	= _buf.payload_rx_nav_timeutc.hour;
 			timeinfo.tm_min		= _buf.payload_rx_nav_timeutc.min;
 			timeinfo.tm_sec		= _buf.payload_rx_nav_timeutc.sec;
-			timeinfo.tm_isdst	= 0;
-
-			time_t epoch = mktime(&timeinfo);
-
-			// only set the time if it makes sense
-
-			if (epoch > GPS_EPOCH_SECS) {
-				// FMUv2+ boards have a hardware RTC, but GPS helps us to configure it
-				// and control its drift. Since we rely on the HRT for our monotonic
-				// clock, updating it from time to time is safe.
-
-				timespec ts{};
-				ts.tv_sec = epoch;
-				ts.tv_nsec = _buf.payload_rx_nav_timeutc.nano;
-
-				setClock(ts);
-
-				_gps_position->time_utc_usec = static_cast<uint64_t>(epoch) * 1000000ULL;
-				_gps_position->time_utc_usec += _buf.payload_rx_nav_timeutc.nano / 1000;
-
-			} else {
-				_gps_position->time_utc_usec = 0;
-			}
-
-#else
-			_gps_position->time_utc_usec = 0;
-#endif
+			_gps_position->time_utc_usec = timeFromUtc(timeinfo, _buf.payload_rx_nav_timeutc.nano);
 
 		} else {
 			// The struct is reused across messages, so without this a receiver

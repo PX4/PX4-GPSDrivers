@@ -34,6 +34,7 @@
 #include "gps_helper.h"
 #include <math.h>
 #include <stdlib.h>
+#include <time.h>
 
 #ifndef M_PI
 #define M_PI		3.141592653589793238462643383280
@@ -146,4 +147,27 @@ bool GPSHelper::nmeaNextField(char *&p, char &value)
 double GPSHelper::nmeaToDegrees(double ddmm)
 {
 	return int(ddmm * 0.01) + (ddmm * 0.01 - int(ddmm * 0.01)) * 100.0 / 60.0;
+}
+
+uint64_t GPSHelper::timeFromUtc(tm &utc, int32_t nsec, bool set_clock)
+{
+#ifndef NO_MKTIME
+	const time_t epoch = mktime(&utc);
+
+	if (epoch > GPS_EPOCH_SECS) {
+		if (set_clock) {
+			// FMUv2+ boards have a hardware RTC, but GPS helps us to configure it
+			// and control its drift. Since we rely on the HRT for our monotonic
+			// clock, updating it from time to time is safe.
+			timespec ts{};
+			ts.tv_sec = epoch;
+			ts.tv_nsec = nsec;
+			setClock(ts);
+		}
+
+		return static_cast<uint64_t>(epoch) * 1000000ULL + nsec / 1000;
+	}
+
+#endif
+	return 0;
 }

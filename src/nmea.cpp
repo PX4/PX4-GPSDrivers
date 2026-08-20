@@ -84,6 +84,28 @@ GPSDriverNMEA::~GPSDriverNMEA()
  * http://www.trimble.com/OEM_ReceiverHelp/V4.44/en/NMEA-0183messages_MessageOverview.html
  */
 
+void GPSDriverNMEA::setTimeUtc(int year, int month, int day, double utc_hhmmss)
+{
+	int utc_hour = static_cast<int>(utc_hhmmss / 10000);
+	int utc_minute = static_cast<int>((utc_hhmmss - utc_hour * 10000) / 100);
+	double utc_sec = static_cast<double>(utc_hhmmss - utc_hour * 10000 - utc_minute * 100);
+	uint64_t usecs = static_cast<uint64_t>((utc_sec - static_cast<uint64_t>(utc_sec)) * 1000000);
+
+	tm timeinfo{};
+	timeinfo.tm_year = year - 1900;
+	timeinfo.tm_mon = month - 1;
+	timeinfo.tm_mday = day;
+	timeinfo.tm_hour = utc_hour;
+	timeinfo.tm_min = utc_minute;
+	timeinfo.tm_sec = int(utc_sec);
+
+	_gps_position->time_utc_usec = timeFromUtc(timeinfo, usecs * 1000, !_clock_set);
+
+	if (_gps_position->time_utc_usec != 0) {
+		_clock_set = true;
+	}
+}
+
 int GPSDriverNMEA::handleMessage(int len)
 {
 	if (len < 7) {
@@ -100,7 +122,6 @@ int GPSDriverNMEA::handleMessage(int len)
 	int ret = 0;
 
 	if ((memcmp(_rx_buffer + 3, "ZDA,", 4) == 0) && (fieldCount == 6)) {
-#ifndef NO_MKTIME
 		/*
 		UTC day, month, and year, and local time zone offset
 		An example of the ZDA message string is:
@@ -136,51 +157,7 @@ int GPSDriverNMEA::handleMessage(int len)
 
 		nmeaNextField(bufptr, local_time_off_min);
 
-		int utc_hour = static_cast<int>(utc_time / 10000);
-		int utc_minute = static_cast<int>((utc_time - utc_hour * 10000) / 100);
-		double utc_sec = static_cast<double>(utc_time - utc_hour * 10000 - utc_minute * 100);
-
-
-		/*
-		* convert to unix timestamp
-		*/
-		struct tm timeinfo = {};
-		timeinfo.tm_year = year - 1900;
-		timeinfo.tm_mon = month - 1;
-		timeinfo.tm_mday = day;
-		timeinfo.tm_hour = utc_hour;
-		timeinfo.tm_min = utc_minute;
-		timeinfo.tm_sec = int(utc_sec);
-		timeinfo.tm_isdst = 0;
-
-
-		time_t epoch = mktime(&timeinfo);
-
-		if (epoch > GPS_EPOCH_SECS) {
-			uint64_t usecs = static_cast<uint64_t>((utc_sec - static_cast<uint64_t>(utc_sec)) * 1000000);
-
-			// FMUv2+ boards have a hardware RTC, but GPS helps us to configure it
-			// and control its drift. Since we rely on the HRT for our monotonic
-			// clock, updating it from time to time is safe.
-
-			if (!_clock_set) {
-				timespec ts{};
-				ts.tv_sec = epoch;
-				ts.tv_nsec = usecs * 1000;
-				setClock(ts);
-				_clock_set = true;
-			}
-
-			_gps_position->time_utc_usec = static_cast<uint64_t>(epoch) * 1000000ULL;
-			_gps_position->time_utc_usec += usecs;
-
-		} else {
-			_gps_position->time_utc_usec = 0;
-		}
-
-#else
-		_gps_position->time_utc_usec = 0;
-#endif
+		setTimeUtc(year, month, day, utc_time);
 		_last_timestamp_time = gps_absolute_time();
 		_TIME_received = true;
 
@@ -563,54 +540,10 @@ int GPSDriverNMEA::handleMessage(int len)
 			}
 		}
 
-#ifndef NO_MKTIME
-		int utc_hour = static_cast<int>(utc_time / 10000);
-		int utc_minute = static_cast<int>((utc_time - utc_hour * 10000) / 100);
-		double utc_sec = static_cast<double>(utc_time - utc_hour * 10000 - utc_minute * 100);
 		int nmea_day = static_cast<int>(nmea_date / 10000);
 		int nmea_mth = static_cast<int>((nmea_date - nmea_day * 10000) / 100);
 		int nmea_year = static_cast<int>(nmea_date - nmea_day * 10000 - nmea_mth * 100);
-		/*
-		 * convert to unix timestamp
-		 */
-		struct tm timeinfo = {};
-		timeinfo.tm_year = nmea_year + 100;
-		timeinfo.tm_mon = nmea_mth - 1;
-		timeinfo.tm_mday = nmea_day;
-		timeinfo.tm_hour = utc_hour;
-		timeinfo.tm_min = utc_minute;
-		timeinfo.tm_sec = int(utc_sec);
-		timeinfo.tm_isdst = 0;
-
-		time_t epoch = mktime(&timeinfo);
-
-		if (epoch > GPS_EPOCH_SECS) {
-			uint64_t usecs = static_cast<uint64_t>((utc_sec - static_cast<uint64_t>(utc_sec)) * 1000000);
-
-			// FMUv2+ boards have a hardware RTC, but GPS helps us to configure it
-			// and control its drift. Since we rely on the HRT for our monotonic
-			// clock, updating it from time to time is safe.
-			if (!_clock_set) {
-				timespec ts{};
-				ts.tv_sec = epoch;
-				ts.tv_nsec = usecs * 1000;
-
-				setClock(ts);
-				_clock_set = true;
-			}
-
-			_gps_position->time_utc_usec = static_cast<uint64_t>(epoch) * 1000000ULL;
-			_gps_position->time_utc_usec += usecs;
-
-		} else {
-			_gps_position->time_utc_usec = 0;
-		}
-
-#else
-		NMEA_UNUSED(utc_time);
-		NMEA_UNUSED(nmea_date);
-		_gps_position->time_utc_usec = 0;
-#endif
+		setTimeUtc(nmea_year + 2000, nmea_mth, nmea_day, utc_time);
 
 		_last_timestamp_time = gps_absolute_time();
 		_TIME_received = true;

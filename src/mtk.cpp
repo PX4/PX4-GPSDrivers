@@ -246,7 +246,6 @@ GPSDriverMTK::handleMessage(gps_mtk_packet_t &packet)
 	_gps_position->cog_rad = ((float)packet.heading) * M_DEG_TO_RAD_F * 1e-2f; //from deg *100 to rad
 	_gps_position->satellites_used = packet.satellites;
 
-#ifndef NO_MKTIME
 	/* convert time and date information to unix timestamp */
 	struct tm timeinfo = {};
 	uint32_t timeinfo_conversion_temp;
@@ -263,32 +262,7 @@ GPSDriverMTK::handleMessage(gps_mtk_packet_t &packet)
 	timeinfo.tm_sec = timeinfo_conversion_temp / 1000;
 	timeinfo_conversion_temp -= timeinfo.tm_sec * 1000;
 
-	timeinfo.tm_isdst = 0;
-
-
-	time_t epoch = mktime(&timeinfo);
-
-	if (epoch > GPS_EPOCH_SECS) {
-		// FMUv2+ boards have a hardware RTC, but GPS helps us to configure it
-		// and control its drift. Since we rely on the HRT for our monotonic
-		// clock, updating it from time to time is safe.
-
-		timespec ts{};
-		ts.tv_sec = epoch;
-		ts.tv_nsec = timeinfo_conversion_temp * 1000000ULL;
-
-		setClock(ts);
-
-		_gps_position->time_utc_usec = static_cast<uint64_t>(epoch) * 1000000ULL;
-		_gps_position->time_utc_usec += timeinfo_conversion_temp * 1000ULL;
-
-	} else {
-		_gps_position->time_utc_usec = 0;
-	}
-
-#else
-	_gps_position->time_utc_usec = 0;
-#endif
+	_gps_position->time_utc_usec = timeFromUtc(timeinfo, timeinfo_conversion_temp * 1000000);
 
 	_gps_position->timestamp = gps_absolute_time();
 	_gps_position->timestamp_time_relative = 0;
