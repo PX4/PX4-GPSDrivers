@@ -166,29 +166,28 @@ int GPSDriverFemto::handleMessage(int len)
 
 		if (uiCalcComma == 14) {
 			char *bufptr = (char *)(_femto_msg.data + 6);
-			char *endp = nullptr;
 			double ashtech_time = 0.0, lat = 0.0, lon = 0.0, alt = 0.0;
 			int num_of_sv = 0, fix_quality = 0;
 			double hdop = 99.9;
 			char ns = '?', ew = '?';
 
-			if (bufptr && *(++bufptr) != ',') { ashtech_time = strtod(bufptr, &endp); bufptr = endp; }
+			nmeaNextField(bufptr, ashtech_time);
 
-			if (bufptr && *(++bufptr) != ',') { lat = strtod(bufptr, &endp); bufptr = endp; }
+			nmeaNextField(bufptr, lat);
 
-			if (bufptr && *(++bufptr) != ',') { ns = *(bufptr++); }
+			nmeaNextField(bufptr, ns);
 
-			if (bufptr && *(++bufptr) != ',') { lon = strtod(bufptr, &endp); bufptr = endp; }
+			nmeaNextField(bufptr, lon);
 
-			if (bufptr && *(++bufptr) != ',') { ew = *(bufptr++); }
+			nmeaNextField(bufptr, ew);
 
-			if (bufptr && *(++bufptr) != ',') { fix_quality = strtol(bufptr, &endp, 10); bufptr = endp; }
+			nmeaNextField(bufptr, fix_quality);
 
-			if (bufptr && *(++bufptr) != ',') { num_of_sv = strtol(bufptr, &endp, 10); bufptr = endp; }
+			nmeaNextField(bufptr, num_of_sv);
 
-			if (bufptr && *(++bufptr) != ',') { hdop = strtod(bufptr, &endp); bufptr = endp; }
+			nmeaNextField(bufptr, hdop);
 
-			if (bufptr && *(++bufptr) != ',') { alt = strtod(bufptr, &endp); bufptr = endp; }
+			nmeaNextField(bufptr, alt);
 
 			if (ns == 'S') {
 				lat = -lat;
@@ -204,8 +203,8 @@ int GPSDriverFemto::handleMessage(int len)
 			if (!_correction_output_activated && 7 == fix_quality) {
 				_survey_in_start = 0;	/**< finished survey-in */
 
-				lat = (int(lat * 0.01) + (lat * 0.01 - int(lat * 0.01)) * 100.0 / 60.0) * 10000000;
-				lon = (int(lon * 0.01) + (lon * 0.01 - int(lon * 0.01)) * 100.0 / 60.0) * 10000000;
+				lat = nmeaToDegrees(lat) * 10000000;
+				lon = nmeaToDegrees(lon) * 10000000;
 				alt = alt * 1000;
 
 				sendSurveyInStatusUpdate(false, true, lat, lon, (float)alt);

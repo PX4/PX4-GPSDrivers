@@ -68,6 +68,30 @@
 #define UBX_WARN(...)         {GPS_WARN(__VA_ARGS__);}
 #define UBX_DEBUG(...)        {/*GPS_WARN(__VA_ARGS__);*/}
 
+// RTCM3 message sets for a base: the station/bias messages plus GPS, GLONASS, Galileo and BeiDou
+// observations as MSM4 or MSM7 (1074/1084/1094/1124 vs 1077/1087/1097/1127)
+static constexpr uint32_t RTCM_BASE_MSGOUT_I2C[] = {
+	UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1005_I2C, UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1077_I2C,
+	UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1087_I2C, UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1230_I2C,
+	UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1097_I2C, UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1127_I2C
+};
+static constexpr uint32_t RTCM_MSM4_UART1[] = {
+	UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1074_UART1, UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1084_UART1,
+	UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1094_UART1, UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1124_UART1
+};
+static constexpr uint32_t RTCM_MSM7_UART1[] = {
+	UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1077_UART1, UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1087_UART1,
+	UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1097_UART1, UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1127_UART1
+};
+static constexpr uint32_t RTCM_MSM4_UART2[] = {
+	UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1074_UART2, UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1084_UART2,
+	UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1094_UART2, UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1124_UART2
+};
+static constexpr uint32_t RTCM_MSM7_UART2[] = {
+	UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1077_UART2, UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1087_UART2,
+	UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1097_UART2, UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1127_UART2
+};
+
 GPSDriverUBX::GPSDriverUBX(Interface gpsInterface, GPSCallbackPtr callback, void *callback_user,
 			   sensor_gps_s *gps_position, satellite_info_s *satellite_info, Settings settings) :
 	GPSBaseStationSupport(callback, callback_user),
@@ -160,22 +184,24 @@ GPSDriverUBX::configure(unsigned &baudrate, const GPSConfig &config)
 			}
 
 			// try CFG-VALSET: if we get an ACK we know we can use protocol version 27+
-			int cfg_valset_msg_size = initCfgValset();
-			// UART1
-			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1_STOPBITS, 1, cfg_valset_msg_size);
-			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1_DATABITS, 0, cfg_valset_msg_size);
-			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1_PARITY, 0, cfg_valset_msg_size);
-			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1INPROT_UBX, 1, cfg_valset_msg_size);
-			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1INPROT_NMEA, 0, cfg_valset_msg_size);
-			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1OUTPROT_UBX, 1, cfg_valset_msg_size);
-			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1OUTPROT_NMEA, 0, cfg_valset_msg_size);
+			static constexpr CfgValsetItem uart1_ubx[] = {
+				{UBX_CFG_KEY_CFG_UART1_STOPBITS, 1},
+				{UBX_CFG_KEY_CFG_UART1_DATABITS, 0},
+				{UBX_CFG_KEY_CFG_UART1_PARITY, 0},
+				{UBX_CFG_KEY_CFG_UART1INPROT_UBX, 1},
+				{UBX_CFG_KEY_CFG_UART1INPROT_NMEA, 0},
+				{UBX_CFG_KEY_CFG_UART1OUTPROT_UBX, 1},
+				{UBX_CFG_KEY_CFG_UART1OUTPROT_NMEA, 0},
+			};
+			initCfgValset();
+			cfgValset(uart1_ubx);
 			// TODO: are we ever connected to UART2?
 
 			// Note: USB protocol settings are handled later in the configureDevice function.
 
 			bool cfg_valset_success = false;
 
-			if (sendMessage(UBX_MSG_CFG_VALSET, _tx_cfg_valset_buf, cfg_valset_msg_size)) {
+			if (sendCfgValset()) {
 
 				// Note: The M10 comes up sending NMEA sentences at 9600. It can't
 				// respond with an ACK until the current sentence has completed transmission.
@@ -190,10 +216,10 @@ GPSDriverUBX::configure(unsigned &baudrate, const GPSConfig &config)
 			if (cfg_valset_success) {
 				_proto_ver_27_or_higher = true;
 				// Now we only have to change the baudrate
-				cfg_valset_msg_size = initCfgValset();
-				cfgValset<uint32_t>(UBX_CFG_KEY_CFG_UART1_BAUDRATE, desired_baudrate, cfg_valset_msg_size);
+				initCfgValset();
+				cfgValset<uint32_t>(UBX_CFG_KEY_CFG_UART1_BAUDRATE, desired_baudrate);
 
-				if (!sendMessage(UBX_MSG_CFG_VALSET, _tx_cfg_valset_buf, cfg_valset_msg_size)) {
+				if (!sendCfgValset()) {
 					continue;
 				}
 
@@ -279,19 +305,19 @@ GPSDriverUBX::configure(unsigned &baudrate, const GPSConfig &config)
 		}
 
 		// try CFG-VALSET: if we get an ACK we know we can use protocol version 27+
-		int cfg_valset_msg_size = initCfgValset();
-		cfgValset<uint8_t>(UBX_CFG_KEY_SPI_ENABLED, 1, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_SPI_MAXFF, 1, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_SPIINPROT_UBX, 1, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_SPIINPROT_RTCM3X, _output_mode == OutputMode::RTCM ? 0 : 1, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_SPIINPROT_NMEA, 0, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_SPIOUTPROT_UBX, 1, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_SPIOUTPROT_RTCM3X, _output_mode == OutputMode::GPS ? 0 : 1, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_SPIOUTPROT_NMEA, 0, cfg_valset_msg_size);
+		initCfgValset();
+		cfgValset<uint8_t>(UBX_CFG_KEY_SPI_ENABLED, 1);
+		cfgValset<uint8_t>(UBX_CFG_KEY_SPI_MAXFF, 1);
+		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_SPIINPROT_UBX, 1);
+		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_SPIINPROT_RTCM3X, _output_mode == OutputMode::RTCM ? 0 : 1);
+		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_SPIINPROT_NMEA, 0);
+		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_SPIOUTPROT_UBX, 1);
+		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_SPIOUTPROT_RTCM3X, _output_mode == OutputMode::GPS ? 0 : 1);
+		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_SPIOUTPROT_NMEA, 0);
 
 		bool cfg_valset_success = false;
 
-		if (sendMessage(UBX_MSG_CFG_VALSET, _tx_cfg_valset_buf, cfg_valset_msg_size)) {
+		if (sendCfgValset()) {
 
 			if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true) == 0) {
 				cfg_valset_success = true;
@@ -557,68 +583,61 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 	// There is no RTCM or USB interface on M10
 	if (_board != Board::u_blox10 && _board != Board::u_blox10_L1L5) {
 
-		int cfg_valset_msg_size = initCfgValset();
+		initCfgValset();
 
 		const uint8_t enable_corrections_in = (_output_mode == OutputMode::RTCM) ? 0 : 1;
 
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1INPROT_RTCM3X, enable_corrections_in, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1INPROT_RTCM3X, enable_corrections_in);
 
 		if (_output_mode != OutputMode::GPS) {
-			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1OUTPROT_RTCM3X, 1, cfg_valset_msg_size);
+			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1OUTPROT_RTCM3X, 1);
 		}
 
 		// USB
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_USBINPROT_UBX, 1, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_USBINPROT_RTCM3X, enable_corrections_in, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_USBINPROT_NMEA, 0, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_USBOUTPROT_UBX, 1, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_USBINPROT_UBX, 1);
+		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_USBINPROT_RTCM3X, enable_corrections_in);
+		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_USBINPROT_NMEA, 0);
+		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_USBOUTPROT_UBX, 1);
 
 		if (_output_mode != OutputMode::GPS) {
-			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_USBOUTPROT_RTCM3X, 1, cfg_valset_msg_size);
+			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_USBOUTPROT_RTCM3X, 1);
 		}
 
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_USBOUTPROT_NMEA, 0, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_USBOUTPROT_NMEA, 0);
 
-		if (!sendMessage(UBX_MSG_CFG_VALSET, _tx_cfg_valset_buf, cfg_valset_msg_size)) {
-			return -1;
-		}
-
-		if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true) < 0) {
+		if (sendCfgValsetAcked() < 0) {
 			return -1;
 		}
 
 		// Optional SPARTN input (PointPerfect). Sent separately so modules without
 		// SPARTN support can NACK without failing the rest of configuration.
-		cfg_valset_msg_size = initCfgValset();
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1INPROT_SPARTN, enable_corrections_in, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_USBINPROT_SPARTN, enable_corrections_in, cfg_valset_msg_size);
+		initCfgValset();
+		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1INPROT_SPARTN, enable_corrections_in);
+		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_USBINPROT_SPARTN, enable_corrections_in);
 
 		if (_interface == Interface::SPI) {
-			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_SPIINPROT_SPARTN, enable_corrections_in, cfg_valset_msg_size);
+			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_SPIINPROT_SPARTN, enable_corrections_in);
 		}
 
-		if (sendMessage(UBX_MSG_CFG_VALSET, _tx_cfg_valset_buf, cfg_valset_msg_size)) {
-			(void)waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, false);
-		}
+		sendCfgValsetAcked(false);
 	}
 
 	/* set configuration parameters */
-	int cfg_valset_msg_size = initCfgValset();
-	cfgValset<uint8_t>(UBX_CFG_KEY_NAVSPG_FIXMODE, 3 /* Auto 2d/3d */, cfg_valset_msg_size);
-	cfgValset<uint8_t>(UBX_CFG_KEY_NAVSPG_UTCSTANDARD, 3 /* USNO (U.S. Naval Observatory derived from GPS) */,
-			   cfg_valset_msg_size);
-	cfgValset<uint8_t>(UBX_CFG_KEY_NAVSPG_DYNMODEL, _dyn_model, cfg_valset_msg_size);
+	initCfgValset();
+	cfgValset<uint8_t>(UBX_CFG_KEY_NAVSPG_FIXMODE, 3 /* Auto 2d/3d */);
+	cfgValset<uint8_t>(UBX_CFG_KEY_NAVSPG_UTCSTANDARD, 3 /* USNO (U.S. Naval Observatory derived from GPS) */);
+	cfgValset<uint8_t>(UBX_CFG_KEY_NAVSPG_DYNMODEL, _dyn_model);
 
 	if (_min_cno != 0) {
-		cfgValset<uint8_t>(UBX_CFG_KEY_NAVSPG_INFIL_MINCNO, _min_cno, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_NAVSPG_INFIL_MINCNO, _min_cno);
 	}
 
 	if (_min_elev != 0) {
-		cfgValset<uint8_t>(UBX_CFG_KEY_NAVSPG_INFIL_MINELEV, _min_elev, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_NAVSPG_INFIL_MINELEV, _min_elev);
 	}
 
 	if (_dgnss_timeout != 0) {
-		cfgValset<uint8_t>(UBX_CFG_KEY_NAVSPG_CONSTR_DGNSSTO, _dgnss_timeout, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_NAVSPG_CONSTR_DGNSSTO, _dgnss_timeout);
 	}
 
 	// measurement rate
@@ -660,46 +679,40 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 		}
 	}
 
-	cfgValset<uint16_t>(UBX_CFG_KEY_RATE_MEAS, rate_meas, cfg_valset_msg_size);
-	cfgValset<uint16_t>(UBX_CFG_KEY_RATE_NAV, 1, cfg_valset_msg_size);
-	cfgValset<uint8_t>(UBX_CFG_KEY_RATE_TIMEREF, 0, cfg_valset_msg_size);
+	cfgValset<uint16_t>(UBX_CFG_KEY_RATE_MEAS, rate_meas);
+	cfgValset<uint16_t>(UBX_CFG_KEY_RATE_NAV, 1);
+	cfgValset<uint8_t>(UBX_CFG_KEY_RATE_TIMEREF, 0);
 
-	if (!sendMessage(UBX_MSG_CFG_VALSET, _tx_cfg_valset_buf, cfg_valset_msg_size)) {
-		return -1;
-	}
-
-	if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true) < 0) {
+	if (sendCfgValsetAcked() < 0) {
 		return -1;
 	}
 
 	// Disable odometer. Separate, non-fatal VALSET: CFG-ODO-* was removed on the
 	// F20 platform (ZED-X20P HPG 2.10+), so a NAK here must not abort config.
-	cfg_valset_msg_size = initCfgValset();
-	cfgValset<uint8_t>(UBX_CFG_KEY_ODO_USE_ODO, 0, cfg_valset_msg_size);
-	cfgValset<uint8_t>(UBX_CFG_KEY_ODO_USE_COG, 0, cfg_valset_msg_size);
-	cfgValset<uint8_t>(UBX_CFG_KEY_ODO_OUTLPVEL, 0, cfg_valset_msg_size);
-	cfgValset<uint8_t>(UBX_CFG_KEY_ODO_OUTLPCOG, 0, cfg_valset_msg_size);
+	static constexpr uint32_t odo_keys[] = {
+		UBX_CFG_KEY_ODO_USE_ODO, UBX_CFG_KEY_ODO_USE_COG, UBX_CFG_KEY_ODO_OUTLPVEL, UBX_CFG_KEY_ODO_OUTLPCOG
+	};
+	initCfgValset();
+	cfgValset(odo_keys, 0);
 
-	if (sendMessage(UBX_MSG_CFG_VALSET, _tx_cfg_valset_buf, cfg_valset_msg_size)) {
-		waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, false);
-	}
+	sendCfgValsetAcked(false);
 
 	// RTK (optional, as only RTK devices like F9P support it)
-	cfg_valset_msg_size = initCfgValset();
-	cfgValset<uint8_t>(UBX_CFG_KEY_NAVHPG_DGNSSMODE, 3 /* RTK Fixed */, cfg_valset_msg_size);
+	initCfgValset();
+	cfgValset<uint8_t>(UBX_CFG_KEY_NAVHPG_DGNSSMODE, 3 /* RTK Fixed */);
 
-	if (!sendMessage(UBX_MSG_CFG_VALSET, _tx_cfg_valset_buf, cfg_valset_msg_size)) {
+	if (!sendCfgValset()) {
 		return -1;
 	}
 
 	waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, false);
 
-	cfg_valset_msg_size = initCfgValset();
+	initCfgValset();
 
 	// enable jamming monitor
-	cfgValset<uint8_t>(UBX_CFG_KEY_ITFM_ENABLE, 1, cfg_valset_msg_size);
+	cfgValset<uint8_t>(UBX_CFG_KEY_ITFM_ENABLE, 1);
 
-	if (!sendMessage(UBX_MSG_CFG_VALSET, _tx_cfg_valset_buf, cfg_valset_msg_size)) {
+	if (!sendCfgValset()) {
 		return -1;
 	}
 
@@ -708,10 +721,10 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 	// configure jamming detection sensitivity (CFG-SEC-JAMDET_SENSITIVITY_HI)
 	// Note: This configuration key may not be supported on older firmware versions.
 	// If NACKed, we just continue - the default sensitivity will be used.
-	cfg_valset_msg_size = initCfgValset();
-	cfgValset<uint8_t>(UBX_CFG_KEY_SEC_JAMDET_SENSITIVITY_HI, _jam_det_sensitivity_hi ? 1 : 0, cfg_valset_msg_size);
+	initCfgValset();
+	cfgValset<uint8_t>(UBX_CFG_KEY_SEC_JAMDET_SENSITIVITY_HI, _jam_det_sensitivity_hi ? 1 : 0);
 
-	if (sendMessage(UBX_MSG_CFG_VALSET, _tx_cfg_valset_buf, cfg_valset_msg_size)) {
+	if (sendCfgValset()) {
 		if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, false) < 0) {
 			UBX_WARN("CFG-SEC-JAMDET_SENSITIVITY_HI not supported by this receiver");
 		}
@@ -723,139 +736,139 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 	//       2.1.1.3 GNSS signal configuration for details on some restrictions.
 	//       Implementing these restrictions are a TODO item for M10.
 	if (static_cast<int32_t>(config.gnss_systems) != 0) {
-		cfg_valset_msg_size = initCfgValset();
+		initCfgValset();
 
 		// GPS and QZSS should always be enabled and disabled together, according to uBlox
 		if (config.gnss_systems & GNSSSystemsMask::ENABLE_GPS) {
 			UBX_DEBUG("GNSS Systems: Use GPS + QZSS");
-			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GPS_ENA, 1, cfg_valset_msg_size);
-			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_QZSS_ENA, 1, cfg_valset_msg_size);
+			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GPS_ENA, 1);
+			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_QZSS_ENA, 1);
 			UBX_DEBUG("GNSS Systems: Enable QZSS L1CA");
-			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_QZSS_L1CA_ENA, 1, cfg_valset_msg_size);
+			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_QZSS_L1CA_ENA, 1);
 			UBX_DEBUG("GNSS Systems: Enable QZSS L1S");
-			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_QZSS_L1S_ENA, 1, cfg_valset_msg_size);
+			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_QZSS_L1S_ENA, 1);
 
 			if (_board == Board::u_blox_X20) {
 				UBX_DEBUG("GNSS Systems: Use GPS L2C + L5, QZSS L2C + L5");
-				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GPS_L2C_ENA, 1, cfg_valset_msg_size);
-				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GPS_L5_ENA, 1, cfg_valset_msg_size);
-				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_L5_HEALTH_OVERRIDE, 1, cfg_valset_msg_size);
-				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_QZSS_L2C_ENA, 1, cfg_valset_msg_size);
-				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_QZSS_L5_ENA, 1, cfg_valset_msg_size);
+				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GPS_L2C_ENA, 1);
+				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GPS_L5_ENA, 1);
+				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_L5_HEALTH_OVERRIDE, 1);
+				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_QZSS_L2C_ENA, 1);
+				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_QZSS_L5_ENA, 1);
 
 			} else if (_board == Board::u_blox9_F9P_L1L2) {
 				UBX_DEBUG("GNSS Systems: Use GPS L2C");
-				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GPS_L2C_ENA, 1, cfg_valset_msg_size);
+				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GPS_L2C_ENA, 1);
 				UBX_DEBUG("GNSS Systems: Enable QZSS L2C");
-				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_QZSS_L2C_ENA, 1, cfg_valset_msg_size);
+				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_QZSS_L2C_ENA, 1);
 
 			} else if (_board == Board::u_blox9_F9P_L1L5 || _board == Board::u_blox10_L1L5) {
 				UBX_DEBUG("GNSS Systems: Use GPS L5");
-				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GPS_L5_ENA, 1, cfg_valset_msg_size);
+				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GPS_L5_ENA, 1);
 				UBX_DEBUG("GNSS Systems: Enable GPS L5 health override");
-				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_L5_HEALTH_OVERRIDE, 1, cfg_valset_msg_size);
+				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_L5_HEALTH_OVERRIDE, 1);
 				UBX_DEBUG("GNSS Systems: Use QZSS L5");
-				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_QZSS_L5_ENA, 1, cfg_valset_msg_size);
+				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_QZSS_L5_ENA, 1);
 			}
 
 		} else {
 			UBX_DEBUG("GNSS Systems: Disable GPS + QZSS");
 
-			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GPS_ENA, 0, cfg_valset_msg_size);
-			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_QZSS_ENA, 0, cfg_valset_msg_size);
+			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GPS_ENA, 0);
+			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_QZSS_ENA, 0);
 
 			if (_board == Board::u_blox_X20) {
 				UBX_DEBUG("GNSS Systems: Disable GPS L2C + L5");
-				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GPS_L2C_ENA, 0, cfg_valset_msg_size);
-				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GPS_L5_ENA, 0, cfg_valset_msg_size);
-				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_L5_HEALTH_OVERRIDE, 0, cfg_valset_msg_size);
+				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GPS_L2C_ENA, 0);
+				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GPS_L5_ENA, 0);
+				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_L5_HEALTH_OVERRIDE, 0);
 
 			} else if (_board == Board::u_blox9_F9P_L1L2) {
 				UBX_DEBUG("GNSS Systems: Disable GPS L2C");
-				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GPS_L2C_ENA, 0, cfg_valset_msg_size);
+				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GPS_L2C_ENA, 0);
 
 			} else if (_board == Board::u_blox9_F9P_L1L5 || _board == Board::u_blox10_L1L5) {
 				UBX_DEBUG("GNSS Systems: Disable GPS L5");
-				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GPS_L5_ENA, 0, cfg_valset_msg_size);
-				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_L5_HEALTH_OVERRIDE, 0, cfg_valset_msg_size);
+				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GPS_L5_ENA, 0);
+				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_L5_HEALTH_OVERRIDE, 0);
 			}
 		}
 
 		if (config.gnss_systems & GNSSSystemsMask::ENABLE_GALILEO) {
 			UBX_DEBUG("GNSS Systems: Use Galileo");
-			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GAL_ENA, 1, cfg_valset_msg_size);
+			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GAL_ENA, 1);
 
 			if (_board == Board::u_blox_X20) {
 				UBX_DEBUG("GNSS Systems: Use Galileo E5A + E6");
-				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GAL_E5A_ENA, 1, cfg_valset_msg_size);
-				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GAL_E6_ENA, 1, cfg_valset_msg_size);
+				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GAL_E5A_ENA, 1);
+				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GAL_E6_ENA, 1);
 
 			} else if (_board == Board::u_blox9_F9P_L1L2) {
 				UBX_DEBUG("GNSS Systems: Use Galileo E5B");
-				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GAL_E5B_ENA, 1, cfg_valset_msg_size);
+				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GAL_E5B_ENA, 1);
 
 			} else if (_board == Board::u_blox9_F9P_L1L5 || _board == Board::u_blox10_L1L5) {
 				UBX_DEBUG("GNSS Systems: Use Galileo E5A");
-				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GAL_E5A_ENA, 1, cfg_valset_msg_size);
+				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GAL_E5A_ENA, 1);
 			}
 
 		} else {
 			UBX_DEBUG("GNSS Systems: Disable Galileo");
 
-			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GAL_ENA, 0, cfg_valset_msg_size);
+			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GAL_ENA, 0);
 
 			if (_board == Board::u_blox_X20) {
 				UBX_DEBUG("GNSS Systems: Disable Galileo E5A + E6");
-				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GAL_E5A_ENA, 0, cfg_valset_msg_size);
-				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GAL_E6_ENA, 0, cfg_valset_msg_size);
+				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GAL_E5A_ENA, 0);
+				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GAL_E6_ENA, 0);
 
 			} else if (_board == Board::u_blox9_F9P_L1L2) {
 				UBX_DEBUG("GNSS Systems: Disable Galileo E5B");
-				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GAL_E5B_ENA, 0, cfg_valset_msg_size);
+				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GAL_E5B_ENA, 0);
 
 			} else if (_board == Board::u_blox9_F9P_L1L5 || _board == Board::u_blox10_L1L5) {
 				UBX_DEBUG("GNSS Systems: Disable Galileo E5A");
-				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GAL_E5A_ENA, 0, cfg_valset_msg_size);
+				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GAL_E5A_ENA, 0);
 			}
 		}
 
 		if (config.gnss_systems & GNSSSystemsMask::ENABLE_BEIDOU) {
 			UBX_DEBUG("GNSS Systems: Use BeiDou");
-			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_BDS_ENA, 1, cfg_valset_msg_size);
+			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_BDS_ENA, 1);
 
 			if (_board == Board::u_blox_X20) {
 				UBX_DEBUG("GNSS Systems: Use BeiDou B1C + B2A + B3");
-				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_BDS_B1C_ENA, 1, cfg_valset_msg_size);
-				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_BDS_B2A_ENA, 1, cfg_valset_msg_size);
-				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_BDS_B3_ENA, 1, cfg_valset_msg_size);
+				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_BDS_B1C_ENA, 1);
+				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_BDS_B2A_ENA, 1);
+				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_BDS_B3_ENA, 1);
 
 			} else if (_board == Board::u_blox9_F9P_L1L2) {
 				UBX_DEBUG("GNSS Systems: Use BeiDou B2");
-				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_BDS_B2_ENA, 1, cfg_valset_msg_size);
+				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_BDS_B2_ENA, 1);
 
 			} else if (_board == Board::u_blox9_F9P_L1L5 || _board == Board::u_blox10_L1L5) {
 				UBX_DEBUG("GNSS Systems: Use BeiDou B2A");
-				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_BDS_B2A_ENA, 1, cfg_valset_msg_size);
+				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_BDS_B2A_ENA, 1);
 			}
 
 		} else {
 			UBX_DEBUG("GNSS Systems: Disable BeiDou");
 
-			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_BDS_ENA, 0, cfg_valset_msg_size);
+			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_BDS_ENA, 0);
 
 			if (_board == Board::u_blox_X20) {
 				UBX_DEBUG("GNSS Systems: Disable BeiDou B1C + B2A + B3");
-				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_BDS_B1C_ENA, 0, cfg_valset_msg_size);
-				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_BDS_B2A_ENA, 0, cfg_valset_msg_size);
-				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_BDS_B3_ENA, 0, cfg_valset_msg_size);
+				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_BDS_B1C_ENA, 0);
+				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_BDS_B2A_ENA, 0);
+				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_BDS_B3_ENA, 0);
 
 			} else if (_board == Board::u_blox9_F9P_L1L2) {
 				UBX_DEBUG("GNSS Systems: Disable BeiDou B2");
-				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_BDS_B2_ENA, 0, cfg_valset_msg_size);
+				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_BDS_B2_ENA, 0);
 
 			} else if (_board == Board::u_blox9_F9P_L1L5 || _board == Board::u_blox10_L1L5) {
 				UBX_DEBUG("GNSS Systems: Disable BeiDou B2A");
-				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_BDS_B2A_ENA, 0, cfg_valset_msg_size);
+				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_BDS_B2A_ENA, 0);
 			}
 		}
 
@@ -863,22 +876,22 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 		if (_board != Board::u_blox10_L1L5 && _board != Board::u_blox_X20) {
 			if (config.gnss_systems & GNSSSystemsMask::ENABLE_GLONASS) {
 				UBX_DEBUG("GNSS Systems: Use GLONASS");
-				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GLO_ENA, 1, cfg_valset_msg_size);
-				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GLO_L1_ENA, 1, cfg_valset_msg_size);
+				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GLO_ENA, 1);
+				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GLO_L1_ENA, 1);
 
 				if (_board == Board::u_blox9_F9P_L1L2) {
 					UBX_DEBUG("GNSS Systems: Use GLONASS L2C");
-					cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GLO_L2_ENA, 1, cfg_valset_msg_size);
+					cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GLO_L2_ENA, 1);
 				}
 
 			} else {
 				UBX_DEBUG("GNSS Systems: Disable GLONASS");
-				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GLO_ENA, 0, cfg_valset_msg_size);
-				// cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GLO_L1_ENA, 0, cfg_valset_msg_size);
+				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GLO_ENA, 0);
+				// cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GLO_L1_ENA, 0);
 
 				if (_board == Board::u_blox9_F9P_L1L2) {
 					UBX_DEBUG("GNSS Systems: Disable GLONASS L2C");
-					cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GLO_L2_ENA, 0, cfg_valset_msg_size);
+					cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_GLO_L2_ENA, 0);
 				}
 			}
 		}
@@ -886,38 +899,34 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 		if (_board == Board::u_blox9_F9P_L1L5 || _board == Board::u_blox10_L1L5 || _board == Board::u_blox_X20) {
 			if (config.gnss_systems & GNSSSystemsMask::ENABLE_NAVIC) {
 				UBX_DEBUG("GNSS Systems: Use NavIC");
-				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_NAVIC_ENA, 1, cfg_valset_msg_size);
-				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_NAVIC_L5_ENA, 1, cfg_valset_msg_size);
+				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_NAVIC_ENA, 1);
+				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_NAVIC_L5_ENA, 1);
 
 			} else {
 				UBX_DEBUG("GNSS Systems: Disable NavIC");
-				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_NAVIC_ENA, 0, cfg_valset_msg_size);
-				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_NAVIC_L5_ENA, 0, cfg_valset_msg_size);
+				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_NAVIC_ENA, 0);
+				cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_NAVIC_L5_ENA, 0);
 			}
 		}
 
-		if (!sendMessage(UBX_MSG_CFG_VALSET, _tx_cfg_valset_buf, cfg_valset_msg_size)) {
-			UBX_DEBUG("UBX GNSS config send failed");
-			return -1;
-		}
-
-		if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true) < 0) {
+		if (sendCfgValsetAcked() < 0) {
+			UBX_DEBUG("UBX GNSS config failed");
 			return -1;
 		}
 
 		// send SBAS config separately, because it seems to be buggy (with u-center, too)
-		cfg_valset_msg_size = initCfgValset();
+		initCfgValset();
 
 		if (config.gnss_systems & GNSSSystemsMask::ENABLE_SBAS) {
 			UBX_DEBUG("GNSS Systems: Use SBAS");
-			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_SBAS_ENA, 1, cfg_valset_msg_size);
-			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_SBAS_L1CA_ENA, 1, cfg_valset_msg_size);
+			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_SBAS_ENA, 1);
+			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_SBAS_L1CA_ENA, 1);
 
 		} else {
-			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_SBAS_ENA, 0, cfg_valset_msg_size);
+			cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_SBAS_ENA, 0);
 		}
 
-		if (!sendMessage(UBX_MSG_CFG_VALSET, _tx_cfg_valset_buf, cfg_valset_msg_size)) {
+		if (!sendCfgValset()) {
 			return -1;
 		}
 
@@ -925,12 +934,12 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 
 	} else if (_board == Board::u_blox10_L1L5 || _board == Board::u_blox_X20) {
 		// Enable L5 health override, use version 0 of the message
-		cfg_valset_msg_size = initCfgValset();
-		cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_L5_HEALTH_OVERRIDE, 1, cfg_valset_msg_size);
+		initCfgValset();
+		cfgValset<uint8_t>(UBX_CFG_KEY_SIGNAL_L5_HEALTH_OVERRIDE, 1);
 
 		UBX_DEBUG("Enabling L5 health override");
 
-		if (!sendMessage(UBX_MSG_CFG_VALSET, _tx_cfg_valset_buf, cfg_valset_msg_size)) {
+		if (!sendCfgValset()) {
 			return -1;
 		}
 
@@ -939,25 +948,24 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 
 	// Configure message rates
 	// Send a new CFG-VALSET message to make sure it does not get too large
-	cfg_valset_msg_size = initCfgValset();
-	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_PVT_I2C, 1, cfg_valset_msg_size);
+	initCfgValset();
+	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_PVT_I2C, 1);
 
 	// There is no RTCM on M10 and M9* (except F9P)
 	if (_board != Board::u_blox10 && _board != Board::u_blox9 && _board != Board::u_blox10_L1L5) {
-		cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_HPPOSLLH_I2C, 1, cfg_valset_msg_size);
+		cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_HPPOSLLH_I2C, 1);
 		cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_RELPOSNED_I2C,
-			      _mode == UBXMode::RoverWithMovingBaseUART2 || _mode == UBXMode::RoverWithMovingBaseUART1 ? 1 : 0,
-			      cfg_valset_msg_size);
+			      _mode == UBXMode::RoverWithMovingBaseUART2 || _mode == UBXMode::RoverWithMovingBaseUART1 ? 1 : 0);
 	}
 
 	_use_nav_pvt = true;
-	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_DOP_I2C, 1, cfg_valset_msg_size);
-	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_SAT_I2C, (_satellite_info != nullptr) ? 10 : 0, cfg_valset_msg_size);
-	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_STATUS_I2C, 1, cfg_valset_msg_size);
-	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_MON_RF_I2C, 1, cfg_valset_msg_size);
+	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_DOP_I2C, 1);
+	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_SAT_I2C, (_satellite_info != nullptr) ? 10 : 0);
+	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_STATUS_I2C, 1);
+	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_MON_RF_I2C, 1);
 
 	if ((_board == Board::u_blox9) || (_board == Board::u_blox9_F9P_L1L2) || (_board == Board::u_blox9_F9P_L1L5)) {
-		cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_RXM_RTCM_I2C, 1, cfg_valset_msg_size);
+		cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_RXM_RTCM_I2C, 1);
 	}
 
 	// Explicitly disable the messages this driver never consumes. We do not enable them,
@@ -965,15 +973,12 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 	// (u-center, or another firmware such as ArduPilot, which writes CFG-VALSET to the
 	// BBR/FLASH layers). Clearing them here rather than waiting for payloadRxInit() to
 	// notice them avoids wasting UART bandwidth on every boot.
-	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_TIMEGPS_I2C, 0, cfg_valset_msg_size);
-	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_RXM_RAWX_I2C, 0, cfg_valset_msg_size);
-	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_RXM_SFRBX_I2C, 0, cfg_valset_msg_size);
+	static constexpr uint32_t unused_msgout[] = {
+		UBX_CFG_KEY_MSGOUT_UBX_NAV_TIMEGPS_I2C, UBX_CFG_KEY_MSGOUT_UBX_RXM_RAWX_I2C, UBX_CFG_KEY_MSGOUT_UBX_RXM_SFRBX_I2C
+	};
+	cfgValsetPort(unused_msgout, 0);
 
-	if (!sendMessage(UBX_MSG_CFG_VALSET, _tx_cfg_valset_buf, cfg_valset_msg_size)) {
-		return -1;
-	}
-
-	if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true) < 0) {
+	if (sendCfgValsetAcked() < 0) {
 		return -1;
 	}
 
@@ -985,11 +990,11 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 					       || (_mode == UBXMode::RoverWithMovingBaseUART1)
 					       || isMovingBase();
 
-		cfg_valset_msg_size = initCfgValset();
-		cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_DAHEADING_I2C, moving_base_setup ? 0 : 1, cfg_valset_msg_size);
-		cfgValset<int32_t>(UBX_CFG_KEY_NAVSPG_DAHEADING_OFFSET, 0, cfg_valset_msg_size);
+		initCfgValset();
+		cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_DAHEADING_I2C, moving_base_setup ? 0 : 1);
+		cfgValset<int32_t>(UBX_CFG_KEY_NAVSPG_DAHEADING_OFFSET, 0);
 
-		if (sendMessage(UBX_MSG_CFG_VALSET, _tx_cfg_valset_buf, cfg_valset_msg_size)) {
+		if (sendCfgValset()) {
 			if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, false) < 0) {
 				UBX_DEBUG("NAV-DAHEADING not supported by this receiver");
 			}
@@ -999,93 +1004,79 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 	if (_interface == Interface::UART || _interface == Interface::SPI) {
 
 		// Enable/Disable GPS protocols at I2C interface
-		cfg_valset_msg_size = initCfgValset();
+		initCfgValset();
 
 		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_I2CINPROT_UBX,
-				   config.interface_protocols & InterfaceProtocolsMask::I2C_IN_PROT_UBX, cfg_valset_msg_size);
+				   config.interface_protocols & InterfaceProtocolsMask::I2C_IN_PROT_UBX);
 		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_I2CINPROT_NMEA,
-				   config.interface_protocols & InterfaceProtocolsMask::I2C_IN_PROT_NMEA, cfg_valset_msg_size);
+				   config.interface_protocols & InterfaceProtocolsMask::I2C_IN_PROT_NMEA);
 
 		// There is no RTCM on M10
 		if (_board != Board::u_blox10 && _board != Board::u_blox10_L1L5) {
 			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_I2CINPROT_RTCM3X,
-					   config.interface_protocols & InterfaceProtocolsMask::I2C_IN_PROT_RTCM3X, cfg_valset_msg_size);
+					   config.interface_protocols & InterfaceProtocolsMask::I2C_IN_PROT_RTCM3X);
 		}
 
 		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_I2COUTPROT_UBX,
-				   config.interface_protocols & InterfaceProtocolsMask::I2C_OUT_PROT_UBX, cfg_valset_msg_size);
+				   config.interface_protocols & InterfaceProtocolsMask::I2C_OUT_PROT_UBX);
 		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_I2COUTPROT_NMEA,
-				   config.interface_protocols & InterfaceProtocolsMask::I2C_OUT_PROT_NMEA, cfg_valset_msg_size);
+				   config.interface_protocols & InterfaceProtocolsMask::I2C_OUT_PROT_NMEA);
 
 		if ((_board == Board::u_blox9_F9P_L1L2) || (_board == Board::u_blox9_F9P_L1L5)) {
 			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_I2COUTPROT_RTCM3X,
-					   config.interface_protocols & InterfaceProtocolsMask::I2C_OUT_PROT_RTCM3X, cfg_valset_msg_size);
+					   config.interface_protocols & InterfaceProtocolsMask::I2C_OUT_PROT_RTCM3X);
 		}
 
-		if (!sendMessage(UBX_MSG_CFG_VALSET, _tx_cfg_valset_buf, cfg_valset_msg_size)) {
-			return -1;
-		}
-
-		if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true) < 0) {
+		if (sendCfgValsetAcked() < 0) {
 			return -1;
 		}
 
 		// Optional SPARTN on I2C (best-effort; NACK is fine on non-SPARTN firmware)
 		if (_board != Board::u_blox10 && _board != Board::u_blox10_L1L5) {
-			cfg_valset_msg_size = initCfgValset();
+			initCfgValset();
 			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_I2CINPROT_SPARTN,
-					   config.interface_protocols & InterfaceProtocolsMask::I2C_IN_PROT_RTCM3X, cfg_valset_msg_size);
+					   config.interface_protocols & InterfaceProtocolsMask::I2C_IN_PROT_RTCM3X);
 
-			if (sendMessage(UBX_MSG_CFG_VALSET, _tx_cfg_valset_buf, cfg_valset_msg_size)) {
-				(void)waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, false);
-			}
+			sendCfgValsetAcked(false);
 		}
 	}
 
 	if (_mode == UBXMode::Normal && _ppk_output) {
 		UBX_DEBUG("Configuring Normal with MSM7 output");
-		cfg_valset_msg_size = initCfgValset();
+		initCfgValset();
 
 		// Enable output protocols on UART1
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1OUTPROT_UBX, 1, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1OUTPROT_RTCM3X, 1, cfg_valset_msg_size);
+		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1OUTPROT_UBX, 1);
+		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1OUTPROT_RTCM3X, 1);
 
 		// Configure MSM7 message outputs on UART1
-		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1230_UART1, 1, cfg_valset_msg_size); // GLONASS bias
-		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1077_UART1, 1, cfg_valset_msg_size); // GPS MSM7
-		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1087_UART1, 1, cfg_valset_msg_size); // GLONASS MSM7
-		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1097_UART1, 1, cfg_valset_msg_size); // Galileo MSM7
-		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1127_UART1, 1, cfg_valset_msg_size); // BeiDou MSM7
+		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1230_UART1, 1); // GLONASS bias
+		cfgValset(RTCM_MSM7_UART1, 1);
 
-		if (!sendMessage(UBX_MSG_CFG_VALSET, _tx_cfg_valset_buf, cfg_valset_msg_size)) {
-			return -1;
-		}
-
-		if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true) < 0) {
+		if (sendCfgValsetAcked() < 0) {
 			return -1;
 		}
 
 	} else if (_mode == UBXMode::RoverWithStaticBaseUART2 || _mode == UBXMode::RoverWithMovingBaseUART2) {
 		UBX_DEBUG("Configuring UART2 for rover");
-		cfg_valset_msg_size = initCfgValset();
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1OUTPROT_UBX, 1, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1OUTPROT_RTCM3X, 0, cfg_valset_msg_size);
-		// enable RTCM input on uart2 + set baudrate
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2_STOPBITS, 1, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2_DATABITS, 0, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2_PARITY, 0, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2INPROT_UBX, 0, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2INPROT_RTCM3X, 1, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2INPROT_NMEA, 0, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2OUTPROT_UBX, 0, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2OUTPROT_RTCM3X, 0, cfg_valset_msg_size);
-		cfgValset<uint32_t>(UBX_CFG_KEY_CFG_UART2_BAUDRATE, uart2_baudrate, cfg_valset_msg_size);
+		// UBX only on UART1, RTCM input on UART2
+		static constexpr CfgValsetItem rover_uart2[] = {
+			{UBX_CFG_KEY_CFG_UART1OUTPROT_UBX, 1},
+			{UBX_CFG_KEY_CFG_UART1OUTPROT_RTCM3X, 0},
+			{UBX_CFG_KEY_CFG_UART2_STOPBITS, 1},
+			{UBX_CFG_KEY_CFG_UART2_DATABITS, 0},
+			{UBX_CFG_KEY_CFG_UART2_PARITY, 0},
+			{UBX_CFG_KEY_CFG_UART2INPROT_UBX, 0},
+			{UBX_CFG_KEY_CFG_UART2INPROT_RTCM3X, 1},
+			{UBX_CFG_KEY_CFG_UART2INPROT_NMEA, 0},
+			{UBX_CFG_KEY_CFG_UART2OUTPROT_UBX, 0},
+			{UBX_CFG_KEY_CFG_UART2OUTPROT_RTCM3X, 0},
+		};
+		initCfgValset();
+		cfgValset(rover_uart2);
+		cfgValset<uint32_t>(UBX_CFG_KEY_CFG_UART2_BAUDRATE, uart2_baudrate);
 
-		if (!sendMessage(UBX_MSG_CFG_VALSET, _tx_cfg_valset_buf, cfg_valset_msg_size)) {
-			return -1;
-		}
-
-		if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true) < 0) {
+		if (sendCfgValsetAcked() < 0) {
 			return -1;
 		}
 
@@ -1094,56 +1085,33 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 
 	} else if (_mode == UBXMode::MovingBaseUART2) {
 		UBX_DEBUG("Configuring UART2 for moving base");
-		// enable RTCM output on uart2 + set baudrate
-		cfg_valset_msg_size = initCfgValset();
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2_STOPBITS, 1, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2_DATABITS, 0, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2_PARITY, 0, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2INPROT_UBX, 0, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2INPROT_RTCM3X, 1, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2INPROT_NMEA, 0, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2OUTPROT_UBX, 0, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2OUTPROT_RTCM3X, 1, cfg_valset_msg_size);
-		cfgValset<uint32_t>(UBX_CFG_KEY_CFG_UART2_BAUDRATE, uart2_baudrate, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1230_UART2, 1, cfg_valset_msg_size); // GLONASS bias
-
-		if (_ppk_output) {
-			UBX_DEBUG("Enabling MSM7");
-			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1077_UART2, 1, cfg_valset_msg_size); // GPS MSM7
-			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1087_UART2, 1, cfg_valset_msg_size); // GLONASS MSM7
-			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1097_UART2, 1, cfg_valset_msg_size); // Galileo MSM7
-			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1127_UART2, 1, cfg_valset_msg_size); // BeiDou MSM7
-			UBX_DEBUG("Disabling MSM4");
-			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1074_UART2, 0, cfg_valset_msg_size); // GPS MSM4
-			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1084_UART2, 0, cfg_valset_msg_size); // GLONASS MSM4
-			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1094_UART2, 0, cfg_valset_msg_size); // Galileo MSM4
-			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1124_UART2, 0, cfg_valset_msg_size); // BeiDou MSM4
-
-		} else {
-			UBX_DEBUG("Enabling MSM4");
-			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1074_UART2, 1, cfg_valset_msg_size); // GPS MSM4
-			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1084_UART2, 1, cfg_valset_msg_size); // GLONASS MSM4
-			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1094_UART2, 1, cfg_valset_msg_size); // Galileo MSM4
-			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1124_UART2, 1, cfg_valset_msg_size); // BeiDou MSM4
-			UBX_DEBUG("Disabling MSM7");
-			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1077_UART2, 0, cfg_valset_msg_size); // GPS MSM7
-			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1087_UART2, 0, cfg_valset_msg_size); // GLONASS MSM7
-			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1097_UART2, 0, cfg_valset_msg_size); // Galileo MSM7
-			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1127_UART2, 0, cfg_valset_msg_size); // BeiDou MSM7
-		}
+		// RTCM output on UART2
+		static constexpr CfgValsetItem moving_base_uart2[] = {
+			{UBX_CFG_KEY_CFG_UART2_STOPBITS, 1},
+			{UBX_CFG_KEY_CFG_UART2_DATABITS, 0},
+			{UBX_CFG_KEY_CFG_UART2_PARITY, 0},
+			{UBX_CFG_KEY_CFG_UART2INPROT_UBX, 0},
+			{UBX_CFG_KEY_CFG_UART2INPROT_RTCM3X, 1},
+			{UBX_CFG_KEY_CFG_UART2INPROT_NMEA, 0},
+			{UBX_CFG_KEY_CFG_UART2OUTPROT_UBX, 0},
+			{UBX_CFG_KEY_CFG_UART2OUTPROT_RTCM3X, 1},
+			{UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1230_UART2, 1}, // GLONASS bias
+		};
+		initCfgValset();
+		cfgValset(moving_base_uart2);
+		cfgValset<uint32_t>(UBX_CFG_KEY_CFG_UART2_BAUDRATE, uart2_baudrate);
+		// MSM7 for PPK, MSM4 otherwise, never both
+		cfgValset(RTCM_MSM7_UART2, _ppk_output ? 1 : 0);
+		cfgValset(RTCM_MSM4_UART2, _ppk_output ? 0 : 1);
 
 		// 4072.0 marks the base as moving, without it the rover solves against it as a
 		// static base and never reports a heading. The F9P-15B doesn't support 4072.
 		if (_board == Board::u_blox9_F9P_L1L2 || _board == Board::u_blox_X20) {
 			UBX_DEBUG("Configuring ublox 4072");
-			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE4072_0_UART2, 1, cfg_valset_msg_size);
+			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE4072_0_UART2, 1);
 		}
 
-		if (!sendMessage(UBX_MSG_CFG_VALSET, _tx_cfg_valset_buf, cfg_valset_msg_size)) {
-			return -1;
-		}
-
-		if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true) < 0) {
+		if (sendCfgValsetAcked() < 0) {
 			return -1;
 		}
 
@@ -1151,92 +1119,68 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 
 	} else if (_mode == UBXMode::RoverWithMovingBaseUART1) {
 		UBX_DEBUG("Configuring UART1 for rover");
-		// heading output period 1 second
-		cfg_valset_msg_size = initCfgValset();
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1INPROT_UBX, 1, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1INPROT_RTCM3X, 1, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1INPROT_NMEA, 0, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1OUTPROT_UBX, 1, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1OUTPROT_RTCM3X, 0, cfg_valset_msg_size);
+		// RTCM input on UART1
+		static constexpr CfgValsetItem rover_uart1[] = {
+			{UBX_CFG_KEY_CFG_UART1INPROT_UBX, 1},
+			{UBX_CFG_KEY_CFG_UART1INPROT_RTCM3X, 1},
+			{UBX_CFG_KEY_CFG_UART1INPROT_NMEA, 0},
+			{UBX_CFG_KEY_CFG_UART1OUTPROT_UBX, 1},
+			{UBX_CFG_KEY_CFG_UART1OUTPROT_RTCM3X, 0},
+		};
+		initCfgValset();
+		cfgValset(rover_uart1);
 
-		if (!sendMessage(UBX_MSG_CFG_VALSET, _tx_cfg_valset_buf, cfg_valset_msg_size)) {
-			return -1;
-		}
-
-		if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true) < 0) {
+		if (sendCfgValsetAcked() < 0) {
 			return -1;
 		}
 
 	} else if (_mode == UBXMode::MovingBaseUART1) {
 		UBX_DEBUG("Configuring UART1 for moving base");
-		// enable RTCM output on uart1
-		cfg_valset_msg_size = initCfgValset();
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1INPROT_UBX, 1, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1INPROT_RTCM3X, 1, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1INPROT_NMEA, 0, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1OUTPROT_UBX, 1, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1OUTPROT_RTCM3X, 1, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1230_UART1, 1, cfg_valset_msg_size); // GLONASS bias
-
-		if (_ppk_output) {
-			UBX_DEBUG("Enabling MSM7");
-			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1077_UART1, 1, cfg_valset_msg_size); // GPS MSM7
-			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1087_UART1, 1, cfg_valset_msg_size); // GLONASS MSM7
-			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1097_UART1, 1, cfg_valset_msg_size); // Galileo MSM7
-			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1127_UART1, 1, cfg_valset_msg_size); // BeiDou MSM7
-			UBX_DEBUG("Disabling MSM4");
-			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1074_UART1, 0, cfg_valset_msg_size); // GPS MSM4
-			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1084_UART1, 0, cfg_valset_msg_size); // GLONASS MSM4
-			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1094_UART1, 0, cfg_valset_msg_size); // Galileo MSM4
-			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1124_UART1, 0, cfg_valset_msg_size); // BeiDou MSM4
-
-		} else {
-			UBX_DEBUG("Enabling MSM4");
-			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1074_UART1, 1, cfg_valset_msg_size); // GPS MSM4
-			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1084_UART1, 1, cfg_valset_msg_size); // GLONASS MSM4
-			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1094_UART1, 1, cfg_valset_msg_size); // Galileo MSM4
-			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1124_UART1, 1, cfg_valset_msg_size); // BeiDou MSM4
-			UBX_DEBUG("Disabling MSM7");
-			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1077_UART1, 0, cfg_valset_msg_size); // GPS MSM7
-			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1087_UART1, 0, cfg_valset_msg_size); // GLONASS MSM7
-			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1097_UART1, 0, cfg_valset_msg_size); // Galileo MSM7
-			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1127_UART1, 0, cfg_valset_msg_size); // BeiDou MSM7
-		}
+		// RTCM output on UART1
+		static constexpr CfgValsetItem moving_base_uart1[] = {
+			{UBX_CFG_KEY_CFG_UART1INPROT_UBX, 1},
+			{UBX_CFG_KEY_CFG_UART1INPROT_RTCM3X, 1},
+			{UBX_CFG_KEY_CFG_UART1INPROT_NMEA, 0},
+			{UBX_CFG_KEY_CFG_UART1OUTPROT_UBX, 1},
+			{UBX_CFG_KEY_CFG_UART1OUTPROT_RTCM3X, 1},
+			{UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1230_UART1, 1}, // GLONASS bias
+		};
+		initCfgValset();
+		cfgValset(moving_base_uart1);
+		// MSM7 for PPK, MSM4 otherwise, never both
+		cfgValset(RTCM_MSM7_UART1, _ppk_output ? 1 : 0);
+		cfgValset(RTCM_MSM4_UART1, _ppk_output ? 0 : 1);
 
 		// 4072.0 marks the base as moving, without it the rover solves against it as a
 		// static base and never reports a heading. The F9P-15B doesn't support 4072.
 		if (_board == Board::u_blox9_F9P_L1L2 || _board == Board::u_blox_X20) {
 			UBX_DEBUG("Configuring ublox 4072");
-			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE4072_0_UART1, 1, cfg_valset_msg_size);
+			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE4072_0_UART1, 1);
 		}
 
-		if (!sendMessage(UBX_MSG_CFG_VALSET, _tx_cfg_valset_buf, cfg_valset_msg_size)) {
-			return -1;
-		}
-
-		if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true) < 0) {
+		if (sendCfgValsetAcked() < 0) {
 			return -1;
 		}
 
 	} else if (_mode == UBXMode::GroundControlStation) {
 		UBX_DEBUG("Configuring UART2 for Ground Control Station");
-		cfg_valset_msg_size = initCfgValset();
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2_STOPBITS, 1, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2_DATABITS, 0, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2_PARITY, 0, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2INPROT_UBX, 0, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2INPROT_RTCM3X, 0, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2INPROT_NMEA, 0, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2OUTPROT_NMEA, 1, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2OUTPROT_UBX, 0, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2OUTPROT_RTCM3X, 0, cfg_valset_msg_size);
-		cfgValset<uint32_t>(UBX_CFG_KEY_CFG_UART2_BAUDRATE, uart2_baudrate, cfg_valset_msg_size);
+		// NMEA output only on UART2
+		static constexpr CfgValsetItem gcs_uart2[] = {
+			{UBX_CFG_KEY_CFG_UART2_STOPBITS, 1},
+			{UBX_CFG_KEY_CFG_UART2_DATABITS, 0},
+			{UBX_CFG_KEY_CFG_UART2_PARITY, 0},
+			{UBX_CFG_KEY_CFG_UART2INPROT_UBX, 0},
+			{UBX_CFG_KEY_CFG_UART2INPROT_RTCM3X, 0},
+			{UBX_CFG_KEY_CFG_UART2INPROT_NMEA, 0},
+			{UBX_CFG_KEY_CFG_UART2OUTPROT_NMEA, 1},
+			{UBX_CFG_KEY_CFG_UART2OUTPROT_UBX, 0},
+			{UBX_CFG_KEY_CFG_UART2OUTPROT_RTCM3X, 0},
+		};
+		initCfgValset();
+		cfgValset(gcs_uart2);
+		cfgValset<uint32_t>(UBX_CFG_KEY_CFG_UART2_BAUDRATE, uart2_baudrate);
 
-		if (!sendMessage(UBX_MSG_CFG_VALSET, _tx_cfg_valset_buf, cfg_valset_msg_size)) {
-			return -1;
-		}
-
-		if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true) < 0) {
+		if (sendCfgValsetAcked() < 0) {
 			return -1;
 		}
 
@@ -1252,27 +1196,28 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 		} else {
 			// On its own, because the platforms that wire UART2 permanently on have no such key
 			// and a NAK would otherwise take the port settings down with it.
-			cfg_valset_msg_size = initCfgValset();
-			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2_ENABLED, 1, cfg_valset_msg_size);
+			initCfgValset();
+			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2_ENABLED, 1);
 
-			if (sendMessage(UBX_MSG_CFG_VALSET, _tx_cfg_valset_buf, cfg_valset_msg_size)) {
-				(void)waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, false);
-			}
+			sendCfgValsetAcked(false);
 
-			cfg_valset_msg_size = initCfgValset();
-			cfgValset<uint32_t>(UBX_CFG_KEY_CFG_UART2_BAUDRATE, uart2_baudrate, cfg_valset_msg_size);
-			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2_STOPBITS, 1, cfg_valset_msg_size);
-			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2_DATABITS, 0, cfg_valset_msg_size);
-			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2_PARITY, 0, cfg_valset_msg_size);
 			// Input stays open so u-center can poll MON-VER and drive the configuration view
-			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2INPROT_UBX, 1, cfg_valset_msg_size);
-			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2INPROT_NMEA, 0, cfg_valset_msg_size);
-			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2INPROT_RTCM3X, 0, cfg_valset_msg_size);
-			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2OUTPROT_UBX, 1, cfg_valset_msg_size);
-			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2OUTPROT_NMEA, 0, cfg_valset_msg_size);
-			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2OUTPROT_RTCM3X, 0, cfg_valset_msg_size);
+			static constexpr CfgValsetItem ucenter_uart2[] = {
+				{UBX_CFG_KEY_CFG_UART2_STOPBITS, 1},
+				{UBX_CFG_KEY_CFG_UART2_DATABITS, 0},
+				{UBX_CFG_KEY_CFG_UART2_PARITY, 0},
+				{UBX_CFG_KEY_CFG_UART2INPROT_UBX, 1},
+				{UBX_CFG_KEY_CFG_UART2INPROT_NMEA, 0},
+				{UBX_CFG_KEY_CFG_UART2INPROT_RTCM3X, 0},
+				{UBX_CFG_KEY_CFG_UART2OUTPROT_UBX, 1},
+				{UBX_CFG_KEY_CFG_UART2OUTPROT_NMEA, 0},
+				{UBX_CFG_KEY_CFG_UART2OUTPROT_RTCM3X, 0},
+			};
+			initCfgValset();
+			cfgValset<uint32_t>(UBX_CFG_KEY_CFG_UART2_BAUDRATE, uart2_baudrate);
+			cfgValset(ucenter_uart2);
 
-			if (sendMessage(UBX_MSG_CFG_VALSET, _tx_cfg_valset_buf, cfg_valset_msg_size)) {
+			if (sendCfgValset()) {
 				if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, false) < 0) {
 					UBX_WARN("UART2 port config for u-center rejected");
 				}
@@ -1280,24 +1225,25 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 
 			// Message rates are per port, so the set enabled for the driver's own port leaves UART2
 			// silent. u-center shows nothing at all without these.
-			cfg_valset_msg_size = initCfgValset();
-			cfgValsetUart2(UBX_CFG_KEY_MSGOUT_UBX_NAV_PVT_I2C, 1, cfg_valset_msg_size);
-			cfgValsetUart2(UBX_CFG_KEY_MSGOUT_UBX_NAV_DOP_I2C, 1, cfg_valset_msg_size);
-			cfgValsetUart2(UBX_CFG_KEY_MSGOUT_UBX_NAV_STATUS_I2C, 1, cfg_valset_msg_size);
-			cfgValsetUart2(UBX_CFG_KEY_MSGOUT_UBX_MON_RF_I2C, 1, cfg_valset_msg_size);
+			static constexpr uint32_t ucenter_msgout[] = {
+				UBX_CFG_KEY_MSGOUT_UBX_NAV_PVT_I2C, UBX_CFG_KEY_MSGOUT_UBX_NAV_DOP_I2C,
+				UBX_CFG_KEY_MSGOUT_UBX_NAV_STATUS_I2C, UBX_CFG_KEY_MSGOUT_UBX_MON_RF_I2C
+			};
+			initCfgValset();
+			cfgValsetUart2(ucenter_msgout, 1);
 			// NAV-SAT is 12 bytes per satellite against ~250 for all of the above together, so it
 			// gets the same decimation the driver uses for itself rather than setting the link speed
-			cfgValsetUart2(UBX_CFG_KEY_MSGOUT_UBX_NAV_SAT_I2C, 10, cfg_valset_msg_size);
+			cfgValsetUart2(UBX_CFG_KEY_MSGOUT_UBX_NAV_SAT_I2C, 10);
 
 			if (_board != Board::u_blox9) {
-				cfgValsetUart2(UBX_CFG_KEY_MSGOUT_UBX_NAV_HPPOSLLH_I2C, 1, cfg_valset_msg_size);
+				cfgValsetUart2(UBX_CFG_KEY_MSGOUT_UBX_NAV_HPPOSLLH_I2C, 1);
 			}
 
 			if (_board == Board::u_blox9 || _board == Board::u_blox9_F9P_L1L2 || _board == Board::u_blox9_F9P_L1L5) {
-				cfgValsetUart2(UBX_CFG_KEY_MSGOUT_UBX_RXM_RTCM_I2C, 1, cfg_valset_msg_size);
+				cfgValsetUart2(UBX_CFG_KEY_MSGOUT_UBX_RXM_RTCM_I2C, 1);
 			}
 
-			if (sendMessage(UBX_MSG_CFG_VALSET, _tx_cfg_valset_buf, cfg_valset_msg_size)) {
+			if (sendCfgValset()) {
 				if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, false) < 0) {
 					UBX_WARN("UART2 message rates for u-center rejected");
 				}
@@ -1330,49 +1276,67 @@ const char *GPSDriverUBX::uart1Protocols(UBXMode mode, bool ppk_output)
 	return "UBX in/out";
 }
 
-int GPSDriverUBX::initCfgValset()
+void GPSDriverUBX::initCfgValset()
 {
 	static_assert(sizeof(_tx_cfg_valset_buf) >= sizeof(ubx_payload_tx_cfg_valset_t),
 		      "_tx_cfg_valset_buf must hold at least the CFG-VALSET header");
 	auto *header = reinterpret_cast<ubx_payload_tx_cfg_valset_t *>(_tx_cfg_valset_buf);
 	memset(_tx_cfg_valset_buf, 0, sizeof(_tx_cfg_valset_buf));
 	header->layers = UBX_CFG_LAYER_RAM;
-	return sizeof(*header) - sizeof(header->cfgData);
+	_tx_cfg_valset_size = sizeof(*header) - sizeof(header->cfgData);
 }
 
-template<typename T>
-bool GPSDriverUBX::cfgValset(uint32_t key_id, T value, int &msg_size)
+bool GPSDriverUBX::sendCfgValset()
 {
-	if (msg_size + sizeof(key_id) + sizeof(value) > sizeof(_tx_cfg_valset_buf)) {
+	return sendMessage(UBX_MSG_CFG_VALSET, _tx_cfg_valset_buf, _tx_cfg_valset_size);
+}
+
+int GPSDriverUBX::sendCfgValsetAcked(bool report_ack_error)
+{
+	if (!sendCfgValset()) {
+		return -1;
+	}
+
+	return waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, report_ack_error);
+}
+
+bool GPSDriverUBX::cfgValsetRaw(uint32_t key_id, uint32_t value)
+{
+	// Size field: 1 = L, 2 = U1/I1/E1/X1, 3 = 2 bytes, 4 = 4 bytes (5 = 8 bytes, unsupported here)
+	const unsigned size_field = (key_id >> 28) & 0x7;
+	const unsigned value_size = (size_field <= 2) ? 1 : (size_field == 3) ? 2 : 4;
+
+	if (_tx_cfg_valset_size + sizeof(key_id) + value_size > sizeof(_tx_cfg_valset_buf)) {
 		// If this ever fires, either bump UBX_CFG_VALSET_BUF_SIZE or split the
 		// batch into multiple CFG-VALSET messages at the call site.
 		UBX_WARN("buf for CFG_VALSET too small");
 		return false;
 	}
 
-	memcpy(_tx_cfg_valset_buf + msg_size, &key_id, sizeof(key_id));
-	msg_size += sizeof(key_id);
-	memcpy(_tx_cfg_valset_buf + msg_size, &value, sizeof(value));
-	msg_size += sizeof(value);
+	memcpy(_tx_cfg_valset_buf + _tx_cfg_valset_size, &key_id, sizeof(key_id));
+	_tx_cfg_valset_size += sizeof(key_id);
+	// little-endian: the low value_size bytes of value are the narrower type's bytes
+	memcpy(_tx_cfg_valset_buf + _tx_cfg_valset_size, &value, value_size);
+	_tx_cfg_valset_size += value_size;
 	return true;
 }
 
-bool GPSDriverUBX::cfgValsetPort(uint32_t key_id, uint8_t value, int &msg_size)
+bool GPSDriverUBX::cfgValsetPort(uint32_t key_id, uint8_t value)
 {
 	if (_interface == Interface::SPI) {
-		if (!cfgValset<uint8_t>(key_id + 4, value, msg_size)) {
+		if (!cfgValset<uint8_t>(key_id + 4, value)) {
 			return false;
 		}
 
 	} else {
 		// enable on UART1 & USB (TODO: should we enable UART2 too? -> better would be to detect the port)
-		if (!cfgValset<uint8_t>(key_id + 1, value, msg_size)) {
+		if (!cfgValset<uint8_t>(key_id + 1, value)) {
 			return false;
 		}
 
 		// M10 has no USB
 		if (_board != Board::u_blox10 && _board != Board::u_blox10_L1L5) {
-			if (!cfgValset<uint8_t>(key_id + 3, value, msg_size)) {
+			if (!cfgValset<uint8_t>(key_id + 3, value)) {
 				return false;
 			}
 		}
@@ -1381,9 +1345,53 @@ bool GPSDriverUBX::cfgValsetPort(uint32_t key_id, uint8_t value, int &msg_size)
 	return true;
 }
 
-bool GPSDriverUBX::cfgValsetUart2(uint32_t key_id, uint8_t value, int &msg_size)
+bool GPSDriverUBX::cfgValsetUart2(uint32_t key_id, uint8_t value)
 {
-	return cfgValset<uint8_t>(key_id + 2, value, msg_size);
+	return cfgValset<uint8_t>(key_id + 2, value);
+}
+
+bool GPSDriverUBX::cfgValsetItems(const CfgValsetItem *items, size_t count)
+{
+	for (size_t i = 0; i < count; i++) {
+		if (!cfgValsetRaw(items[i].key, items[i].value)) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+bool GPSDriverUBX::cfgValsetKeys(const uint32_t *keys, size_t count, uint8_t value)
+{
+	for (size_t i = 0; i < count; i++) {
+		if (!cfgValsetRaw(keys[i], value)) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+bool GPSDriverUBX::cfgValsetPortKeys(const uint32_t *keys, size_t count, uint8_t value)
+{
+	for (size_t i = 0; i < count; i++) {
+		if (!cfgValsetPort(keys[i], value)) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+bool GPSDriverUBX::cfgValsetUart2Keys(const uint32_t *keys, size_t count, uint8_t value)
+{
+	for (size_t i = 0; i < count; i++) {
+		if (!cfgValsetUart2(keys[i], value)) {
+			return false;
+		}
+	}
+
+	return true;
 }
 
 int GPSDriverUBX::restartSurveyInPreV27()
@@ -1480,30 +1488,20 @@ int GPSDriverUBX::restartSurveyIn()
 	UBX_DEBUG("restartSurveyIn");
 
 	//disable RTCM output
-	int cfg_valset_msg_size = initCfgValset();
-	cfgValsetPort(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1005_I2C, 0, cfg_valset_msg_size);
-	cfgValsetPort(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1077_I2C, 0, cfg_valset_msg_size);
-	cfgValsetPort(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1087_I2C, 0, cfg_valset_msg_size);
-	cfgValsetPort(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1230_I2C, 0, cfg_valset_msg_size);
-	cfgValsetPort(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1097_I2C, 0, cfg_valset_msg_size);
-	cfgValsetPort(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1127_I2C, 0, cfg_valset_msg_size);
-	sendMessage(UBX_MSG_CFG_VALSET, _tx_cfg_valset_buf, cfg_valset_msg_size);
-	waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, false);
+	initCfgValset();
+	cfgValsetPort(RTCM_BASE_MSGOUT_I2C, 0);
+	sendCfgValsetAcked(false);
 
 	if (_base_settings.type == BaseSettingsType::survey_in) {
 		UBX_DEBUG("Starting Survey-in");
 
-		cfg_valset_msg_size = initCfgValset();
-		cfgValset<uint8_t>(UBX_CFG_KEY_TMODE_MODE, 1 /* Survey-in */, cfg_valset_msg_size);
-		cfgValset<uint32_t>(UBX_CFG_KEY_TMODE_SVIN_MIN_DUR, _base_settings.settings.survey_in.min_dur, cfg_valset_msg_size);
-		cfgValset<uint32_t>(UBX_CFG_KEY_TMODE_SVIN_ACC_LIMIT, _base_settings.settings.survey_in.acc_limit, cfg_valset_msg_size);
-		cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_SVIN_I2C, 5, cfg_valset_msg_size);
+		initCfgValset();
+		cfgValset<uint8_t>(UBX_CFG_KEY_TMODE_MODE, 1 /* Survey-in */);
+		cfgValset<uint32_t>(UBX_CFG_KEY_TMODE_SVIN_MIN_DUR, _base_settings.settings.survey_in.min_dur);
+		cfgValset<uint32_t>(UBX_CFG_KEY_TMODE_SVIN_ACC_LIMIT, _base_settings.settings.survey_in.acc_limit);
+		cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_SVIN_I2C, 5);
 
-		if (!sendMessage(UBX_MSG_CFG_VALSET, _tx_cfg_valset_buf, cfg_valset_msg_size)) {
-			return -1;
-		}
-
-		if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true) < 0) {
+		if (sendCfgValsetAcked() < 0) {
 			return -1;
 		}
 
@@ -1511,26 +1509,21 @@ int GPSDriverUBX::restartSurveyIn()
 		UBX_DEBUG("Setting fixed base position");
 
 		const FixedPositionSettings &settings = _base_settings.settings.fixed_position;
-		cfg_valset_msg_size = initCfgValset();
-		cfgValset<uint8_t>(UBX_CFG_KEY_TMODE_MODE, 2 /* Fixed Mode */, cfg_valset_msg_size);
-		cfgValset<uint8_t>(UBX_CFG_KEY_TMODE_POS_TYPE, 1 /* Lat/Lon/Height */, cfg_valset_msg_size);
+		initCfgValset();
+		cfgValset<uint8_t>(UBX_CFG_KEY_TMODE_MODE, 2 /* Fixed Mode */);
+		cfgValset<uint8_t>(UBX_CFG_KEY_TMODE_POS_TYPE, 1 /* Lat/Lon/Height */);
 		int64_t lat64 = (int64_t)(settings.latitude * 1e9);
-		cfgValset<int32_t>(UBX_CFG_KEY_TMODE_LAT, (int32_t)(lat64 / 100), cfg_valset_msg_size);
-		cfgValset<int8_t>(UBX_CFG_KEY_TMODE_LAT_HP, lat64 % 100 /* range [-99, 99] */, cfg_valset_msg_size);
+		cfgValset<int32_t>(UBX_CFG_KEY_TMODE_LAT, (int32_t)(lat64 / 100));
+		cfgValset<int8_t>(UBX_CFG_KEY_TMODE_LAT_HP, lat64 % 100 /* range [-99, 99] */);
 		int64_t lon64 = (int64_t)(settings.longitude * 1e9);
-		cfgValset<int32_t>(UBX_CFG_KEY_TMODE_LON, (int32_t)(lon64 / 100), cfg_valset_msg_size);
-		cfgValset<int8_t>(UBX_CFG_KEY_TMODE_LON_HP, lon64 % 100 /* range [-99, 99] */, cfg_valset_msg_size);
+		cfgValset<int32_t>(UBX_CFG_KEY_TMODE_LON, (int32_t)(lon64 / 100));
+		cfgValset<int8_t>(UBX_CFG_KEY_TMODE_LON_HP, lon64 % 100 /* range [-99, 99] */);
 		int64_t alt64 = (int64_t)((double)settings.altitude * 1e4);
-		cfgValset<int32_t>(UBX_CFG_KEY_TMODE_HEIGHT, (int32_t)(alt64 / 100) /* cm */, cfg_valset_msg_size);
-		cfgValset<int8_t>(UBX_CFG_KEY_TMODE_HEIGHT_HP, alt64 % 100 /* 0.1mm */, cfg_valset_msg_size);
-		cfgValset<uint32_t>(UBX_CFG_KEY_TMODE_FIXED_POS_ACC, (uint32_t)(settings.position_accuracy * 10.f),
-				    cfg_valset_msg_size);
+		cfgValset<int32_t>(UBX_CFG_KEY_TMODE_HEIGHT, (int32_t)(alt64 / 100) /* cm */);
+		cfgValset<int8_t>(UBX_CFG_KEY_TMODE_HEIGHT_HP, alt64 % 100 /* 0.1mm */);
+		cfgValset<uint32_t>(UBX_CFG_KEY_TMODE_FIXED_POS_ACC, (uint32_t)(settings.position_accuracy * 10.f));
 
-		if (!sendMessage(UBX_MSG_CFG_VALSET, _tx_cfg_valset_buf, cfg_valset_msg_size)) {
-			return -1;
-		}
-
-		if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true) < 0) {
+		if (sendCfgValsetAcked() < 0) {
 			return -1;
 		}
 
@@ -2044,9 +2037,9 @@ GPSDriverUBX::payloadRxInit()
 					_disable_cmd_last = t;
 					UBX_DEBUG("ubx disabling msg 0x%04x (0x%04x)", SWAP16((unsigned)_rx_msg), (uint16_t)key_id);
 
-					int cfg_valset_msg_size = initCfgValset();
-					cfgValsetPort(key_id, 0, cfg_valset_msg_size);
-					sendMessage(UBX_MSG_CFG_VALSET, _tx_cfg_valset_buf, cfg_valset_msg_size);
+					initCfgValset();
+					cfgValsetPort(key_id, 0);
+					sendCfgValset();
 				}
 			}
 
@@ -2303,35 +2296,30 @@ GPSDriverUBX::payloadRxAddMonVer(const uint8_t b)
 			UBX_DEBUG("VER sw  \"%30s\"", _buf.payload_rx_mon_ver_part1.swVersion);
 
 			// Device detection (See https://forum.u-blox.com/index.php/9432/need-help-decoding-ubx-mon-ver-hardware-string)
-			if (strncmp((const char *)_buf.payload_rx_mon_ver_part1.hwVersion, "00040005",
-				    sizeof(_buf.payload_rx_mon_ver_part1.hwVersion)) == 0) {
-				_board = Board::u_blox5;
+			static constexpr struct {
+				char hw_version[9];
+				Board board;
+			} known_boards[] = {
+				{"00040005", Board::u_blox5},
+				{"00040007", Board::u_blox6},
+				{"00070000", Board::u_blox7},
+				{"00080000", Board::u_blox8},
+				{"00190000", Board::u_blox9},
+				{"000A0000", Board::u_blox10},
+				{"000B0000", Board::u_blox_X20},
+			};
+			bool known = false;
 
-			} else if (strncmp((const char *)_buf.payload_rx_mon_ver_part1.hwVersion, "00040007",
-					   sizeof(_buf.payload_rx_mon_ver_part1.hwVersion)) == 0) {
-				_board = Board::u_blox6;
+			for (const auto &known_board : known_boards) {
+				if (strncmp((const char *)_buf.payload_rx_mon_ver_part1.hwVersion, known_board.hw_version,
+					    sizeof(_buf.payload_rx_mon_ver_part1.hwVersion)) == 0) {
+					_board = known_board.board;
+					known = true;
+					break;
+				}
+			}
 
-			} else if (strncmp((const char *)_buf.payload_rx_mon_ver_part1.hwVersion, "00070000",
-					   sizeof(_buf.payload_rx_mon_ver_part1.hwVersion)) == 0) {
-				_board = Board::u_blox7;
-
-			} else if (strncmp((const char *)_buf.payload_rx_mon_ver_part1.hwVersion, "00080000",
-					   sizeof(_buf.payload_rx_mon_ver_part1.hwVersion)) == 0) {
-				_board = Board::u_blox8;
-
-			} else if (strncmp((const char *)_buf.payload_rx_mon_ver_part1.hwVersion, "00190000",
-					   sizeof(_buf.payload_rx_mon_ver_part1.hwVersion)) == 0) {
-				_board = Board::u_blox9;
-
-			} else if (strncmp((const char *)_buf.payload_rx_mon_ver_part1.hwVersion, "000A0000",
-					   sizeof(_buf.payload_rx_mon_ver_part1.hwVersion)) == 0) {
-				_board = Board::u_blox10;
-
-			} else if (strncmp((const char *)_buf.payload_rx_mon_ver_part1.hwVersion, "000B0000",
-					   sizeof(_buf.payload_rx_mon_ver_part1.hwVersion)) == 0) {
-				_board = Board::u_blox_X20;
-
-			} else {
+			if (!known) {
 				UBX_WARN("unknown board hw: %s", _buf.payload_rx_mon_ver_part1.hwVersion);
 			}
 
@@ -2471,8 +2459,6 @@ GPSDriverUBX::payloadRxDone()
 		if ((_buf.payload_rx_nav_pvt.valid & UBX_RX_NAV_PVT_VALID_VALIDDATE)
 		    && (_buf.payload_rx_nav_pvt.valid & UBX_RX_NAV_PVT_VALID_VALIDTIME)
 		    && (_buf.payload_rx_nav_pvt.valid & UBX_RX_NAV_PVT_VALID_FULLYRESOLVED)) {
-#ifndef NO_MKTIME
-			/* convert to unix timestamp */
 			tm timeinfo{};
 			timeinfo.tm_year	= _buf.payload_rx_nav_pvt.year - 1900;
 			timeinfo.tm_mon		= _buf.payload_rx_nav_pvt.month - 1;
@@ -2480,31 +2466,7 @@ GPSDriverUBX::payloadRxDone()
 			timeinfo.tm_hour	= _buf.payload_rx_nav_pvt.hour;
 			timeinfo.tm_min		= _buf.payload_rx_nav_pvt.min;
 			timeinfo.tm_sec		= _buf.payload_rx_nav_pvt.sec;
-
-
-			time_t epoch = mktime(&timeinfo);
-
-			if (epoch > GPS_EPOCH_SECS) {
-				// FMUv2+ boards have a hardware RTC, but GPS helps us to configure it
-				// and control its drift. Since we rely on the HRT for our monotonic
-				// clock, updating it from time to time is safe.
-
-				timespec ts{};
-				ts.tv_sec = epoch;
-				ts.tv_nsec = _buf.payload_rx_nav_pvt.nano;
-
-				setClock(ts);
-
-				_gps_position->time_utc_usec = static_cast<uint64_t>(epoch) * 1000000ULL;
-				_gps_position->time_utc_usec += _buf.payload_rx_nav_pvt.nano / 1000;
-
-			} else {
-				_gps_position->time_utc_usec = 0;
-			}
-
-#else
-			_gps_position->time_utc_usec = 0;
-#endif
+			_gps_position->time_utc_usec = timeFromUtc(timeinfo, _buf.payload_rx_nav_pvt.nano);
 
 		} else {
 			// The struct is reused across messages, so without this a receiver
@@ -2613,8 +2575,6 @@ GPSDriverUBX::payloadRxDone()
 		UBX_TRACE_RXMSG("Rx NAV-TIMEUTC");
 
 		if (_buf.payload_rx_nav_timeutc.valid & UBX_RX_NAV_TIMEUTC_VALID_VALIDUTC) {
-#ifndef NO_MKTIME
-			// convert to unix timestamp
 			tm timeinfo {};
 			timeinfo.tm_year	= _buf.payload_rx_nav_timeutc.year - 1900;
 			timeinfo.tm_mon		= _buf.payload_rx_nav_timeutc.month - 1;
@@ -2622,33 +2582,7 @@ GPSDriverUBX::payloadRxDone()
 			timeinfo.tm_hour	= _buf.payload_rx_nav_timeutc.hour;
 			timeinfo.tm_min		= _buf.payload_rx_nav_timeutc.min;
 			timeinfo.tm_sec		= _buf.payload_rx_nav_timeutc.sec;
-			timeinfo.tm_isdst	= 0;
-
-			time_t epoch = mktime(&timeinfo);
-
-			// only set the time if it makes sense
-
-			if (epoch > GPS_EPOCH_SECS) {
-				// FMUv2+ boards have a hardware RTC, but GPS helps us to configure it
-				// and control its drift. Since we rely on the HRT for our monotonic
-				// clock, updating it from time to time is safe.
-
-				timespec ts{};
-				ts.tv_sec = epoch;
-				ts.tv_nsec = _buf.payload_rx_nav_timeutc.nano;
-
-				setClock(ts);
-
-				_gps_position->time_utc_usec = static_cast<uint64_t>(epoch) * 1000000ULL;
-				_gps_position->time_utc_usec += _buf.payload_rx_nav_timeutc.nano / 1000;
-
-			} else {
-				_gps_position->time_utc_usec = 0;
-			}
-
-#else
-			_gps_position->time_utc_usec = 0;
-#endif
+			_gps_position->time_utc_usec = timeFromUtc(timeinfo, _buf.payload_rx_nav_timeutc.nano);
 
 		} else {
 			// The struct is reused across messages, so without this a receiver
@@ -2946,21 +2880,16 @@ GPSDriverUBX::activateRTCMOutput(bool reduce_update_rate)
 	UBX_DEBUG("activateRTCMOutput");
 
 	if (_proto_ver_27_or_higher) {
-		int cfg_valset_msg_size = initCfgValset();
+		initCfgValset();
 
 		if (reduce_update_rate) {
-			cfgValset<uint16_t>(UBX_CFG_KEY_RATE_MEAS, 1000, cfg_valset_msg_size);
+			cfgValset<uint16_t>(UBX_CFG_KEY_RATE_MEAS, 1000);
 		}
 
-		cfgValsetPort(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1005_I2C, 1, cfg_valset_msg_size);
-		cfgValsetPort(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1077_I2C, 1, cfg_valset_msg_size);
-		cfgValsetPort(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1087_I2C, 1, cfg_valset_msg_size);
-		cfgValsetPort(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1230_I2C, 1, cfg_valset_msg_size);
-		cfgValsetPort(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1097_I2C, 1, cfg_valset_msg_size);
-		cfgValsetPort(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1127_I2C, 1, cfg_valset_msg_size);
-		cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_SVIN_I2C, 0, cfg_valset_msg_size);
+		cfgValsetPort(RTCM_BASE_MSGOUT_I2C, 1);
+		cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_SVIN_I2C, 0);
 
-		if (!sendMessage(UBX_MSG_CFG_VALSET, _tx_cfg_valset_buf, cfg_valset_msg_size)) {
+		if (!sendCfgValset()) {
 			return -1;
 		}
 

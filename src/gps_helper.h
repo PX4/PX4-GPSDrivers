@@ -326,6 +326,16 @@ protected:
 	}
 
 	/**
+	 * Convert a broken-down UTC time to microseconds since the Unix epoch, and set the system clock
+	 * from it when requested. Both only happen if the date is after the GPS epoch.
+	 * @param utc broken-down UTC time (modified by mktime)
+	 * @param nsec sub-second part [ns], may be negative
+	 * @param set_clock also set the system clock
+	 * @return microseconds since the Unix epoch, 0 if the date is implausible or mktime is unavailable
+	 */
+	uint64_t timeFromUtc(tm &utc, int32_t nsec, bool set_clock = true);
+
+	/**
 	 * Convert an ECEF (Earth Centered Earth Fixed) coordinate to LLA WGS84 (Lat, Lon, Alt).
 	 * Ported from: https://stackoverflow.com/a/25428344
 	 * @param ecef_x ECEF X-coordinate [m]
@@ -336,6 +346,21 @@ protected:
 	 * @param altitude [m]
 	 */
 	static void ECEF2lla(double ecef_x, double ecef_y, double ecef_z, double &latitude, double &longitude, float &altitude);
+
+	/**
+	 * Parse the next comma-separated NMEA field. p points at the character before the field (the previous
+	 * separator) and is advanced to the separator after it. An empty field leaves value untouched.
+	 * @return true if the field was non-empty
+	 */
+	static bool nmeaNextField(char *&p, double &value);
+	static bool nmeaNextField(char *&p, float &value);
+	static bool nmeaNextField(char *&p, int &value);
+	static bool nmeaNextField(char *&p, char &value);
+
+	/**
+	 * Convert an NMEA ddmm.mmmm (or dddmm.mmmm) coordinate to decimal degrees
+	 */
+	static double nmeaToDegrees(double ddmm);
 
 	GPSCallbackPtr _callback{nullptr};
 	void *_callback_user{};
