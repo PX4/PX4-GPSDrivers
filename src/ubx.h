@@ -1164,6 +1164,28 @@ private:
 	 */
 	bool cfgValsetRaw(uint32_t key_id, uint32_t value);
 
+	/** A fixed key/value pair for cfgValset(items) */
+	struct CfgValsetItem {
+		uint32_t key;
+		uint8_t value;
+	} __attribute__((packed));
+
+	/**
+	 * Add a fixed list of 1-byte configuration values
+	 * @return true on success, false if buffer too small
+	 */
+	template<size_t N>
+	bool cfgValset(const CfgValsetItem(&items)[N]) { return cfgValsetItems(items, N); }
+	bool cfgValsetItems(const CfgValsetItem *items, size_t count);
+
+	/**
+	 * Add the same 1-byte value for a list of keys
+	 * @return true on success, false if buffer too small
+	 */
+	template<size_t N>
+	bool cfgValset(const uint32_t (&keys)[N], uint8_t value) { return cfgValsetKeys(keys, N, value); }
+	bool cfgValsetKeys(const uint32_t *keys, size_t count, uint8_t value);
+
 	/**
 	 * Add a configuration value that is port-specific (MSGOUT messages).
 	 * Note: Key ID must be the one for I2C, and the implementation assumes the
@@ -1176,6 +1198,11 @@ private:
 	 */
 	bool cfgValsetPort(uint32_t key_id, uint8_t value);
 
+	/** cfgValsetPort() for a list of I2C key IDs sharing one value */
+	template<size_t N>
+	bool cfgValsetPort(const uint32_t (&keys)[N], uint8_t value) { return cfgValsetPortKeys(keys, N, value); }
+	bool cfgValsetPortKeys(const uint32_t *keys, size_t count, uint8_t value);
+
 	/**
 	 * Add a port-specific (MSGOUT) configuration value for UART2, which is never the port this
 	 * driver talks on. Same key ordering assumption as cfgValsetPort().
@@ -1185,6 +1212,11 @@ private:
 	 * @return true on success, false if buffer too small
 	 */
 	bool cfgValsetUart2(uint32_t key_id, uint8_t value);
+
+	/** cfgValsetUart2() for a list of I2C key IDs sharing one value */
+	template<size_t N>
+	bool cfgValsetUart2(const uint32_t (&keys)[N], uint8_t value) { return cfgValsetUart2Keys(keys, N, value); }
+	bool cfgValsetUart2Keys(const uint32_t *keys, size_t count, uint8_t value);
 
 	/**
 	 * Reset the parse state machine for a fresh start
