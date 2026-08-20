@@ -1240,6 +1240,13 @@ private:
 	bool sendCfgValset();
 
 	/**
+	 * sendCfgValset() followed by waitForAck()
+	 * @param report_ack_error log a NAK or timeout
+	 * @return 0 on ACK, <0 if sending failed or no ACK was received
+	 */
+	int sendCfgValsetAcked(bool report_ack_error = true);
+
+	/**
 	 * Start or restart the survey-in procees. This is only used in RTCM ouput mode.
 	 * It will be called automatically after configuring.
 	 * @return 0 on success, <0 on error

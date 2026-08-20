@@ -605,11 +605,7 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 
 		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_USBOUTPROT_NMEA, 0);
 
-		if (!sendCfgValset()) {
-			return -1;
-		}
-
-		if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true) < 0) {
+		if (sendCfgValsetAcked() < 0) {
 			return -1;
 		}
 
@@ -623,9 +619,7 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_SPIINPROT_SPARTN, enable_corrections_in);
 		}
 
-		if (sendCfgValset()) {
-			(void)waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, false);
-		}
+		sendCfgValsetAcked(false);
 	}
 
 	/* set configuration parameters */
@@ -689,11 +683,7 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 	cfgValset<uint16_t>(UBX_CFG_KEY_RATE_NAV, 1);
 	cfgValset<uint8_t>(UBX_CFG_KEY_RATE_TIMEREF, 0);
 
-	if (!sendCfgValset()) {
-		return -1;
-	}
-
-	if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true) < 0) {
+	if (sendCfgValsetAcked() < 0) {
 		return -1;
 	}
 
@@ -705,9 +695,7 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 	initCfgValset();
 	cfgValset(odo_keys, 0);
 
-	if (sendCfgValset()) {
-		waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, false);
-	}
+	sendCfgValsetAcked(false);
 
 	// RTK (optional, as only RTK devices like F9P support it)
 	initCfgValset();
@@ -921,12 +909,8 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 			}
 		}
 
-		if (!sendCfgValset()) {
-			UBX_DEBUG("UBX GNSS config send failed");
-			return -1;
-		}
-
-		if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true) < 0) {
+		if (sendCfgValsetAcked() < 0) {
+			UBX_DEBUG("UBX GNSS config failed");
 			return -1;
 		}
 
@@ -994,11 +978,7 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 	};
 	cfgValsetPort(unused_msgout, 0);
 
-	if (!sendCfgValset()) {
-		return -1;
-	}
-
-	if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true) < 0) {
+	if (sendCfgValsetAcked() < 0) {
 		return -1;
 	}
 
@@ -1047,11 +1027,7 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 					   config.interface_protocols & InterfaceProtocolsMask::I2C_OUT_PROT_RTCM3X);
 		}
 
-		if (!sendCfgValset()) {
-			return -1;
-		}
-
-		if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true) < 0) {
+		if (sendCfgValsetAcked() < 0) {
 			return -1;
 		}
 
@@ -1061,9 +1037,7 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_I2CINPROT_SPARTN,
 					   config.interface_protocols & InterfaceProtocolsMask::I2C_IN_PROT_RTCM3X);
 
-			if (sendCfgValset()) {
-				(void)waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, false);
-			}
+			sendCfgValsetAcked(false);
 		}
 	}
 
@@ -1079,11 +1053,7 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1230_UART1, 1); // GLONASS bias
 		cfgValset(RTCM_MSM7_UART1, 1);
 
-		if (!sendCfgValset()) {
-			return -1;
-		}
-
-		if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true) < 0) {
+		if (sendCfgValsetAcked() < 0) {
 			return -1;
 		}
 
@@ -1106,11 +1076,7 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 		cfgValset(rover_uart2);
 		cfgValset<uint32_t>(UBX_CFG_KEY_CFG_UART2_BAUDRATE, uart2_baudrate);
 
-		if (!sendCfgValset()) {
-			return -1;
-		}
-
-		if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true) < 0) {
+		if (sendCfgValsetAcked() < 0) {
 			return -1;
 		}
 
@@ -1145,11 +1111,7 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE4072_0_UART2, 1);
 		}
 
-		if (!sendCfgValset()) {
-			return -1;
-		}
-
-		if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true) < 0) {
+		if (sendCfgValsetAcked() < 0) {
 			return -1;
 		}
 
@@ -1168,11 +1130,7 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 		initCfgValset();
 		cfgValset(rover_uart1);
 
-		if (!sendCfgValset()) {
-			return -1;
-		}
-
-		if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true) < 0) {
+		if (sendCfgValsetAcked() < 0) {
 			return -1;
 		}
 
@@ -1200,11 +1158,7 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 			cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE4072_0_UART1, 1);
 		}
 
-		if (!sendCfgValset()) {
-			return -1;
-		}
-
-		if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true) < 0) {
+		if (sendCfgValsetAcked() < 0) {
 			return -1;
 		}
 
@@ -1226,11 +1180,7 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 		cfgValset(gcs_uart2);
 		cfgValset<uint32_t>(UBX_CFG_KEY_CFG_UART2_BAUDRATE, uart2_baudrate);
 
-		if (!sendCfgValset()) {
-			return -1;
-		}
-
-		if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true) < 0) {
+		if (sendCfgValsetAcked() < 0) {
 			return -1;
 		}
 
@@ -1249,9 +1199,7 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 			initCfgValset();
 			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART2_ENABLED, 1);
 
-			if (sendCfgValset()) {
-				(void)waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, false);
-			}
+			sendCfgValsetAcked(false);
 
 			// Input stays open so u-center can poll MON-VER and drive the configuration view
 			static constexpr CfgValsetItem ucenter_uart2[] = {
@@ -1341,6 +1289,15 @@ void GPSDriverUBX::initCfgValset()
 bool GPSDriverUBX::sendCfgValset()
 {
 	return sendMessage(UBX_MSG_CFG_VALSET, _tx_cfg_valset_buf, _tx_cfg_valset_size);
+}
+
+int GPSDriverUBX::sendCfgValsetAcked(bool report_ack_error)
+{
+	if (!sendCfgValset()) {
+		return -1;
+	}
+
+	return waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, report_ack_error);
 }
 
 bool GPSDriverUBX::cfgValsetRaw(uint32_t key_id, uint32_t value)
@@ -1533,8 +1490,7 @@ int GPSDriverUBX::restartSurveyIn()
 	//disable RTCM output
 	initCfgValset();
 	cfgValsetPort(RTCM_BASE_MSGOUT_I2C, 0);
-	sendCfgValset();
-	waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, false);
+	sendCfgValsetAcked(false);
 
 	if (_base_settings.type == BaseSettingsType::survey_in) {
 		UBX_DEBUG("Starting Survey-in");
@@ -1545,11 +1501,7 @@ int GPSDriverUBX::restartSurveyIn()
 		cfgValset<uint32_t>(UBX_CFG_KEY_TMODE_SVIN_ACC_LIMIT, _base_settings.settings.survey_in.acc_limit);
 		cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_SVIN_I2C, 5);
 
-		if (!sendCfgValset()) {
-			return -1;
-		}
-
-		if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true) < 0) {
+		if (sendCfgValsetAcked() < 0) {
 			return -1;
 		}
 
@@ -1571,11 +1523,7 @@ int GPSDriverUBX::restartSurveyIn()
 		cfgValset<int8_t>(UBX_CFG_KEY_TMODE_HEIGHT_HP, alt64 % 100 /* 0.1mm */);
 		cfgValset<uint32_t>(UBX_CFG_KEY_TMODE_FIXED_POS_ACC, (uint32_t)(settings.position_accuracy * 10.f));
 
-		if (!sendCfgValset()) {
-			return -1;
-		}
-
-		if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, true) < 0) {
+		if (sendCfgValsetAcked() < 0) {
 			return -1;
 		}
 
