@@ -1086,6 +1086,10 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 			}
 
 		} else if (use_has) {
+			// TODO: nothing reports whether HAS corrections are actually applied beyond carrSoln
+			// going float; RXM-COR with protocol 5 is the signal, and corrections_protocol carries
+			// it. HAS and OSNMA are mutually exclusive on HPG 2.10, so an OSNMA option has to
+			// refuse this mode.
 			GPS_INFO("Galileo HAS enabled, host corrections disabled");
 		}
 
@@ -2967,6 +2971,10 @@ GPSDriverUBX::payloadRxDone()
 	case UBX_MSG_MON_RF:
 		UBX_TRACE_RXMSG("Rx MON-RF");
 
+		// TODO: only block 0 is read. F9P reports 2 blocks, X20 3, each with its own noisePerMS,
+		// agcCnt and cwSuppression (jamInd). cwSuppression is the CW notch in effect per front end,
+		// i.e. the per-frequency mitigation state GNSS_BANDS wants; the block covering a SEC-SIG
+		// center frequency comes from rfBlockGnssBand (HPG 2.10) or blockId on older firmware.
 		_gps_position->noise_per_ms		= _buf.payload_rx_mon_rf.block[0].noisePerMS;
 		_gps_position->automatic_gain_control	= _buf.payload_rx_mon_rf.block[0].agcCnt;
 		_gps_position->jamming_indicator	= _buf.payload_rx_mon_rf.block[0].jamInd;
@@ -2999,6 +3007,11 @@ GPSDriverUBX::payloadRxDone()
 
 			uint8_t jamming_state = 0;
 
+			// TODO: bits 6..4 of the same byte are spfState (v1: spfFlags at offset 8, bits 3..1).
+			// spoofing_state still comes from NAV-STATUS spoofDetState, whose F9 value 3 means
+			// "multiple indications"; SEC-SIG distinguishes indicated/suspected from affirmed/
+			// detected, which is the DETECTED vs AFFECTED split the MAVLink GNSS_INTEGRITY rework
+			// maps to.
 			if (flag_byte & 0x01) {
 				const uint8_t jam_state = (flag_byte >> 1) & 0x03;
 
