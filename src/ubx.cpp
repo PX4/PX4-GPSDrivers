@@ -721,26 +721,18 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 
 	waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, false);
 
-	// enable jamming monitor. CFG-ITFM is gone on the F9 L1L5 and F20 platforms, those
-	// report interference through CFG-SEC-JAMDET instead
-	if (_board != Board::u_blox9_F9P_L1L5 && _board != Board::u_blox_X20) {
+	// Jamming detection. Firmware with CFG-SEC-JAMDET (F9 HPG 1.50+, F9 L1L5, F20/X20) has
+	// detection always on and no CFG-ITFM; everything older has CFG-ITFM and no JAMDET key.
+	// A NAK on the sensitivity key is therefore the signal that the monitor still needs enabling.
+	initCfgValset();
+	cfgValset<uint8_t>(UBX_CFG_KEY_SEC_JAMDET_SENSITIVITY_HI, _jam_det_sensitivity_hi ? 1 : 0);
+
+	if (sendCfgValsetAcked(false) < 0) {
 		initCfgValset();
 		cfgValset<uint8_t>(UBX_CFG_KEY_ITFM_ENABLE, 1);
 
 		if (sendCfgValsetAcked(false) < 0) {
 			UBX_WARN("Jamming monitor not supported by this receiver");
-		}
-	}
-
-	// configure jamming detection sensitivity (CFG-SEC-JAMDET_SENSITIVITY_HI)
-	// Note: This configuration key may not be supported on older firmware versions.
-	// If NACKed, we just continue - the default sensitivity will be used.
-	initCfgValset();
-	cfgValset<uint8_t>(UBX_CFG_KEY_SEC_JAMDET_SENSITIVITY_HI, _jam_det_sensitivity_hi ? 1 : 0);
-
-	if (sendCfgValset()) {
-		if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, false) < 0) {
-			UBX_WARN("CFG-SEC-JAMDET_SENSITIVITY_HI not supported by this receiver");
 		}
 	}
 
