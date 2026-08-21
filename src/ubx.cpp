@@ -1008,12 +1008,20 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_MON_RF_I2C, 1);
 	_got_sec_sig = false;
 
-	if ((_board == Board::u_blox9) || (_board == Board::u_blox9_F9P_L1L2) || (_board == Board::u_blox9_F9P_L1L5)) {
-		cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_RXM_RTCM_I2C, 1);
-	}
-
 	if (sendCfgValsetAcked() < 0) {
 		return -1;
+	}
+
+	// Correction input status. RXM-COR reports every protocol (RTCM3, SPARTN, HAS) and is
+	// the only form on the X20, which has no RXM-RTCM; receivers without it get RXM-RTCM.
+	initCfgValset();
+	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_RXM_COR_I2C, 1);
+
+	if (sendCfgValsetAcked(false) < 0
+	    && ((_board == Board::u_blox9) || (_board == Board::u_blox9_F9P_L1L2) || (_board == Board::u_blox9_F9P_L1L5))) {
+		initCfgValset();
+		cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_RXM_RTCM_I2C, 1);
+		sendCfgValsetAcked(false);
 	}
 
 	// UBX-SEC-SIG carries jammingState. MON-RF jammingState is always 0 on
@@ -2101,6 +2109,16 @@ GPSDriverUBX::payloadRxInit()
 
 		break;
 
+	case UBX_MSG_RXM_COR:
+		if (_rx_payload_length != sizeof(ubx_payload_rx_rxm_cor_t)) {
+			_rx_state = UBX_RXMSG_ERROR_LENGTH;
+
+		} else if (!_configured) {
+			_rx_state = UBX_RXMSG_IGNORE;
+		}
+
+		break;
+
 	case UBX_MSG_ACK_ACK:
 		if (_rx_payload_length != sizeof(ubx_payload_rx_ack_ack_t)) {
 			_rx_state = UBX_RXMSG_ERROR_LENGTH;
@@ -3010,10 +3028,37 @@ GPSDriverUBX::payloadRxDone()
 	case UBX_MSG_RXM_RTCM:
 		UBX_TRACE_RXMSG("Rx RXM-RTCM");
 
-		_gps_position->rtcm_crc_failed = (_buf.payload_rx_rxm_rtcm.flags & UBX_RX_RXM_RTCM_CRCFAILED_MASK) != 0;
+		_gps_position->corrections_protocol = sensor_gps_s::CORRECTIONS_PROTOCOL_RTCM3;
+		_gps_position->corrections_crc_failed = (_buf.payload_rx_rxm_rtcm.flags & UBX_RX_RXM_RTCM_CRCFAILED_MASK) != 0;
+		_gps_position->corrections_msg_used = (_buf.payload_rx_rxm_rtcm.flags & UBX_RX_RXM_RTCM_MSGUSED_MASK) >>
+						      UBX_RX_RXM_RTCM_MSGUSED_SHIFT;
 
-		_gps_position->rtcm_msg_used  = (_buf.payload_rx_rxm_rtcm.flags & UBX_RX_RXM_RTCM_MSGUSED_MASK) >>
-						UBX_RX_RXM_RTCM_MSGUSED_SHIFT;
+		ret = 1;
+		break;
+
+	case UBX_MSG_RXM_COR:
+		UBX_TRACE_RXMSG("Rx RXM-COR");
+
+		{
+			const uint32_t status = _buf.payload_rx_rxm_cor.statusInfo;
+			uint8_t protocol = sensor_gps_s::CORRECTIONS_PROTOCOL_UNKNOWN;
+
+			switch (status & UBX_RX_RXM_COR_PROTOCOL_MASK) {
+			case 1: protocol = sensor_gps_s::CORRECTIONS_PROTOCOL_RTCM3; break;
+
+			case 2: protocol = sensor_gps_s::CORRECTIONS_PROTOCOL_SPARTN; break;
+
+			case 5: protocol = sensor_gps_s::CORRECTIONS_PROTOCOL_HAS; break;
+
+			case 29: protocol = sensor_gps_s::CORRECTIONS_PROTOCOL_PMP; break;
+
+			case 30: protocol = sensor_gps_s::CORRECTIONS_PROTOCOL_QZSS_L6; break;
+			}
+
+			_gps_position->corrections_protocol = protocol;
+			_gps_position->corrections_crc_failed = ((status & UBX_RX_RXM_COR_ERRSTATUS_MASK) >> UBX_RX_RXM_COR_ERRSTATUS_SHIFT) == 2;
+			_gps_position->corrections_msg_used = (status & UBX_RX_RXM_COR_MSGUSED_MASK) >> UBX_RX_RXM_COR_MSGUSED_SHIFT;
+		}
 
 		ret = 1;
 		break;

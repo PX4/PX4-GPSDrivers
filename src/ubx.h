@@ -97,6 +97,7 @@
 #define UBX_ID_RXM_SFRBX      0x13
 #define UBX_ID_RXM_RAWX       0x15
 #define UBX_ID_RXM_RTCM       0x32
+#define UBX_ID_RXM_COR        0x34
 #define UBX_ID_INF_DEBUG      0x04
 #define UBX_ID_INF_ERROR      0x00
 #define UBX_ID_INF_NOTICE     0x02
@@ -154,6 +155,7 @@
 #define UBX_MSG_RXM_SFRBX     ((UBX_CLASS_RXM) | UBX_ID_RXM_SFRBX << 8)
 #define UBX_MSG_RXM_RAWX      ((UBX_CLASS_RXM) | UBX_ID_RXM_RAWX << 8)
 #define UBX_MSG_RXM_RTCM      ((UBX_CLASS_RXM) | UBX_ID_RXM_RTCM << 8)
+#define UBX_MSG_RXM_COR       ((UBX_CLASS_RXM) | UBX_ID_RXM_COR << 8)
 #define UBX_MSG_INF_DEBUG     ((UBX_CLASS_INF) | UBX_ID_INF_DEBUG << 8)
 #define UBX_MSG_INF_ERROR     ((UBX_CLASS_INF) | UBX_ID_INF_ERROR << 8)
 #define UBX_MSG_INF_NOTICE    ((UBX_CLASS_INF) | UBX_ID_INF_NOTICE << 8)
@@ -221,6 +223,13 @@
 #define UBX_RX_RXM_RTCM_CRCFAILED_MASK          0b00000001 /**< crcFailed (0 = RTCM received and passed crc, 1 = failed)*/
 #define UBX_RX_RXM_RTCM_MSGUSED_MASK            0b00000110 /**< msgUsed (0 = do not know, 1 = not used, 2 = RTCM message used successfully)*/
 #define UBX_RX_RXM_RTCM_MSGUSED_SHIFT           1
+
+/* RXM-COR statusInfo */
+#define UBX_RX_RXM_COR_PROTOCOL_MASK            0x0000001f /**< 0 unknown, 1 RTCM3, 2 SPARTN, 5 HAS, 29 RXM-PMP, 30 RXM-QZSSL6 */
+#define UBX_RX_RXM_COR_ERRSTATUS_MASK           0x00000060 /**< 0 unknown, 1 error-free, 2 erroneous */
+#define UBX_RX_RXM_COR_ERRSTATUS_SHIFT          5
+#define UBX_RX_RXM_COR_MSGUSED_MASK             0x00000180 /**< 0 unknown, 1 not used, 2 used */
+#define UBX_RX_RXM_COR_MSGUSED_SHIFT            7
 
 /* TX CFG-PRT message contents
  * Note: not used with protocol version 27+ anymore
@@ -388,6 +397,7 @@
 #define UBX_CFG_KEY_MSGOUT_UBX_RXM_SFRBX_I2C     0x20910231
 #define UBX_CFG_KEY_MSGOUT_UBX_RXM_RAWX_I2C      0x209102a4
 #define UBX_CFG_KEY_MSGOUT_UBX_RXM_RTCM_I2C      0x20910268
+#define UBX_CFG_KEY_MSGOUT_UBX_RXM_COR_I2C       0x209106b6
 #define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1005_I2C  0x209102bd
 #define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1077_I2C  0x209102cc
 #define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1087_I2C  0x209102d1
@@ -760,6 +770,16 @@ typedef struct {
 	uint16_t msgType;
 } ubx_payload_rx_rxm_rtcm_t;
 
+/* Rx RXM-COR: one per parsed correction message of any protocol */
+typedef struct {
+	uint8_t  version;
+	uint8_t  ebno;          /**< Eb/N0 in 2^-3 dB, RXM-PMP only */
+	uint8_t  reserved0[2];
+	uint32_t statusInfo;    /**< protocol, errStatus, msgUsed, correctionId, ... */
+	uint16_t msgType;
+	uint16_t msgSubType;
+} ubx_payload_rx_rxm_cor_t;
+
 /* Rx ACK-ACK */
 typedef union {
 	uint16_t msg;
@@ -987,6 +1007,7 @@ typedef union {
 	ubx_payload_rx_mon_ver_part1_t    payload_rx_mon_ver_part1;
 	ubx_payload_rx_mon_ver_part2_t    payload_rx_mon_ver_part2;
 	ubx_payload_rx_rxm_rtcm_t         payload_rx_rxm_rtcm;
+	ubx_payload_rx_rxm_cor_t          payload_rx_rxm_cor;
 	ubx_payload_rx_ack_ack_t          payload_rx_ack_ack;
 	ubx_payload_rx_ack_nak_t          payload_rx_ack_nak;
 	ubx_payload_tx_cfg_prt_t          payload_tx_cfg_prt;
