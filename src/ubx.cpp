@@ -2997,6 +2997,11 @@ GPSDriverUBX::payloadRxDone()
 
 			_gps_position->jamming_state = jamming_state;
 			_got_sec_sig = true;
+
+			// TODO: v2/v3 carry jamNumCentFreqs X4 groups after the header (bits 23..0 centFreq in
+			// kHz, bit 24 jammed), one per in-use band. Not parsed: sensor_gps has nowhere to put
+			// per-band state until the GNSS_BANDS message from mavlink/rfcs#30 lands, at which
+			// point both the RX struct and payloadRxInit() length check need the repeated group.
 		}
 
 		ret = 1;
