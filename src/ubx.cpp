@@ -1014,6 +1014,7 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_SAT_I2C, (_satellite_info != nullptr) ? 10 : 0);
 	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_STATUS_I2C, 1);
 	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_MON_RF_I2C, 1);
+	_got_sec_sig = false;
 
 	if ((_board == Board::u_blox9) || (_board == Board::u_blox9_F9P_L1L2) || (_board == Board::u_blox9_F9P_L1L5)) {
 		cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_RXM_RTCM_I2C, 1);
@@ -1021,6 +1022,16 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 
 	if (sendCfgValsetAcked() < 0) {
 		return -1;
+	}
+
+	// UBX-SEC-SIG carries jammingState. MON-RF jammingState is always 0 on
+	// firmware that supports this message (F9 HPG 1.51, X20). The rate key is
+	// absent on older protocol-27 receivers; a NAK must not abort config.
+	initCfgValset();
+	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_SEC_SIG_I2C, 1);
+
+	if (sendCfgValsetAcked(false) < 0) {
+		UBX_DEBUG("UBX-SEC-SIG not supported by this receiver");
 	}
 
 	// Explicitly disable the messages this driver never consumes. We do not enable them,
@@ -1323,6 +1334,10 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 					UBX_WARN("UART2 message rates for u-center rejected");
 				}
 			}
+
+			initCfgValset();
+			cfgValsetUart2(UBX_CFG_KEY_MSGOUT_UBX_SEC_SIG_I2C, 1);
+			sendCfgValsetAcked(false);
 
 			GPS_INFO("UART2: UBX in/out @ %d baud (u-center)", (int)uart2_baudrate);
 		}
@@ -2053,6 +2068,16 @@ GPSDriverUBX::payloadRxInit()
 
 		break;
 
+	case UBX_MSG_SEC_SIG:
+		if (_rx_payload_length < 4) {
+			_rx_state = UBX_RXMSG_ERROR_LENGTH;
+
+		} else if (!_configured) {
+			_rx_state = UBX_RXMSG_IGNORE;
+		}
+
+		break;
+
 	case UBX_MSG_RXM_RTCM:
 		if (_rx_payload_length != sizeof(ubx_payload_rx_rxm_rtcm_t)) {
 			_rx_state = UBX_RXMSG_ERROR_LENGTH;
@@ -2169,7 +2194,9 @@ GPSDriverUBX::payloadRxAdd(const uint8_t b)
 	int ret = 0;
 	uint8_t *p_buf = (uint8_t *)&_buf;
 
-	p_buf[_rx_payload_index] = b;
+	if (_rx_payload_index < sizeof(_buf)) {
+		p_buf[_rx_payload_index] = b;
+	}
 
 	if (++_rx_payload_index >= _rx_payload_length) {
 		ret = 1;	// payload received completely
@@ -2912,7 +2939,52 @@ GPSDriverUBX::payloadRxDone()
 		_gps_position->noise_per_ms		= _buf.payload_rx_mon_rf.block[0].noisePerMS;
 		_gps_position->automatic_gain_control	= _buf.payload_rx_mon_rf.block[0].agcCnt;
 		_gps_position->jamming_indicator	= _buf.payload_rx_mon_rf.block[0].jamInd;
-		_gps_position->jamming_state		= _buf.payload_rx_mon_rf.block[0].flags;
+
+		if (!_got_sec_sig) {
+			_gps_position->jamming_state = _buf.payload_rx_mon_rf.block[0].flags & 0x03;
+		}
+
+		ret = 1;
+		break;
+
+	case UBX_MSG_SEC_SIG:
+		UBX_TRACE_RXMSG("Rx SEC-SIG");
+
+		{
+			const uint8_t version = _buf.payload_rx_sec_sig.version;
+			uint8_t flag_byte;
+
+			if (version == 1) {
+				if (_rx_payload_length < 5) {
+					ret = 0;
+					break;
+				}
+
+				flag_byte = _buf.payload_rx_sec_sig.jamFlags;
+
+			} else {
+				flag_byte = _buf.payload_rx_sec_sig.flags;
+			}
+
+			uint8_t jamming_state = 0;
+
+			if (flag_byte & 0x01) {
+				const uint8_t jam_state = (flag_byte >> 1) & 0x03;
+
+				// SEC-SIG jamState: 0 unknown, 1 none, 2 warning (jamming indicated).
+				// Pre-v2 MON-RF also had 3 = critical. sensor_gps 2 is "mitigated";
+				// commander only alerts on 3 (detected).
+				if (jam_state >= 2) {
+					jamming_state = 3;
+
+				} else {
+					jamming_state = jam_state;
+				}
+			}
+
+			_gps_position->jamming_state = jamming_state;
+			_got_sec_sig = true;
+		}
 
 		ret = 1;
 		break;
