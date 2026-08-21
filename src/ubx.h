@@ -339,6 +339,8 @@
 #define UBX_CFG_KEY_CFG_SPIOUTPROT_RTCM3X       0x107a0004
 
 #define UBX_CFG_KEY_NAVHPG_DGNSSMODE            0x20140011
+#define UBX_CFG_KEY_NAVCOR_ENABLE_HOST          0x100d0001
+#define UBX_CFG_KEY_NAVCOR_ENABLE_GAL_HAS       0x100d0002
 
 #define UBX_CFG_KEY_NAVSPG_FIXMODE              0x20110011
 #define UBX_CFG_KEY_NAVSPG_UTCSTANDARD          0x2011001c
@@ -1044,6 +1046,7 @@ public:
 		RoverWithStaticBaseUART2,  ///< heading rover; receives static-base RTCM on UART2
 		GroundControlStation,      ///< NMEA output to a ground control station (GPS is installed in the GCS)
 		UCenterUART2,              ///< UBX diagnostics on UART2 for u-center, while the driver keeps UART1
+		GalileoHAS,                ///< PPP from Galileo HAS on E6 instead of host corrections (X20P, HPG 2.10+)
 	};
 
 	struct Settings {

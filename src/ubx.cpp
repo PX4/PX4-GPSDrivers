@@ -1063,6 +1063,26 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 				UBX_DEBUG("NAV-DAHEADING not supported by this receiver");
 			}
 		}
+
+		// Galileo HAS (HPG 2.10+) is only processed while host corrections are off, so the pair is
+		// written together and every other mode restores host input: a HOST=0 left behind by
+		// u-center would silently discard RTCM. Absent before 2.10, so a NAK must not abort config.
+		const bool use_has = (_mode == UBXMode::GalileoHAS);
+		initCfgValset();
+		cfgValset<uint8_t>(UBX_CFG_KEY_NAVCOR_ENABLE_HOST, use_has ? 0 : 1);
+		cfgValset<uint8_t>(UBX_CFG_KEY_NAVCOR_ENABLE_GAL_HAS, use_has ? 1 : 0);
+
+		if (sendCfgValsetAcked(false) < 0) {
+			if (use_has) {
+				UBX_WARN("Galileo HAS not supported by this receiver (needs HPG 2.10)");
+			}
+
+		} else if (use_has) {
+			GPS_INFO("Galileo HAS enabled, host corrections disabled");
+		}
+
+	} else if (_mode == UBXMode::GalileoHAS) {
+		UBX_WARN("Galileo HAS needs a ZED-X20P, running without corrections");
 	}
 
 	if (_interface == Interface::UART || _interface == Interface::SPI) {
@@ -1105,7 +1125,7 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 		}
 	}
 
-	if (_mode == UBXMode::Normal && _ppk_output) {
+	if ((_mode == UBXMode::Normal || _mode == UBXMode::GalileoHAS) && _ppk_output) {
 		UBX_DEBUG("Configuring Normal with MSM7 output");
 		initCfgValset();
 
@@ -1341,7 +1361,8 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 const char *GPSDriverUBX::uart1Protocols(UBXMode mode, bool ppk_output)
 {
 	switch (mode) {
-	case UBXMode::Normal: return ppk_output ? "UBX in/out + RTCM3 out" : "UBX in/out";
+	case UBXMode::Normal:
+	case UBXMode::GalileoHAS: return ppk_output ? "UBX in/out + RTCM3 out" : "UBX in/out";
 
 	case UBXMode::RoverWithMovingBaseUART2:
 	case UBXMode::RoverWithStaticBaseUART2: return "UBX out";
