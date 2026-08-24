@@ -721,26 +721,18 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 
 	waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, false);
 
-	// enable jamming monitor. CFG-ITFM is gone on the F9 L1L5 and F20 platforms, those
-	// report interference through CFG-SEC-JAMDET instead
-	if (_board != Board::u_blox9_F9P_L1L5 && _board != Board::u_blox_X20) {
+	// Jamming detection. Firmware with CFG-SEC-JAMDET (F9 HPG 1.50+, F9 L1L5, F20/X20) has
+	// detection always on and no CFG-ITFM; everything older has CFG-ITFM and no JAMDET key.
+	// A NAK on the sensitivity key is therefore the signal that the monitor still needs enabling.
+	initCfgValset();
+	cfgValset<uint8_t>(UBX_CFG_KEY_SEC_JAMDET_SENSITIVITY_HI, _jam_det_sensitivity_hi ? 1 : 0);
+
+	if (sendCfgValsetAcked(false) < 0) {
 		initCfgValset();
 		cfgValset<uint8_t>(UBX_CFG_KEY_ITFM_ENABLE, 1);
 
 		if (sendCfgValsetAcked(false) < 0) {
 			UBX_WARN("Jamming monitor not supported by this receiver");
-		}
-	}
-
-	// configure jamming detection sensitivity (CFG-SEC-JAMDET_SENSITIVITY_HI)
-	// Note: This configuration key may not be supported on older firmware versions.
-	// If NACKed, we just continue - the default sensitivity will be used.
-	initCfgValset();
-	cfgValset<uint8_t>(UBX_CFG_KEY_SEC_JAMDET_SENSITIVITY_HI, _jam_det_sensitivity_hi ? 1 : 0);
-
-	if (sendCfgValset()) {
-		if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, false) < 0) {
-			UBX_WARN("CFG-SEC-JAMDET_SENSITIVITY_HI not supported by this receiver");
 		}
 	}
 
@@ -1014,13 +1006,32 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_SAT_I2C, (_satellite_info != nullptr) ? 10 : 0);
 	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_STATUS_I2C, 1);
 	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_MON_RF_I2C, 1);
-
-	if ((_board == Board::u_blox9) || (_board == Board::u_blox9_F9P_L1L2) || (_board == Board::u_blox9_F9P_L1L5)) {
-		cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_RXM_RTCM_I2C, 1);
-	}
+	_got_sec_sig = false;
 
 	if (sendCfgValsetAcked() < 0) {
 		return -1;
+	}
+
+	// Correction input status. RXM-COR reports every protocol (RTCM3, SPARTN, HAS) and is
+	// the only form on the X20, which has no RXM-RTCM; receivers without it get RXM-RTCM.
+	initCfgValset();
+	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_RXM_COR_I2C, 1);
+
+	if (sendCfgValsetAcked(false) < 0
+	    && ((_board == Board::u_blox9) || (_board == Board::u_blox9_F9P_L1L2) || (_board == Board::u_blox9_F9P_L1L5))) {
+		initCfgValset();
+		cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_RXM_RTCM_I2C, 1);
+		sendCfgValsetAcked(false);
+	}
+
+	// UBX-SEC-SIG carries jammingState. MON-RF jammingState is always 0 on
+	// firmware that supports this message (F9 HPG 1.51, X20). The rate key is
+	// absent on older protocol-27 receivers; a NAK must not abort config.
+	initCfgValset();
+	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_SEC_SIG_I2C, 1);
+
+	if (sendCfgValsetAcked(false) < 0) {
+		UBX_DEBUG("UBX-SEC-SIG not supported by this receiver");
 	}
 
 	// Explicitly disable the messages this driver never consumes. We do not enable them,
@@ -1060,6 +1071,30 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 				UBX_DEBUG("NAV-DAHEADING not supported by this receiver");
 			}
 		}
+
+		// Galileo HAS (HPG 2.10+) is only processed while host corrections are off, so the pair is
+		// written together and every other mode restores host input: a HOST=0 left behind by
+		// u-center would silently discard RTCM. Absent before 2.10, so a NAK must not abort config.
+		const bool use_has = (_mode == UBXMode::GalileoHAS);
+		initCfgValset();
+		cfgValset<uint8_t>(UBX_CFG_KEY_NAVCOR_ENABLE_HOST, use_has ? 0 : 1);
+		cfgValset<uint8_t>(UBX_CFG_KEY_NAVCOR_ENABLE_GAL_HAS, use_has ? 1 : 0);
+
+		if (sendCfgValsetAcked(false) < 0) {
+			if (use_has) {
+				UBX_WARN("Galileo HAS not supported by this receiver (needs HPG 2.10)");
+			}
+
+		} else if (use_has) {
+			// TODO: nothing reports whether HAS corrections are actually applied beyond carrSoln
+			// going float; RXM-COR with protocol 5 is the signal, and corrections_protocol carries
+			// it. HAS and OSNMA are mutually exclusive on HPG 2.10, so an OSNMA option has to
+			// refuse this mode.
+			GPS_INFO("Galileo HAS enabled, host corrections disabled");
+		}
+
+	} else if (_mode == UBXMode::GalileoHAS) {
+		UBX_WARN("Galileo HAS needs a ZED-X20P, running without corrections");
 	}
 
 	if (_interface == Interface::UART || _interface == Interface::SPI) {
@@ -1102,7 +1137,7 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 		}
 	}
 
-	if (_mode == UBXMode::Normal && _ppk_output) {
+	if ((_mode == UBXMode::Normal || _mode == UBXMode::GalileoHAS) && _ppk_output) {
 		UBX_DEBUG("Configuring Normal with MSM7 output");
 		initCfgValset();
 
@@ -1324,6 +1359,10 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 				}
 			}
 
+			initCfgValset();
+			cfgValsetUart2(UBX_CFG_KEY_MSGOUT_UBX_SEC_SIG_I2C, 1);
+			sendCfgValsetAcked(false);
+
 			GPS_INFO("UART2: UBX in/out @ %d baud (u-center)", (int)uart2_baudrate);
 		}
 	}
@@ -1334,7 +1373,8 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 const char *GPSDriverUBX::uart1Protocols(UBXMode mode, bool ppk_output)
 {
 	switch (mode) {
-	case UBXMode::Normal: return ppk_output ? "UBX in/out + RTCM3 out" : "UBX in/out";
+	case UBXMode::Normal:
+	case UBXMode::GalileoHAS: return ppk_output ? "UBX in/out + RTCM3 out" : "UBX in/out";
 
 	case UBXMode::RoverWithMovingBaseUART2:
 	case UBXMode::RoverWithStaticBaseUART2: return "UBX out";
@@ -2053,12 +2093,32 @@ GPSDriverUBX::payloadRxInit()
 
 		break;
 
+	case UBX_MSG_SEC_SIG:
+		if (_rx_payload_length < 4) {
+			_rx_state = UBX_RXMSG_ERROR_LENGTH;
+
+		} else if (!_configured) {
+			_rx_state = UBX_RXMSG_IGNORE;
+		}
+
+		break;
+
 	case UBX_MSG_RXM_RTCM:
 		if (_rx_payload_length != sizeof(ubx_payload_rx_rxm_rtcm_t)) {
 			_rx_state = UBX_RXMSG_ERROR_LENGTH;
 
 		} else if (!_configured) {
 			_rx_state = UBX_RXMSG_IGNORE;        // ignore if not _configured
+		}
+
+		break;
+
+	case UBX_MSG_RXM_COR:
+		if (_rx_payload_length != sizeof(ubx_payload_rx_rxm_cor_t)) {
+			_rx_state = UBX_RXMSG_ERROR_LENGTH;
+
+		} else if (!_configured) {
+			_rx_state = UBX_RXMSG_IGNORE;
 		}
 
 		break;
@@ -2169,7 +2229,9 @@ GPSDriverUBX::payloadRxAdd(const uint8_t b)
 	int ret = 0;
 	uint8_t *p_buf = (uint8_t *)&_buf;
 
-	p_buf[_rx_payload_index] = b;
+	if (_rx_payload_index < sizeof(_buf)) {
+		p_buf[_rx_payload_index] = b;
+	}
 
 	if (++_rx_payload_index >= _rx_payload_length) {
 		ret = 1;	// payload received completely
@@ -2909,10 +2971,69 @@ GPSDriverUBX::payloadRxDone()
 	case UBX_MSG_MON_RF:
 		UBX_TRACE_RXMSG("Rx MON-RF");
 
+		// TODO: only block 0 is read. F9P reports 2 blocks, X20 3, each with its own noisePerMS,
+		// agcCnt and cwSuppression (jamInd). cwSuppression is the CW notch in effect per front end,
+		// i.e. the per-frequency mitigation state GNSS_BANDS wants; the block covering a SEC-SIG
+		// center frequency comes from rfBlockGnssBand (HPG 2.10) or blockId on older firmware.
 		_gps_position->noise_per_ms		= _buf.payload_rx_mon_rf.block[0].noisePerMS;
 		_gps_position->automatic_gain_control	= _buf.payload_rx_mon_rf.block[0].agcCnt;
 		_gps_position->jamming_indicator	= _buf.payload_rx_mon_rf.block[0].jamInd;
-		_gps_position->jamming_state		= _buf.payload_rx_mon_rf.block[0].flags;
+
+		if (!_got_sec_sig) {
+			_gps_position->jamming_state = _buf.payload_rx_mon_rf.block[0].flags & 0x03;
+		}
+
+		ret = 1;
+		break;
+
+	case UBX_MSG_SEC_SIG:
+		UBX_TRACE_RXMSG("Rx SEC-SIG");
+
+		{
+			const uint8_t version = _buf.payload_rx_sec_sig.version;
+			uint8_t flag_byte;
+
+			if (version == 1) {
+				if (_rx_payload_length < 5) {
+					ret = 0;
+					break;
+				}
+
+				flag_byte = _buf.payload_rx_sec_sig.jamFlags;
+
+			} else {
+				flag_byte = _buf.payload_rx_sec_sig.flags;
+			}
+
+			uint8_t jamming_state = 0;
+
+			// TODO: bits 6..4 of the same byte are spfState (v1: spfFlags at offset 8, bits 3..1).
+			// spoofing_state still comes from NAV-STATUS spoofDetState, whose F9 value 3 means
+			// "multiple indications"; SEC-SIG distinguishes indicated/suspected from affirmed/
+			// detected, which is the DETECTED vs AFFECTED split the MAVLink GNSS_INTEGRITY rework
+			// maps to.
+			if (flag_byte & 0x01) {
+				const uint8_t jam_state = (flag_byte >> 1) & 0x03;
+
+				// SEC-SIG jamState: 0 unknown, 1 none, 2 warning (jamming indicated).
+				// Pre-v2 MON-RF also had 3 = critical. sensor_gps 2 is "mitigated";
+				// commander only alerts on 3 (detected).
+				if (jam_state >= 2) {
+					jamming_state = 3;
+
+				} else {
+					jamming_state = jam_state;
+				}
+			}
+
+			_gps_position->jamming_state = jamming_state;
+			_got_sec_sig = true;
+
+			// TODO: v2/v3 carry jamNumCentFreqs X4 groups after the header (bits 23..0 centFreq in
+			// kHz, bit 24 jammed), one per in-use band. Not parsed: sensor_gps has nowhere to put
+			// per-band state until the GNSS_BANDS message from mavlink/rfcs#30 lands, at which
+			// point both the RX struct and payloadRxInit() length check need the repeated group.
+		}
 
 		ret = 1;
 		break;
@@ -2920,10 +3041,37 @@ GPSDriverUBX::payloadRxDone()
 	case UBX_MSG_RXM_RTCM:
 		UBX_TRACE_RXMSG("Rx RXM-RTCM");
 
-		_gps_position->rtcm_crc_failed = (_buf.payload_rx_rxm_rtcm.flags & UBX_RX_RXM_RTCM_CRCFAILED_MASK) != 0;
+		_gps_position->corrections_protocol = sensor_gps_s::CORRECTIONS_PROTOCOL_RTCM3;
+		_gps_position->corrections_crc_failed = (_buf.payload_rx_rxm_rtcm.flags & UBX_RX_RXM_RTCM_CRCFAILED_MASK) != 0;
+		_gps_position->corrections_msg_used = (_buf.payload_rx_rxm_rtcm.flags & UBX_RX_RXM_RTCM_MSGUSED_MASK) >>
+						      UBX_RX_RXM_RTCM_MSGUSED_SHIFT;
 
-		_gps_position->rtcm_msg_used  = (_buf.payload_rx_rxm_rtcm.flags & UBX_RX_RXM_RTCM_MSGUSED_MASK) >>
-						UBX_RX_RXM_RTCM_MSGUSED_SHIFT;
+		ret = 1;
+		break;
+
+	case UBX_MSG_RXM_COR:
+		UBX_TRACE_RXMSG("Rx RXM-COR");
+
+		{
+			const uint32_t status = _buf.payload_rx_rxm_cor.statusInfo;
+			uint8_t protocol = sensor_gps_s::CORRECTIONS_PROTOCOL_UNKNOWN;
+
+			switch (status & UBX_RX_RXM_COR_PROTOCOL_MASK) {
+			case 1: protocol = sensor_gps_s::CORRECTIONS_PROTOCOL_RTCM3; break;
+
+			case 2: protocol = sensor_gps_s::CORRECTIONS_PROTOCOL_SPARTN; break;
+
+			case 5: protocol = sensor_gps_s::CORRECTIONS_PROTOCOL_HAS; break;
+
+			case 29: protocol = sensor_gps_s::CORRECTIONS_PROTOCOL_PMP; break;
+
+			case 30: protocol = sensor_gps_s::CORRECTIONS_PROTOCOL_QZSS_L6; break;
+			}
+
+			_gps_position->corrections_protocol = protocol;
+			_gps_position->corrections_crc_failed = ((status & UBX_RX_RXM_COR_ERRSTATUS_MASK) >> UBX_RX_RXM_COR_ERRSTATUS_SHIFT) == 2;
+			_gps_position->corrections_msg_used = (status & UBX_RX_RXM_COR_MSGUSED_MASK) >> UBX_RX_RXM_COR_MSGUSED_SHIFT;
+		}
 
 		ret = 1;
 		break;
