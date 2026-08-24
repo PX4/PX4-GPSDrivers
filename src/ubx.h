@@ -72,6 +72,7 @@
 #define UBX_CLASS_ACK         0x05
 #define UBX_CLASS_CFG         0x06
 #define UBX_CLASS_MON         0x0A
+#define UBX_CLASS_SEC         0x27
 #define UBX_CLASS_RTCM3       0xF5
 
 /* Message IDs */
@@ -88,7 +89,10 @@
 #define UBX_ID_NAV_STATUS     0x03
 #define UBX_ID_NAV_SVIN       0x3B
 #define UBX_ID_NAV_RELPOSNED  0x3C
+#define UBX_ID_NAV_CLOCK      0x22
+#define UBX_ID_NAV_SIG        0x43
 #define UBX_ID_RXM_SFRBX      0x13
+#define UBX_ID_RXM_MEASX      0x14
 #define UBX_ID_RXM_RAWX       0x15
 #define UBX_ID_RXM_RTCM       0x32
 #define UBX_ID_INF_DEBUG      0x04
@@ -112,6 +116,9 @@
 #define UBX_ID_MON_VER        0x04
 #define UBX_ID_MON_HW         0x09 // deprecated in protocol version >= 27 -> use MON_RF
 #define UBX_ID_MON_RF         0x38
+#define UBX_ID_MON_SPAN       0x31
+#define UBX_ID_SEC_SIG        0x09
+#define UBX_ID_SEC_SIGLOG     0x10
 
 /* UBX ID for RTCM3 output messages */
 /* Minimal messages for RTK: 1005, 1077 + (1087 or 1127) */
@@ -167,6 +174,12 @@
 #define UBX_MSG_MON_HW        ((UBX_CLASS_MON) | UBX_ID_MON_HW << 8)
 #define UBX_MSG_MON_VER       ((UBX_CLASS_MON) | UBX_ID_MON_VER << 8)
 #define UBX_MSG_MON_RF        ((UBX_CLASS_MON) | UBX_ID_MON_RF << 8)
+#define UBX_MSG_MON_SPAN      ((UBX_CLASS_MON) | UBX_ID_MON_SPAN << 8)
+#define UBX_MSG_NAV_CLOCK     ((UBX_CLASS_NAV) | UBX_ID_NAV_CLOCK << 8)
+#define UBX_MSG_NAV_SIG       ((UBX_CLASS_NAV) | UBX_ID_NAV_SIG << 8)
+#define UBX_MSG_RXM_MEASX     ((UBX_CLASS_RXM) | UBX_ID_RXM_MEASX << 8)
+#define UBX_MSG_SEC_SIG       ((UBX_CLASS_SEC) | UBX_ID_SEC_SIG << 8)
+#define UBX_MSG_SEC_SIGLOG    ((UBX_CLASS_SEC) | UBX_ID_SEC_SIGLOG << 8)
 #define UBX_MSG_RTCM3_1005    ((UBX_CLASS_RTCM3) | UBX_ID_RTCM3_1005 << 8)
 #define UBX_MSG_RTCM3_1077    ((UBX_CLASS_RTCM3) | UBX_ID_RTCM3_1077 << 8)
 #define UBX_MSG_RTCM3_1087    ((UBX_CLASS_RTCM3) | UBX_ID_RTCM3_1087 << 8)
@@ -375,6 +388,24 @@
 #define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1127_I2C  0x209102d6
 #define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1230_I2C  0x20910303
 #define UBX_CFG_KEY_MSGOUT_UBX_NAV_TIMEGPS_I2C	 0x20910047
+
+// CFG-MSGOUT keys for the extended GNSS logging capture. Only the I2C
+// base key is listed; cfgValsetPort() derives UART1/USB/SPI from it.
+//
+// These are transcribed from the M10 SPG 5.10/5.20 interface description and are NOT
+// exercised by any other code path. A wrong constant looks exactly like an unsupported
+// message: the receiver NAKs it. configureExtLogMessages() therefore sends each key
+// in its own VALSET and reports the per-message ACK/NAK result, so a NAK means
+// "this key was rejected", not necessarily "this receiver cannot do it". Cross-check a
+// NAK against u-center's Generation 9 configuration view before concluding the message
+// is unavailable.
+#define UBX_CFG_KEY_MSGOUT_UBX_NAV_CLOCK_I2C     0x20910065
+#define UBX_CFG_KEY_MSGOUT_UBX_NAV_SIG_I2C       0x20910345
+#define UBX_CFG_KEY_MSGOUT_UBX_RXM_MEASX_I2C     0x20910204
+#define UBX_CFG_KEY_MSGOUT_UBX_MON_SPAN_I2C      0x2091038b
+
+#define UBX_CFG_KEY_MSGOUT_UBX_SEC_SIG_I2C       0
+#define UBX_CFG_KEY_MSGOUT_UBX_SEC_SIGLOG_I2C    0
 
 #define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE4072_0_UART1  0x209102ff
 #define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE4072_1_UART1  0x20910382
@@ -972,6 +1003,7 @@ typedef enum {
 	UBX_RXMSG_IGNORE = 0,
 	UBX_RXMSG_HANDLE,
 	UBX_RXMSG_DISABLE,
+	UBX_RXMSG_DISCARD,
 	UBX_RXMSG_ERROR_LENGTH
 } ubx_rxmsg_state_t;
 
@@ -996,6 +1028,22 @@ public:
 		GroundControlStation, ///< NMEA output on UART2 to a ground control station (GPS is installed in GCS)
 	};
 
+	/**
+	 * Extended GNSS logging capture. Selects extra u-blox messages that
+	 * the driver enables but never parses; they exist only to reach the .ubx capture in
+	 * the gps_dump log. Values match the GPS_UBX_GNSSMON bitmask.
+	 */
+	enum ExtLogMsgsMask : int32_t {
+		MON_SPAN    = 1 << 0,
+		SEC_SIG     = 1 << 1,
+		SEC_SIGLOG  = 1 << 2,
+		NAV_SIG     = 1 << 3,
+		RXM_MEASX   = 1 << 4,
+		RXM_SFRBX   = 1 << 5,
+		NAV_CLOCK   = 1 << 6,
+		NAV_TIMEGPS = 1 << 7,
+	};
+
 	struct Settings {
 		uint8_t dynamic_model;
 		uint8_t dgnss_timeout;
@@ -1003,9 +1051,15 @@ public:
 		int8_t min_elev;
 		uint8_t output_rate;
 		float heading_offset;
+		// Target baudrate for the receiver's UART1, applied after the link is
+		// auto-detected. 0 keeps the driver default. Unlike a fixed baudrate this never
+		// prevents connecting to a receiver still at its power-on default.
+		int32_t uart1_baudrate;
 		int32_t uart2_baudrate;
 		bool ppk_output;
 		bool jam_det_sensitivity_hi;
+		int32_t ext_log_msgs;
+		uint8_t ext_log_rate_div;
 		UBXMode mode;
 	};
 
@@ -1102,6 +1156,22 @@ private:
 	bool cfgValsetPort(uint32_t key_id, uint8_t value, int &msg_size);
 
 	/**
+	 * Enable the extended GNSS logging message set selected by GPS_UBX_GNSSMON.
+	 *
+	 * Each message gets its own CFG-VALSET so that one unsupported key NAKs only itself
+	 * instead of the whole batch, which is what makes the per-message availability report
+	 * meaningful. All failures are non-fatal: this is extended logging, it must never
+	 * prevent the receiver from being configured for flight.
+	 */
+	void configureExtLogMessages();
+
+	/**
+	 * True if the message is part of the enabled extended logging set, in which case
+	 * payloadRxInit() must not fall through to the disable path.
+	 */
+	bool isExtLogMessage(uint16_t msg) const;
+
+	/**
 	 * Reset the parse state machine for a fresh start
 	 */
 	void decodeInit(void);
@@ -1143,6 +1213,19 @@ private:
 	 * Add payload rx byte
 	 */
 	int payloadRxAdd(const uint8_t b);
+
+	/**
+	 * Consume a payload byte without storing it, for UBX_RXMSG_DISCARD.
+	 *
+	 * The extended logging messages are far larger than ubx_buf_t (RXM-MEASX reaches
+	 * ~650 bytes) so they must not go through payloadRxAdd(). Counting the payload out
+	 * keeps the parser in frame, which aborting on payloadRxInit() would not: at the
+	 * data rates this capture runs at, resyncing on every such message costs real
+	 * NAV-PVT epochs to false 0xB5,0x62 matches inside the discarded payloads.
+	 *
+	 * @return 1 when the payload is complete, 0 otherwise
+	 */
+	int payloadRxAddDiscard(const uint8_t b);
 	int payloadRxAddMonVer(const uint8_t b);
 	int payloadRxAddNavSat(const uint8_t b);
 	int payloadRxAddNavSvinfo(const uint8_t b);
@@ -1205,9 +1288,12 @@ private:
 
 	const UBXMode _mode {};
 	const float _heading_offset {};
+	const int32_t _uart1_baudrate {};
 	const int32_t _uart2_baudrate {};
 	const bool _ppk_output {};
 	const bool _jam_det_sensitivity_hi {};
+	const int32_t _ext_log_msgs {};
+	const uint8_t _ext_log_rate_div {};
 };
 
 

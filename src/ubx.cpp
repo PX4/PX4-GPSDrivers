@@ -81,9 +81,12 @@ GPSDriverUBX::GPSDriverUBX(Interface gpsInterface, GPSCallbackPtr callback, void
 	_output_rate(settings.output_rate),
 	_mode(settings.mode),
 	_heading_offset(settings.heading_offset),
+	_uart1_baudrate(settings.uart1_baudrate),
 	_uart2_baudrate(settings.uart2_baudrate),
 	_ppk_output(settings.ppk_output),
-	_jam_det_sensitivity_hi(settings.jam_det_sensitivity_hi)
+	_jam_det_sensitivity_hi(settings.jam_det_sensitivity_hi),
+	_ext_log_msgs(settings.ext_log_msgs),
+	_ext_log_rate_div(settings.ext_log_rate_div)
 {
 	decodeInit();
 }
@@ -121,6 +124,13 @@ GPSDriverUBX::configure(unsigned &baudrate, const GPSConfig &config)
 
 		if ((_mode == UBXMode::RoverWithMovingBaseUART1) || (_mode == UBXMode::MovingBaseUART1)) {
 			desired_baudrate = UART1_BAUDRATE_HEADING;
+		}
+
+		// GPS_UBX_BAUD1 overrides the UART1 target after auto-detect. The probe scan is
+		// unaffected, so this cannot lock the driver out of a receiver at its power-on
+		// default the way a fixed baudrate does.
+		if (_uart1_baudrate > 0) {
+			desired_baudrate = _uart1_baudrate;
 		}
 
 		for (baud_i = 0; baud_i < sizeof(baudrates) / sizeof(baudrates[0]); baud_i++) {
@@ -931,6 +941,8 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 		return -1;
 	}
 
+	configureExtLogMessages();
+
 	if (_interface == Interface::UART || _interface == Interface::SPI) {
 
 		// Enable/Disable GPS protocols at I2C interface
@@ -1207,6 +1219,91 @@ bool GPSDriverUBX::cfgValsetPort(uint32_t key_id, uint8_t value, int &msg_size)
 	}
 
 	return true;
+}
+
+void GPSDriverUBX::configureExtLogMessages()
+{
+	if (_ext_log_msgs == 0) {
+		return;
+	}
+
+	if (!_proto_ver_27_or_higher) {
+		UBX_WARN("GNSSMON needs protocol 27+ (CFG-VALSET)");
+		return;
+	}
+
+	// Rate is "output every Nth navigation epoch", so the resulting message rate is
+	// RATE_MEAS/RATE_NAV divided by this. MON-SPAN is the one heavy message and is
+	// pinned to a whole second regardless.
+	const uint8_t nav_rate = _ext_log_rate_div > 0 ? _ext_log_rate_div : 1;
+	const uint8_t hz_rate = _output_rate > 0 ? _output_rate : 10;
+
+	const struct {
+		int32_t mask;
+		uint32_t key;
+		uint8_t rate;
+		const char *name;
+	} msgs[] = {
+		{ExtLogMsgsMask::MON_SPAN,    UBX_CFG_KEY_MSGOUT_UBX_MON_SPAN_I2C,    hz_rate,  "MON-SPAN"},
+		{ExtLogMsgsMask::SEC_SIG,     UBX_CFG_KEY_MSGOUT_UBX_SEC_SIG_I2C,     hz_rate,  "SEC-SIG"},
+		{ExtLogMsgsMask::SEC_SIGLOG,  UBX_CFG_KEY_MSGOUT_UBX_SEC_SIGLOG_I2C,  hz_rate,  "SEC-SIGLOG"},
+		{ExtLogMsgsMask::NAV_SIG,     UBX_CFG_KEY_MSGOUT_UBX_NAV_SIG_I2C,     nav_rate, "NAV-SIG"},
+		{ExtLogMsgsMask::RXM_MEASX,   UBX_CFG_KEY_MSGOUT_UBX_RXM_MEASX_I2C,   nav_rate, "RXM-MEASX"},
+		{ExtLogMsgsMask::RXM_SFRBX,   UBX_CFG_KEY_MSGOUT_UBX_RXM_SFRBX_I2C,   1,        "RXM-SFRBX"},
+		{ExtLogMsgsMask::NAV_CLOCK,   UBX_CFG_KEY_MSGOUT_UBX_NAV_CLOCK_I2C,   nav_rate, "NAV-CLOCK"},
+		// Load-bearing for tier-2 time alignment: it is the only enabled message carrying
+		// GPS week/TOW, so it runs at navigation rate rather than 1 Hz.
+		{ExtLogMsgsMask::NAV_TIMEGPS, UBX_CFG_KEY_MSGOUT_UBX_NAV_TIMEGPS_I2C, 1,        "NAV-TIMEGPS"},
+	};
+
+	for (const auto &msg : msgs) {
+		if (!(_ext_log_msgs & msg.mask)) {
+			continue;
+		}
+
+		if (msg.key == 0) {
+			UBX_WARN("GNSSMON %s: no key ID in firmware, enable it receiver-side", msg.name);
+			continue;
+		}
+
+		int cfg_valset_msg_size = initCfgValset();
+		cfgValsetPort(msg.key, msg.rate, cfg_valset_msg_size);
+
+		if (!sendMessage(UBX_MSG_CFG_VALSET, (uint8_t *)&_buf, cfg_valset_msg_size)) {
+			UBX_WARN("GNSSMON %s: send failed", msg.name);
+			continue;
+		}
+
+		if (waitForAck(UBX_MSG_CFG_VALSET, UBX_CONFIG_TIMEOUT, false) < 0) {
+			UBX_WARN("GNSSMON %s: NAK (unsupported, or wrong key ID)", msg.name);
+
+		} else {
+			UBX_DEBUG("GNSSMON %s enabled, every %u epochs", msg.name, (unsigned)msg.rate);
+		}
+	}
+}
+
+bool GPSDriverUBX::isExtLogMessage(uint16_t msg) const
+{
+	switch (msg) {
+	case UBX_MSG_MON_SPAN:   return _ext_log_msgs & ExtLogMsgsMask::MON_SPAN;
+
+	case UBX_MSG_SEC_SIG:    return _ext_log_msgs & ExtLogMsgsMask::SEC_SIG;
+
+	case UBX_MSG_SEC_SIGLOG: return _ext_log_msgs & ExtLogMsgsMask::SEC_SIGLOG;
+
+	case UBX_MSG_NAV_SIG:    return _ext_log_msgs & ExtLogMsgsMask::NAV_SIG;
+
+	case UBX_MSG_RXM_MEASX:  return _ext_log_msgs & ExtLogMsgsMask::RXM_MEASX;
+
+	case UBX_MSG_RXM_SFRBX:  return _ext_log_msgs & ExtLogMsgsMask::RXM_SFRBX;
+
+	case UBX_MSG_NAV_CLOCK:  return _ext_log_msgs & ExtLogMsgsMask::NAV_CLOCK;
+
+	case UBX_MSG_NAV_TIMEGPS: return _ext_log_msgs & ExtLogMsgsMask::NAV_TIMEGPS;
+
+	default: return false;
+	}
 }
 
 int GPSDriverUBX::restartSurveyInPreV27()
@@ -1533,22 +1630,27 @@ GPSDriverUBX::parseChar(const uint8_t b)
 		UBX_TRACE_PARSER(".");
 		addByteToChecksum(b);
 
-		switch (_rx_msg) {
-		case UBX_MSG_NAV_SAT:
-			ret = payloadRxAddNavSat(b);	// add a NAV-SAT payload byte
-			break;
+		if (_rx_state == UBX_RXMSG_DISCARD) {
+			ret = payloadRxAddDiscard(b);
 
-		case UBX_MSG_NAV_SVINFO:
-			ret = payloadRxAddNavSvinfo(b);	// add a NAV-SVINFO payload byte
-			break;
+		} else {
+			switch (_rx_msg) {
+			case UBX_MSG_NAV_SAT:
+				ret = payloadRxAddNavSat(b);	// add a NAV-SAT payload byte
+				break;
 
-		case UBX_MSG_MON_VER:
-			ret = payloadRxAddMonVer(b);	// add a MON-VER payload byte
-			break;
+			case UBX_MSG_NAV_SVINFO:
+				ret = payloadRxAddNavSvinfo(b);	// add a NAV-SVINFO payload byte
+				break;
 
-		default:
-			ret = payloadRxAdd(b);		// add a payload byte
-			break;
+			case UBX_MSG_MON_VER:
+				ret = payloadRxAddMonVer(b);	// add a MON-VER payload byte
+				break;
+
+			default:
+				ret = payloadRxAdd(b);		// add a payload byte
+				break;
+			}
 		}
 
 		if (ret < 0) {
@@ -1815,13 +1917,16 @@ GPSDriverUBX::payloadRxInit()
 		break;
 
 	default:
-		_rx_state = UBX_RXMSG_DISABLE;	// disable all other messages
+		// The extended logging set reaches the log as raw bytes via gps_dump and is never
+		// parsed here. Count it out rather than telling the receiver to stop sending it.
+		_rx_state = isExtLogMessage(_rx_msg) ? UBX_RXMSG_DISCARD : UBX_RXMSG_DISABLE;
 		break;
 	}
 
 	switch (_rx_state) {
 	case UBX_RXMSG_HANDLE:	// handle message
 	case UBX_RXMSG_IGNORE:	// ignore message but don't report error
+	case UBX_RXMSG_DISCARD:	// read the payload out to stay in frame, then drop it
 		ret = 0;
 		break;
 
@@ -1908,6 +2013,13 @@ GPSDriverUBX::payloadRxAdd(const uint8_t b)
 	}
 
 	return ret;
+}
+
+int	// 0 = ok, 1 = payload completed
+GPSDriverUBX::payloadRxAddDiscard(const uint8_t b)
+{
+	(void)b;
+	return (++_rx_payload_index >= _rx_payload_length) ? 1 : 0;
 }
 
 int	// -1 = error, 0 = ok, 1 = payload completed
