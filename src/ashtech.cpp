@@ -518,7 +518,7 @@ int GPSDriverAshtech::handleMessage(int len)
 
 		_gps_position->s_variance_m_s = 0;
 
-	} else if ((memcmp(_rx_buffer + 3, "GSV,", 3) == 0)) {
+	} else if ((memcmp(_rx_buffer + 3, "GSV,", 4) == 0) && (uiCalcComma >= 3)) {
 		/*
 		  The GSV message string identifies the number of SVs in view, the PRN numbers, elevations, azimuths, and SNR values. An example of the GSV message string is:
 
@@ -569,7 +569,13 @@ int GPSDriverAshtech::handleMessage(int len)
 
 		if (bufptr && *(++bufptr) != ',') { tot_sv_visible = strtol(bufptr, &endp, 10); bufptr = endp; }
 
-		if ((this_msg_num < 1) || (this_msg_num > all_msg_num)) {
+		if ((this_msg_num < 1) || (this_msg_num > all_msg_num) || (tot_sv_visible < 0)) {
+			return 0;
+		}
+
+		const uint64_t page_start = static_cast<uint64_t>(this_msg_num - 1) * 4;
+
+		if (page_start > static_cast<uint64_t>(tot_sv_visible)) {
 			return 0;
 		}
 
@@ -582,10 +588,13 @@ int GPSDriverAshtech::handleMessage(int len)
 			memset(_satellite_info->prn,       0, sizeof(_satellite_info->prn));
 		}
 
-		int end = 4;
+		const int remaining_satellites = tot_sv_visible - static_cast<int>(page_start);
+		const int satellites_in_message = (uiCalcComma - 3) / 4;
+		const int satellites_in_page = remaining_satellites < satellites_in_message ?
+					       remaining_satellites : satellites_in_message;
+		const int satellites_to_parse = satellites_in_page < 4 ? satellites_in_page : 4;
 
 		if (this_msg_num == all_msg_num) {
-			end =  tot_sv_visible - (this_msg_num - 1) * 4;
 			_gps_position->satellites_used = tot_sv_visible;
 
 			if (_satellite_info) {
@@ -596,7 +605,7 @@ int GPSDriverAshtech::handleMessage(int len)
 		}
 
 		if (_satellite_info) {
-			for (int y = 0 ; y < end ; y++) {
+			for (int y = 0; y < satellites_to_parse; y++) {
 				if (bufptr && *(++bufptr) != ',') { sat[y].svid = strtol(bufptr, &endp, 10); bufptr = endp; }
 
 				if (bufptr && *(++bufptr) != ',') { sat[y].elevation = strtol(bufptr, &endp, 10); bufptr = endp; }
@@ -605,12 +614,16 @@ int GPSDriverAshtech::handleMessage(int len)
 
 				if (bufptr && *(++bufptr) != ',') { sat[y].snr = strtol(bufptr, &endp, 10); bufptr = endp; }
 
-				_satellite_info->svid[y + (this_msg_num - 1) * 4]      = sat[y].svid;
-				_satellite_info->used[y + (this_msg_num - 1) * 4]      = (sat[y].snr > 0);
-				_satellite_info->elevation[y + (this_msg_num - 1) * 4] = sat[y].elevation;
-				_satellite_info->azimuth[y + (this_msg_num - 1) * 4]   = sat[y].azimuth;
-				_satellite_info->snr[y + (this_msg_num - 1) * 4]       = sat[y].snr;
-				_satellite_info->prn[y + (this_msg_num - 1) * 4]       = sat[y].prn;
+				const uint64_t satellite_index = page_start + y;
+
+				if (satellite_index < satellite_info_s::SAT_INFO_MAX_SATELLITES) {
+					_satellite_info->svid[satellite_index]      = sat[y].svid;
+					_satellite_info->used[satellite_index]      = (sat[y].snr > 0);
+					_satellite_info->elevation[satellite_index] = sat[y].elevation;
+					_satellite_info->azimuth[satellite_index]   = sat[y].azimuth;
+					_satellite_info->snr[satellite_index]       = sat[y].snr;
+					_satellite_info->prn[satellite_index]       = sat[y].prn;
+				}
 			}
 		}
 
