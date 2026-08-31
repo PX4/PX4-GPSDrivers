@@ -663,7 +663,7 @@ int GPSDriverNMEA::handleMessage(int len)
 		}
 
 
-	} else if ((memcmp(_rx_buffer + 3, "GSV,", 4) == 0)) {
+	} else if ((memcmp(_rx_buffer + 3, "GSV,", 4) == 0) && (fieldCount >= 3)) {
 		/*
 		The GSV message string identifies the number of SVs in view, the PRN numbers, elevations, azimuths, and SNR values. An example of the GSV message string is:
 
@@ -699,7 +699,13 @@ int GPSDriverNMEA::handleMessage(int len)
 
 		nmeaNextField(bufptr, tot_sv_visible);
 
-		if ((this_page_num < 1) || (this_page_num > all_page_num)) {
+		if ((this_page_num < 1) || (this_page_num > all_page_num) || (tot_sv_visible < 0)) {
+			return 0;
+		}
+
+		const uint64_t page_start = static_cast<uint64_t>(this_page_num - 1) * 4;
+
+		if (page_start > static_cast<uint64_t>(tot_sv_visible)) {
 			return 0;
 		}
 
@@ -728,23 +734,26 @@ int GPSDriverNMEA::handleMessage(int len)
 			memset(_satellite_info->azimuth,  0, sizeof(_satellite_info->azimuth));
 		}
 
-		int end = 4;
+		const int remaining_satellites = tot_sv_visible - static_cast<int>(page_start);
+		const int satellites_in_message = (fieldCount - 3) / 4;
+		const int satellites_in_page = remaining_satellites < satellites_in_message ?
+					       remaining_satellites : satellites_in_message;
+		const int satellites_to_parse = satellites_in_page < 4 ? satellites_in_page : 4;
 
 		if (this_page_num == all_page_num) {
-			end =  tot_sv_visible - (this_page_num - 1) * 4;
-
 			_SVNUM_received = true;
 			_SVINFO_received = true;
 
 			if (_satellite_info) {
-				_satellite_info->count = satellite_info_s::SAT_INFO_MAX_SATELLITES;
+				_satellite_info->count = tot_sv_visible < satellite_info_s::SAT_INFO_MAX_SATELLITES ?
+							 tot_sv_visible : satellite_info_s::SAT_INFO_MAX_SATELLITES;
 				_satellite_info->timestamp = gps_absolute_time();
 				ret |= 2;
 			}
 		}
 
 		if (_satellite_info) {
-			for (int y = 0 ; y < end ; y++) {
+			for (int y = 0; y < satellites_to_parse; y++) {
 				nmeaNextField(bufptr, sat[y].svid);
 
 				nmeaNextField(bufptr, sat[y].elevation);
@@ -753,11 +762,15 @@ int GPSDriverNMEA::handleMessage(int len)
 
 				nmeaNextField(bufptr, sat[y].snr);
 
-				_satellite_info->svid[y + (this_page_num - 1) * 4]      = sat[y].svid;
-				_satellite_info->used[y + (this_page_num - 1) * 4]      = (sat[y].snr > 0);
-				_satellite_info->snr[y + (this_page_num - 1) * 4]       = sat[y].snr;
-				_satellite_info->elevation[y + (this_page_num - 1) * 4] = sat[y].elevation;
-				_satellite_info->azimuth[y + (this_page_num - 1) * 4]   = sat[y].azimuth;
+				const uint64_t satellite_index = page_start + y;
+
+				if (satellite_index < satellite_info_s::SAT_INFO_MAX_SATELLITES) {
+					_satellite_info->svid[satellite_index]      = sat[y].svid;
+					_satellite_info->used[satellite_index]      = (sat[y].snr > 0);
+					_satellite_info->snr[satellite_index]       = sat[y].snr;
+					_satellite_info->elevation[satellite_index] = sat[y].elevation;
+					_satellite_info->azimuth[satellite_index]   = sat[y].azimuth;
+				}
 			}
 		}
 
