@@ -946,11 +946,11 @@ int GPSDriverNMEA::receive(unsigned timeout)
 					_gps_position->vel_n_m_s = _unicore_parser.agrica().velocity_north_m_s;
 					_gps_position->vel_e_m_s = _unicore_parser.agrica().velocity_east_m_s;
 					_gps_position->vel_d_m_s = -_unicore_parser.agrica().velocity_up_m_s;
-					_gps_position->s_variance_m_s =
+					// s_variance_m_s contains a 1-sigma speed accuracy in m/s.
+					_gps_position->s_variance_m_s = sqrtf(
 						(_unicore_parser.agrica().stddev_velocity_north_m_s * _unicore_parser.agrica().stddev_velocity_north_m_s +
 						 _unicore_parser.agrica().stddev_velocity_east_m_s * _unicore_parser.agrica().stddev_velocity_east_m_s +
-						 _unicore_parser.agrica().stddev_velocity_up_m_s * _unicore_parser.agrica().stddev_velocity_up_m_s)
-						/ 3.0f;
+						 _unicore_parser.agrica().stddev_velocity_up_m_s * _unicore_parser.agrica().stddev_velocity_up_m_s));
 
 					_gps_position->cog_rad = atan2f(
 									 _unicore_parser.agrica().velocity_north_m_s,
