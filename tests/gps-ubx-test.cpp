@@ -54,7 +54,11 @@ public:
 	bool reject_disable = false;
 	bool reject_start = false;
 	bool fail_poll_write = false;
+	int poll_read_error = 0;
+	unsigned failed_reads = 0;
 	size_t read_chunk = 7; // Exercise packet fragmentation through the real parser.
+	unsigned comms_polls = 0;
+	bool fail_comms_write = false;
 	unsigned polls = 0;
 	unsigned starts = 0;
 	unsigned status_callbacks = 0;
@@ -93,20 +97,38 @@ public:
 		queue(bytes);
 	}
 
-private:
-	Bytes outgoing;
-	std::deque<uint8_t> incoming;
+	void bufferWarning(bool valid_checksum = true)
+	{
+		const std::string warning = "txbuf alloc";
+		Bytes bytes = packet(UBX_MSG_INF_ERROR, Bytes(warning.begin(), warning.end()));
+
+		if (!valid_checksum) {
+			bytes.back() ^= 0xff;
+		}
+
+		queue(bytes);
+	}
 
 	void queue(const Bytes &bytes)
 	{
 		incoming.insert(incoming.end(), bytes.begin(), bytes.end());
 	}
 
+private:
+	Bytes outgoing;
+	std::deque<uint8_t> incoming;
+
 	void process(const Bytes &bytes)
 	{
 		const auto message = uint16_t(littleEndian(bytes, 2, 2));
 		const Bytes payload(bytes.begin() + 6, bytes.end() - 2);
 		CHECK(bytes == packet(message, payload)); // Validate outgoing framing/checksum.
+
+		if (message == UBX_MSG_MON_COMMS) {
+			CHECK(payload.empty());
+			++comms_polls;
+			return;
+		}
 
 		if (message == UBX_MSG_MON_VER) {
 			CHECK(payload.empty());
@@ -172,6 +194,12 @@ private:
 			memcpy(&timeout, data, sizeof(timeout));
 			CHECK(timeout >= 0);
 
+			if (polls > 0 && poll_read_error < 0) {
+				++failed_reads;
+				gps_test_time += 1000;
+				return poll_read_error;
+			}
+
 			if (incoming.empty()) {
 				// The driver's deadlines use strict comparisons; move past the timeout.
 				gps_test_time += uint64_t(timeout) * 1000 + 1;
@@ -191,6 +219,12 @@ private:
 
 		if (type == GPSCallbackType::writeDeviceData) {
 			const auto *bytes = static_cast<const uint8_t *>(data);
+
+			if (fail_comms_write && outgoing.empty() && size >= 4
+			    && bytes[2] == 0x0a && bytes[3] == 0x36) {
+				++comms_polls;
+				return -1;
+			}
 
 			if (fail_poll_write && outgoing.empty() && size >= 4
 			    && bytes[2] == 0x01 && bytes[3] == 0x3b) {
@@ -225,6 +259,7 @@ struct Fixture {
 	Fixture()
 	{
 		gps_test_time = 0;
+		gps_test_warnings.clear();
 		driver.setSurveyInSpecs(12500, 60);
 	}
 
@@ -263,7 +298,138 @@ struct Fixture {
 		CHECK(receiver.status_callbacks == 0);
 		CHECK(receiver.rtcm_enables == 0);
 	}
+
+	void readFailure(int error)
+	{
+		receiver.poll_read_error = error;
+		CHECK(configure() < 0);
+		CHECK(!driver.receiverReady());
+		CHECK(receiver.failed_reads == 1);
+		CHECK(receiver.polls == 1);
+		CHECK(receiver.modes == std::vector<uint32_t>({0}));
+		CHECK(receiver.starts == 0);
+		CHECK(receiver.status_callbacks == 0);
+		CHECK(receiver.rtcm_enables == 0);
+		CHECK(gps_test_time - receiver.disabled_at < 100000);
+
+		if (error == GPSHelper::ReadCancelled) {
+			CHECK(gps_test_warnings.empty());
+
+		} else {
+			CHECK(gps_test_warnings == std::vector<std::string>{"ubx poll_or_read err"});
+		}
+	}
 };
+
+static Bytes commsPayload()
+{
+	Bytes payload(88, 0);
+	payload[1] = 2;
+	payload[2] = 2;
+	// USB: 11800 bytes pending, current usage 100%, historical peak 101%.
+	payload[9] = 3;
+	payload[10] = 0x18;
+	payload[11] = 0x2e;
+	payload[16] = 100;
+	payload[17] = 101;
+	payload[18] = 12;
+	payload[24] = 3;
+	payload[26] = 4;
+	payload[44] = 0x40;
+	payload[45] = 0xe2;
+	payload[46] = 1;
+	// UART2: no current congestion, despite a historical peak of 108%.
+	payload[48] = 1;
+	payload[49] = 2;
+	payload[57] = 108;
+	return payload;
+}
+
+static void commsDiagnostics()
+{
+	Fixture f;
+	const Bytes reply = packet(UBX_MSG_MON_COMMS, commsPayload());
+	f.receiver.queue(reply);
+	f.driver.receive(100);
+	CHECK(gps_test_warnings.empty());
+	CHECK(f.receiver.comms_polls == 0);
+	f.receiver.bufferWarning();
+	f.driver.receive(100);
+	CHECK(f.receiver.comms_polls == 1);
+	CHECK(gps_test_warnings == std::vector<std::string>{"ubx msg: txbuf alloc"});
+	gps_test_warnings.clear();
+	f.receiver.queue(reply);
+	CHECK(f.driver.receive(100) < 0); // Diagnostic traffic alone is not a position update.
+	const std::vector<std::string> expected{
+		"MON-COMMS after txbuf: txErrors=0x02 ports=2 (snapshot after warning)",
+		"MON-COMMS USB port=0x0300 txPending=11800 txUsage=100% txPeakUsage=101% "
+		"rxPending=12 rxUsage=3% overrunErrs=4 skipped=123456",
+		"MON-COMMS UART2 port=0x0201 txPending=0 txUsage=0% txPeakUsage=108% "
+		"rxPending=0 rxUsage=0% overrunErrs=0 skipped=0"
+	};
+	CHECK(gps_test_warnings == expected);
+	gps_test_warnings.clear();
+	f.receiver.queue(reply);
+	f.driver.receive(100);
+	CHECK(gps_test_warnings.empty());
+}
+
+static void invalidCommsDiagnostics()
+{
+	Bytes payload = commsPayload();
+	Bytes corrupt = packet(UBX_MSG_MON_COMMS, payload);
+	corrupt.back() ^= 0xff;
+	std::vector<Bytes> invalid{
+		corrupt,
+		packet(UBX_MSG_MON_COMMS, Bytes(7, 0)),
+		packet(UBX_MSG_MON_COMMS, Bytes(87, 0)),
+		packet(UBX_MSG_MON_COMMS, Bytes(368, 0))
+	};
+	payload[0] = 1;
+	invalid.push_back(packet(UBX_MSG_MON_COMMS, payload));
+	payload[0] = 0;
+	payload[1] = 3;
+	invalid.push_back(packet(UBX_MSG_MON_COMMS, payload));
+	payload[1] = 255;
+	invalid.push_back(packet(UBX_MSG_MON_COMMS, payload));
+
+	for (const auto &reply : invalid) {
+		Fixture f;
+		f.receiver.bufferWarning();
+		f.driver.receive(100);
+		gps_test_warnings.clear();
+		f.receiver.queue(reply);
+		f.driver.receive(100);
+		CHECK(gps_test_warnings.empty());
+		// Malformed input must not consume the pending reply or lose framing.
+		f.receiver.queue(packet(UBX_MSG_MON_COMMS, Bytes(8, 0)));
+		f.driver.receive(100);
+		CHECK(gps_test_warnings == std::vector<std::string>{
+			"MON-COMMS after txbuf: txErrors=0x00 ports=0 (snapshot after warning)"});
+	}
+}
+
+static void expiredCommsDiagnostics()
+{
+	Fixture f;
+	f.receiver.bufferWarning();
+	f.driver.receive(100);
+	CHECK(f.receiver.comms_polls == 1);
+	gps_test_warnings.clear();
+	gps_test_time += 2000000;
+	f.receiver.queue(packet(UBX_MSG_MON_COMMS, commsPayload()));
+	f.driver.receive(100);
+	CHECK(gps_test_warnings.empty());
+	// Expiration must allow a later warning to obtain a fresh snapshot.
+	gps_test_time += 5000000;
+	f.receiver.bufferWarning();
+	f.driver.receive(100);
+	CHECK(f.receiver.comms_polls == 2);
+	gps_test_warnings.clear();
+	f.receiver.queue(packet(UBX_MSG_MON_COMMS, Bytes(8, 0)));
+	f.driver.receive(100);
+	CHECK(gps_test_warnings.size() == 1);
+}
 
 int main()
 {
@@ -271,7 +437,48 @@ int main()
 		const char *name;
 		void (*run)();
 	} cases[] = {
+		{"comms-diagnostic-values", commsDiagnostics},
+		{"comms-malformed-replies", invalidCommsDiagnostics},
+		{"comms-expired-reply", expiredCommsDiagnostics},
+		{"buffer-warning-rate-limit", [] {
+			Fixture f;
+			f.receiver.bufferWarning(false);
+			f.driver.receive(100);
+			CHECK(f.receiver.comms_polls == 0);
+			f.receiver.bufferWarning();
+			f.driver.receive(100);
+			CHECK(f.receiver.comms_polls == 1);
+			f.receiver.bufferWarning();
+			f.driver.receive(100);
+			CHECK(f.receiver.comms_polls == 1);
+			gps_test_time += 5000000;
+			f.receiver.bufferWarning();
+			f.driver.receive(100);
+			CHECK(f.receiver.comms_polls == 2);
+		}},
+		{"buffer-poll-failure-rate-limit", [] {
+			Fixture f;
+			f.receiver.fail_comms_write = true;
+			f.receiver.bufferWarning();
+			f.driver.receive(100);
+			f.receiver.bufferWarning();
+			f.driver.receive(100);
+			CHECK(f.receiver.comms_polls == 1);
+			gps_test_time += 5000000;
+			f.receiver.fail_comms_write = false;
+			f.receiver.bufferWarning();
+			f.driver.receive(100);
+			CHECK(f.receiver.comms_polls == 2);
+		}},
 		{"already-stopped", [] { Fixture f; f.success(1); }},
+		{"poll-read-failure", [] { Fixture f; f.readFailure(-1); }},
+		{"poll-read-errno", [] { Fixture f; f.readFailure(-EIO); }},
+		{"poll-read-cancelled", [] { Fixture f; f.readFailure(GPSHelper::ReadCancelled); }},
+		{"silent-then-stopped", [] {
+			Fixture f;
+			f.receiver.replies = {SurveyReply::silent, SurveyReply::stopped};
+			f.success(2);
+		}},
 		{"delayed-stop", [] {
 			Fixture f;
 			f.receiver.replies = {SurveyReply::active, SurveyReply::active, SurveyReply::stopped};

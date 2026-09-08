@@ -116,6 +116,7 @@
 #define UBX_ID_CFG_VALSET     0x8A
 #define UBX_ID_CFG_VALGET     0x8B
 #define UBX_ID_CFG_VALDEL     0x8C
+#define UBX_ID_MON_COMMS      0x36
 #define UBX_ID_MON_VER        0x04
 #define UBX_ID_MON_HW         0x09 // deprecated in protocol version >= 27 -> use MON_RF
 #define UBX_ID_MON_RF         0x38
@@ -174,6 +175,7 @@
 #define UBX_MSG_CFG_VALGET    ((UBX_CLASS_CFG) | UBX_ID_CFG_VALGET << 8)
 #define UBX_MSG_CFG_VALSET    ((UBX_CLASS_CFG) | UBX_ID_CFG_VALSET << 8)
 #define UBX_MSG_CFG_VALDEL    ((UBX_CLASS_CFG) | UBX_ID_CFG_VALDEL << 8)
+#define UBX_MSG_MON_COMMS     ((UBX_CLASS_MON) | UBX_ID_MON_COMMS << 8)
 #define UBX_MSG_MON_HW        ((UBX_CLASS_MON) | UBX_ID_MON_HW << 8)
 #define UBX_MSG_MON_VER       ((UBX_CLASS_MON) | UBX_ID_MON_VER << 8)
 #define UBX_MSG_MON_RF        ((UBX_CLASS_MON) | UBX_ID_MON_RF << 8)
@@ -984,6 +986,34 @@ typedef struct {
 	uint32_t    vAcc;            /**<  [0.1 mm] Vertical Accuracy Estimate */
 } ubx_payload_rx_nav_hpposllh_t;
 
+// Bound diagnostic storage independently of the receiver's reported port count.
+static constexpr uint8_t UBX_MON_COMMS_MAX_PORTS = 8;
+
+typedef struct {
+	uint16_t portId;
+	uint16_t txPending;
+	uint32_t txBytes;
+	uint8_t txUsage;
+	uint8_t txPeakUsage;
+	uint16_t rxPending;
+	uint32_t rxBytes;
+	uint8_t rxUsage;
+	uint8_t rxPeakUsage;
+	uint16_t overrunErrs;
+	uint16_t msgs[4];
+	uint8_t reserved[8];
+	uint32_t skipped;
+} ubx_payload_rx_mon_comms_port_t;
+
+typedef struct {
+	uint8_t version;
+	uint8_t nPorts;
+	uint8_t txErrors;
+	uint8_t reserved;
+	uint8_t protIds[4];
+	ubx_payload_rx_mon_comms_port_t ports[UBX_MON_COMMS_MAX_PORTS];
+} ubx_payload_rx_mon_comms_t;
+
 /* General message and payload buffer union */
 typedef union {
 	ubx_payload_rx_nav_pvt_t          payload_rx_nav_pvt;
@@ -1003,6 +1033,7 @@ typedef union {
 	ubx_payload_rx_mon_hw_ubx7_t      payload_rx_mon_hw_ubx7;
 	ubx_payload_rx_mon_hw_deprecated_t ubx_payload_rx_mon_hw_deprecated;
 	ubx_payload_rx_mon_rf_t           payload_rx_mon_rf;
+	ubx_payload_rx_mon_comms_t        payload_rx_mon_comms;
 	ubx_payload_rx_sec_sig_t          payload_rx_sec_sig;
 	ubx_payload_rx_mon_ver_part1_t    payload_rx_mon_ver_part1;
 	ubx_payload_rx_mon_ver_part2_t    payload_rx_mon_ver_part2;
@@ -1134,6 +1165,12 @@ public:
 	static const char *uart1Protocols(UBXMode mode, bool ppk_output);
 
 private:
+	/** Like receive(), but reports a negative device read separately from a timeout. */
+	int receiveInternal(unsigned timeout, bool &read_error);
+
+	void requestCommsDiagnostics();
+	void logCommsDiagnostics();
+
 	int activateRTCMOutput(bool reduce_update_rate);
 
 	/**
@@ -1338,6 +1375,8 @@ private:
 	const Interface _interface{};
 
 	gps_abstime             _disable_cmd_last{0};
+	gps_abstime             _next_comms_poll{0};
+	gps_abstime             _comms_poll_deadline{0};
 	sensor_gps_s           *_gps_position {nullptr};
 	satellite_info_s       *_satellite_info {nullptr};
 	ubx_ack_state_t         _ack_state{UBX_ACK_IDLE};
