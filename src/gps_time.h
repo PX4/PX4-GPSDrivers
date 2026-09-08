@@ -34,10 +34,14 @@
 #pragma once
 
 #include <time.h>
-#include <cstdint>
-#include <limits>
 
 #ifndef NO_MKTIME
+#if defined(_WIN32)
+#elif defined(__NEWLIB__) || defined(GPS_NO_TIMEGM)
+#include <cstdint>
+#include <limits>
+#endif
+
 // Receiver calendar fields are UTC, irrespective of the host timezone. Normalize
 // overflowing fields too: SBF encodes GPS weeks as offsets from January 1980.
 static inline time_t gpsTimeToEpoch(tm &utc)
