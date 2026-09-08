@@ -24,9 +24,15 @@ add_test(NAME GPSParserTest COMMAND gps-parser-test)
 add_executable(gps-time-test gps-time-test.cpp)
 target_include_directories(gps-time-test PRIVATE ${gps_driver_source_dir}/)
 
+add_executable(gps-time-fallback-test gps-time-test.cpp)
+target_include_directories(gps-time-fallback-test PRIVATE ${gps_driver_source_dir}/)
+target_compile_definitions(gps-time-fallback-test PRIVATE GPS_NO_TIMEGM)
+
 foreach(timezone IN ITEMS UTC0 EST5EDT JST-9)
     add_test(NAME GPSUtcTime-${timezone} COMMAND gps-time-test)
     set_tests_properties(GPSUtcTime-${timezone} PROPERTIES ENVIRONMENT "TZ=${timezone}")
+    add_test(NAME GPSUtcFallback-${timezone} COMMAND gps-time-fallback-test)
+    set_tests_properties(GPSUtcFallback-${timezone} PROPERTIES ENVIRONMENT "TZ=${timezone}")
 endforeach()
 
 add_executable(gps-ubx-test
