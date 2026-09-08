@@ -40,6 +40,7 @@
 #pragma once
 
 #include <cstdint>
+#include <cerrno>
 #include <cstring>
 
 #ifndef GPS_DEFINITIONS_HEADER
@@ -64,6 +65,7 @@ enum class GPSCallbackType {
 	 * data2: buffer length in bytes. Less bytes than this can be read.
 	 * return: num read bytes, 0 on timeout (the method can actually also return 0 before
 	 *         the timeout happens).
+	 *         GPSHelper::ReadCancelled on intentional shutdown, other negative values on error.
 	 */
 	readDeviceData = 0,
 
@@ -165,6 +167,8 @@ struct SurveyInStatus {
 class GPSHelper
 {
 public:
+	static constexpr int ReadCancelled = -ECANCELED;
+
 	enum class OutputMode : uint8_t {
 		GPS = 0,    ///< normal GPS output
 		GPSAndRTCM, ///< normal GPS+RTCM output

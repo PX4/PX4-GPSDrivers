@@ -1747,7 +1747,9 @@ GPSDriverUBX::receive(unsigned timeout)
 
 		if (ret < 0) {
 			/* something went wrong when polling or reading */
-			UBX_WARN("ubx poll_or_read err");
+			if (ret != ReadCancelled) {
+				UBX_WARN("ubx poll_or_read err");
+			}
 			return -1;
 
 		} else if (ret > 0) {
