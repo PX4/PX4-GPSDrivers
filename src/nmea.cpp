@@ -120,6 +120,7 @@ int GPSDriverNMEA::handleMessage(int len)
 
 	char *bufptr = (char *)(_rx_buffer + 6);
 	int ret = 0;
+	bool recognized = true;
 
 	if ((memcmp(_rx_buffer + 3, "ZDA,", 4) == 0) && (fieldCount == 6)) {
 		/*
@@ -850,6 +851,7 @@ int GPSDriverNMEA::handleMessage(int len)
 		}
 
 	} else {
+		recognized = false;
 		NMEA_DEBUG("Unable to parse %c%c%c%c message", _rx_buffer[3], _rx_buffer[4], _rx_buffer[5], _rx_buffer[6]);
 	}
 
@@ -868,6 +870,13 @@ int GPSDriverNMEA::handleMessage(int len)
 		ret |= 1;
 		_VEL_received = false;
 		_POS_received = false;
+	}
+
+	if (recognized && ret == 0) {
+		// A known, checksummed sentence that carries neither a position nor a
+		// satellite-info update (e.g. a lone GSA, or GGA/RMC before a fix).
+		// Signals the link is alive without triggering a bogus publish.
+		ret |= 4;
 	}
 
 	return ret;

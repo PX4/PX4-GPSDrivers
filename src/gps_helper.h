@@ -226,6 +226,11 @@ public:
 	 * @return <0 on error, otherwise a bitset:
 	 *         bit 0 set: got gps position update
 	 *         bit 1 set: got satellite info update
+	 *         bit 2 set: keep-alive / auxiliary data (e.g. RTCM or base station
+	 *                    update in SBF, a recognized but non-positional sentence
+	 *                    in NMEA). Indicates the link is alive without a position
+	 *                    or satellite-info update, and must not by itself trigger
+	 *                    a publish.
 	 */
 	virtual int receive(unsigned timeout) = 0;
 
