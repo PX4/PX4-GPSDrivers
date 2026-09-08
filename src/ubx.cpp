@@ -108,7 +108,11 @@ GPSDriverUBX::GPSDriverUBX(Interface gpsInterface, GPSCallbackPtr callback, void
 	_uart1_baudrate(settings.uart1_baudrate),
 	_uart2_baudrate(settings.uart2_baudrate),
 	_ppk_output(settings.ppk_output),
+#if defined(CONFIG_GPS_UBX_SPAN)
+	_spectrum_analyzer(settings.spectrum_analyzer),
+#endif
 	_jam_det_sensitivity_hi(settings.jam_det_sensitivity_hi)
+
 {
 	decodeInit();
 }
@@ -1367,6 +1371,19 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 		}
 	}
 
+#if defined(CONFIG_GPS_UBX_SPAN)
+
+	// UBX_MSG_MON_SPAN
+	if (_spectrum_analyzer) {
+		UBX_DEBUG("Configuration spectrum analyzer");
+		initCfgValset();
+		cfgValset<uint8_t>(UBX_CFG_KEY_MSGOUT_UBX_MON_SPAN_UART1, 1);
+
+		sendCfgValsetAcked(true);
+	}
+
+#endif
+
 	return 0;
 }
 
@@ -2082,8 +2099,9 @@ GPSDriverUBX::payloadRxInit()
 		break;
 
 	case UBX_MSG_MON_RF:
-		if (_rx_payload_length < sizeof(ubx_payload_rx_mon_rf_t) ||
-		    (_rx_payload_length - 4) % sizeof(ubx_payload_rx_mon_rf_t::ubx_payload_rx_mon_rf_block_t) != 0) {
+		if (_rx_payload_length > sizeof(ubx_payload_rx_mon_rf_t) ||
+		    _rx_payload_length <= kHeaderSizeMonRFSpan ||
+		    (_rx_payload_length - kHeaderSizeMonRFSpan) % sizeof(ubx_payload_rx_mon_rf_t::ubx_payload_rx_mon_rf_block_t) != 0) {
 
 			_rx_state = UBX_RXMSG_ERROR_LENGTH;
 
@@ -2102,6 +2120,22 @@ GPSDriverUBX::payloadRxInit()
 		}
 
 		break;
+
+#if defined(CONFIG_GPS_UBX_SPAN)
+
+	case UBX_MSG_MON_SPAN:
+		if ((_rx_payload_length > sizeof(ubx_payload_rx_mon_span_t)) ||
+		    (_rx_payload_length <= kHeaderSizeMonRFSpan) ||
+		    (_rx_payload_length - kHeaderSizeMonRFSpan) % sizeof(ubx_payload_rx_mon_span_t::ubx_payload_rx_mon_span_block_t) != 0) {
+
+			_rx_state = UBX_RXMSG_ERROR_LENGTH;
+
+		} else if (!_configured) {
+			_rx_state = UBX_RXMSG_IGNORE;        // ignore if not _configured
+		}
+
+		break;
+#endif
 
 	case UBX_MSG_RXM_RTCM:
 		if (_rx_payload_length != sizeof(ubx_payload_rx_rxm_rtcm_t)) {
@@ -2759,7 +2793,7 @@ GPSDriverUBX::payloadRxDone()
 	case UBX_MSG_NAV_SVINFO:
 		UBX_TRACE_RXMSG("Rx NAV-SVINFO");
 
-		// _satellite_info already populated by payload_rx_add_svinfo(), just add a timestamp
+		// _satellite_info already populated by payloadRxAddNavSvinfo(), just add a timestamp
 		_satellite_info->timestamp = gps_absolute_time();
 
 		ret = 2;
@@ -2992,6 +3026,94 @@ GPSDriverUBX::payloadRxDone()
 			_gps_position->jamming_state = _buf.payload_rx_mon_rf.block[0].flags & 0x03;
 		}
 
+		{
+			const uint64_t timestamp_sample = gps_absolute_time(); // TODO: adjust with delay estimate
+
+			int rf_blocks = _buf.payload_rx_mon_rf.nBlocks;
+
+			if (rf_blocks > kMaxBlocks) {
+				rf_blocks = kMaxBlocks;
+			}
+
+			// Extract all RF metrics
+			for (int i = 0; i < rf_blocks; i++) {
+				sensor_gnss_rf_s gnss_rf{};
+				gnss_rf.timestamp_sample = timestamp_sample;
+				gnss_rf.block_id = _buf.payload_rx_mon_rf.block[i].blockId;
+				gnss_rf.antenna_status = _buf.payload_rx_mon_rf.block[i].antStatus;
+				gnss_rf.antenna_power = _buf.payload_rx_mon_rf.block[i].antPower;
+				gnss_rf.post_status = _buf.payload_rx_mon_rf.block[i].postStatus;
+				gnss_rf.noise_per_ms = _buf.payload_rx_mon_rf.block[i].noisePerMS;
+				gnss_rf.automatic_gain_control = _buf.payload_rx_mon_rf.block[i].agcCnt;
+				gnss_rf.jamming_indicator = _buf.payload_rx_mon_rf.block[i].jamInd;
+				gnss_rf.jamming_state = _buf.payload_rx_mon_rf.block[i].flags;
+				gnss_rf.i_offset = _buf.payload_rx_mon_rf.block[i].ofsI;
+				gnss_rf.i_magnitude = _buf.payload_rx_mon_rf.block[i].magI;
+				gnss_rf.q_offset = _buf.payload_rx_mon_rf.block[i].ofsQ;
+				gnss_rf.q_magnitude = _buf.payload_rx_mon_rf.block[i].magQ;
+
+				static constexpr uint32_t kNominalL1Freq = 1575420000; // 1575.42 MHz
+				static constexpr uint32_t kNominalL2Freq = 1227600000; // 1227.6 MHz
+				static constexpr uint32_t kNominalL3Freq = 1202025000; // 1202.025 MHz
+				static constexpr uint32_t kNominalL5Freq = 1176450000; // 1176.45 MHz
+
+				if (_board == Board::u_blox_X20) {
+					// Fill the center frequency with the nominal values
+					uint8_t rf_block_band = _buf.payload_rx_mon_rf.block[i].rfBlockGnssBand;
+
+					switch (rf_block_band) {
+					case 1: // L1
+						gnss_rf.center_frequency = kNominalL1Freq;
+						break;
+
+					case 2: // L2
+						gnss_rf.center_frequency = kNominalL2Freq;
+						break;
+
+					case 3: // L3
+						gnss_rf.center_frequency = kNominalL3Freq;
+						break;
+
+					case 4: // L5
+						gnss_rf.center_frequency = kNominalL5Freq;
+						break;
+
+					case 0:
+					default: // unknown or unsupported
+						gnss_rf.center_frequency = 0;
+						break;
+					}
+
+				} else if (_board == Board::u_blox9_F9P_L1L2) {
+					if (i == 0) { // L1
+						gnss_rf.center_frequency = kNominalL1Freq;
+
+					} else if (i == 1) { // L2
+						gnss_rf.center_frequency = kNominalL2Freq;
+
+					} else { // should never be the case
+						gnss_rf.center_frequency = 0;
+					}
+
+				} else if (_board == Board::u_blox9_F9P_L1L5 || _board == Board::u_blox10_L1L5) {
+					if (i == 0) { // L1
+						gnss_rf.center_frequency = kNominalL1Freq;
+
+					} else if (i == 1) { // L5
+						gnss_rf.center_frequency = kNominalL5Freq;
+
+					} else { // should never be the case
+						gnss_rf.center_frequency = 0;
+					}
+
+				} else { // unknown or unsupported for other modules
+					gnss_rf.center_frequency = 0;
+				}
+
+				gotRFMessage(gnss_rf);
+			}
+		}
+
 		ret = 1;
 		break;
 
@@ -3046,6 +3168,39 @@ GPSDriverUBX::payloadRxDone()
 
 		ret = 1;
 		break;
+
+#if defined(CONFIG_GPS_UBX_SPAN)
+
+	case UBX_MSG_MON_SPAN:
+		UBX_TRACE_RXMSG("Rx MON-SPAN");
+
+		if (_spectrum_analyzer) {
+			const uint64_t timestamp_sample = gps_absolute_time(); // TODO: adjust with delay estimate
+
+			int rf_blocks = _buf.payload_rx_mon_span.numRfBlocks;
+
+			if (rf_blocks > kMaxBlocks) {
+				rf_blocks = kMaxBlocks;
+			}
+
+			for (int i = 0; i < rf_blocks; i++) {
+				sensor_gnss_spectrum_s gnss_spectrum{};
+				gnss_spectrum.timestamp_sample = timestamp_sample;
+				gnss_spectrum.block_id = i; // no blockId sent by gnss
+				memcpy(gnss_spectrum.spectrum, _buf.payload_rx_mon_span.block[i].spectrum,
+				       sizeof(ubx_payload_rx_mon_span_t::ubx_payload_rx_mon_span_block_t::spectrum));
+				gnss_spectrum.spectrum_span = _buf.payload_rx_mon_span.block[i].span;
+				gnss_spectrum.resolution = _buf.payload_rx_mon_span.block[i].res;
+				gnss_spectrum.center_frequency = _buf.payload_rx_mon_span.block[i].center;
+				gnss_spectrum.programmable_gain_amplifier = _buf.payload_rx_mon_span.block[i].pga;
+
+				gotSpectrumMessage(gnss_spectrum);
+			}
+		}
+
+		ret = 1;
+		break;
+#endif
 
 	case UBX_MSG_RXM_RTCM:
 		UBX_TRACE_RXMSG("Rx RXM-RTCM");

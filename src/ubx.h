@@ -118,6 +118,7 @@
 #define UBX_ID_CFG_VALDEL     0x8C
 #define UBX_ID_MON_VER        0x04
 #define UBX_ID_MON_HW         0x09 // deprecated in protocol version >= 27 -> use MON_RF
+#define UBX_ID_MON_SPAN       0x31
 #define UBX_ID_MON_RF         0x38
 #define UBX_ID_SEC_SIG        0x09
 
@@ -178,6 +179,7 @@
 #define UBX_MSG_MON_VER       ((UBX_CLASS_MON) | UBX_ID_MON_VER << 8)
 #define UBX_MSG_MON_RF        ((UBX_CLASS_MON) | UBX_ID_MON_RF << 8)
 #define UBX_MSG_SEC_SIG       ((UBX_CLASS_SEC) | UBX_ID_SEC_SIG << 8)
+#define UBX_MSG_MON_SPAN      ((UBX_CLASS_MON) | UBX_ID_MON_SPAN << 8)
 #define UBX_MSG_RTCM3_1005    ((UBX_CLASS_RTCM3) | UBX_ID_RTCM3_1005 << 8)
 #define UBX_MSG_RTCM3_1077    ((UBX_CLASS_RTCM3) | UBX_ID_RTCM3_1077 << 8)
 #define UBX_MSG_RTCM3_1087    ((UBX_CLASS_RTCM3) | UBX_ID_RTCM3_1087 << 8)
@@ -405,6 +407,8 @@
 #define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1127_I2C  0x209102d6
 #define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1230_I2C  0x20910303
 #define UBX_CFG_KEY_MSGOUT_UBX_NAV_TIMEGPS_I2C	 0x20910047
+
+#define UBX_CFG_KEY_MSGOUT_UBX_MON_SPAN_UART1 0x2091038c
 
 #define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE4072_0_UART1  0x209102ff
 #define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE4072_1_UART1  0x20910382
@@ -714,30 +718,34 @@ typedef struct {
 	uint8_t reserved0[56];
 } ubx_payload_rx_mon_hw_deprecated_t;
 
+static constexpr uint8_t kMaxBlocks = 3;  ///< handle up to 3 blocks
+static constexpr uint16_t kHeaderSizeMonRFSpan = 4; ///< header size of MON-RF and MON-SPAN messages
+
 /* Rx MON-RF (replaces MON-HW, protocol 27+) */
 typedef struct {
 	uint8_t version;
 	uint8_t nBlocks;         /**< number of RF blocks included */
-	uint8_t reserved1[2];
+	uint8_t reserved0[2];
 
 	struct ubx_payload_rx_mon_rf_block_t {
-		uint8_t  blockId;       /**< RF block id */
-		uint8_t  flags;         /**< jammingState */
-		uint8_t  antStatus;     /**< Status of the antenna superior state machine */
-		uint8_t  antPower;      /**< Current power status of antenna */
-		uint32_t postStatus;    /**< POST status word */
-		uint8_t  reserved2[4];
-		uint16_t noisePerMS;    /**< Noise level as measured by the GPS core */
-		uint16_t agcCnt;        /**< AGC Monitor (counts SIGI xor SIGLO, range 0 to 8191 */
-		uint8_t  jamInd;        /**< CW jamming indicator, scaled (0=no CW jamming, 255=strong CW jamming) */
-		int8_t   ofsI;          /**< Imbalance of I-part of complex signal */
-		uint8_t  magI;          /**< Magnitude of I-part of complex signal (0=no signal, 255=max magnitude) */
-		int8_t   ofsQ;          /**< Imbalance of Q-part of complex signal */
-		uint8_t  magQ;          /**< Magnitude of Q-part of complex signal (0=no signal, 255=max magnitude) */
-		uint8_t  reserved3[3];
+		uint8_t  blockId;        /**< RF block id */
+		uint8_t  flags;          /**< jammingState */
+		uint8_t  antStatus;      /**< Status of the antenna superior state machine */
+		uint8_t  antPower;       /**< Current power status of antenna */
+		uint32_t postStatus;     /**< POST status word */
+		uint8_t  reserved1[4];
+		uint16_t noisePerMS;     /**< Noise level as measured by the GPS core */
+		uint16_t agcCnt;         /**< AGC Monitor (counts SIGI xor SIGLO, range 0 to 8191 */
+		uint8_t  jamInd;         /**< CW jamming indicator, scaled (0=no CW jamming, 255=strong CW jamming) */
+		int8_t   ofsI;           /**< Imbalance of I-part of complex signal */
+		uint8_t  magI;           /**< Magnitude of I-part of complex signal (0=no signal, 255=max magnitude) */
+		int8_t   ofsQ;           /**< Imbalance of Q-part of complex signal */
+		uint8_t  magQ;           /**< Magnitude of Q-part of complex signal (0=no signal, 255=max magnitude) */
+		uint8_t rfBlockGnssBand; /**< GNSS band associated with the reported RF block */
+		uint8_t  reserved2[2];
 	};
 
-	ubx_payload_rx_mon_rf_block_t block[1]; ///< only read out the first block
+	ubx_payload_rx_mon_rf_block_t block[kMaxBlocks];
 } ubx_payload_rx_mon_rf_t;
 
 /* Rx SEC-SIG v2/v3 header (v1 jamFlags is at offset 4). Repeating
@@ -749,6 +757,26 @@ typedef struct {
 	uint8_t jamNumCentFreqs;
 	uint8_t jamFlags;        /**< v1 only */
 } ubx_payload_rx_sec_sig_t;
+
+#if defined(CONFIG_GPS_UBX_SPAN)
+/* Rx MON-SPAN */
+typedef struct {
+	uint8_t version;
+	uint8_t numRfBlocks;         /**< Number of RF blocks included */
+	uint8_t reserved0[2];
+
+	struct ubx_payload_rx_mon_span_block_t {
+		uint8_t spectrum[256];  /**< dB Spectrum data (number of points = span/res) */
+		uint32_t span;          /**< Hz Spectrum span */
+		uint32_t res;           /**< Hz Resolution of the spectrum */
+		uint32_t center;        /**< Hz Center of spectrum span */
+		uint8_t pga;            /**< dB Programmable gain amplifier */
+		uint8_t reserved1[3];   /**< Reserved */
+	};
+
+	ubx_payload_rx_mon_span_block_t block[kMaxBlocks];
+} ubx_payload_rx_mon_span_t;
+#endif
 
 /* Rx MON-VER Part 1 */
 typedef struct {
@@ -1004,6 +1032,9 @@ typedef union {
 	ubx_payload_rx_mon_hw_deprecated_t ubx_payload_rx_mon_hw_deprecated;
 	ubx_payload_rx_mon_rf_t           payload_rx_mon_rf;
 	ubx_payload_rx_sec_sig_t          payload_rx_sec_sig;
+#if defined(CONFIG_GPS_UBX_SPAN)
+	ubx_payload_rx_mon_span_t         payload_rx_mon_span;
+#endif
 	ubx_payload_rx_mon_ver_part1_t    payload_rx_mon_ver_part1;
 	ubx_payload_rx_mon_ver_part2_t    payload_rx_mon_ver_part2;
 	ubx_payload_rx_rxm_rtcm_t         payload_rx_rxm_rtcm;
@@ -1084,6 +1115,9 @@ public:
 		int32_t uart1_baudrate;
 		int32_t uart2_baudrate;
 		bool ppk_output;
+#if defined(CONFIG_GPS_UBX_SPAN)
+		bool spectrum_analyzer;
+#endif
 		bool jam_det_sensitivity_hi;
 		UBXMode mode;
 	};
@@ -1383,7 +1417,8 @@ private:
 	const int32_t _uart1_baudrate {};
 	const int32_t _uart2_baudrate {};
 	const bool _ppk_output {};
+#if defined(CONFIG_GPS_UBX_SPAN)
+	const bool _spectrum_analyzer {};
+#endif
 	const bool _jam_det_sensitivity_hi {};
 };
-
-
