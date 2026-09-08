@@ -1,3 +1,8 @@
+// Keep test assertions active in Release builds.
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
+
 #include "unicore.h"
 #include <cassert>
 #include <cstdio>

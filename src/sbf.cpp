@@ -42,6 +42,7 @@
 */
 
 #include "sbf.h"
+#include "gps_time.h"
 #include "rtcm.h"
 
 #include <string.h>
@@ -114,7 +115,9 @@ int GPSDriverSBF::configure(unsigned &baudrate, const GPSConfig &config)
 
 		if (ret < 0) {
 			// something went wrong when reading
-			SBF_WARN("sbf read err");
+			if (ret != ReadCancelled) {
+				SBF_WARN("sbf read err");
+			}
 			return ret;
 		}
 
@@ -294,7 +297,9 @@ bool GPSDriverSBF::sendMessageAndWaitForAck(const char *msg, const int timeout)
 
 		if (ret < 0) {
 			// something went wrong when reading
-			SBF_WARN("sbf read err");
+			if (ret != ReadCancelled) {
+				SBF_WARN("sbf read err");
+			}
 			return false;
 		}
 
@@ -343,7 +348,9 @@ int GPSDriverSBF::receive(unsigned timeout)
 
 		if (ret < 0) {
 			// something went wrong when reading
-			SBF_WARN("sbf read err");
+			if (ret != ReadCancelled) {
+				SBF_WARN("sbf read err");
+			}
 			return -1;
 
 		} else {
@@ -602,7 +609,7 @@ int GPSDriverSBF::payloadRxDone()
 		timeinfo.tm_min = 0;
 		timeinfo.tm_sec = _buf.TOW / 1000;
 
-		epoch = mktime(&timeinfo);
+		epoch = gpsTimeToEpoch(timeinfo);
 
 		if (epoch > GPS_EPOCH_SECS) {
 			// FMUv2+ boards have a hardware RTC, but GPS helps us to configure it

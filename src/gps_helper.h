@@ -40,6 +40,7 @@
 #pragma once
 
 #include <cstdint>
+#include <cerrno>
 #include <cstring>
 
 #ifndef GPS_DEFINITIONS_HEADER
@@ -64,6 +65,7 @@ enum class GPSCallbackType {
 	 * data2: buffer length in bytes. Less bytes than this can be read.
 	 * return: num read bytes, 0 on timeout (the method can actually also return 0 before
 	 *         the timeout happens).
+	 *         GPSHelper::ReadCancelled on intentional shutdown, other negative values on error.
 	 */
 	readDeviceData = 0,
 
@@ -165,6 +167,8 @@ struct SurveyInStatus {
 class GPSHelper
 {
 public:
+	static constexpr int ReadCancelled = -ECANCELED;
+
 	enum class OutputMode : uint8_t {
 		GPS = 0,    ///< normal GPS output
 		GPSAndRTCM, ///< normal GPS+RTCM output
@@ -328,10 +332,10 @@ protected:
 	/**
 	 * Convert a broken-down UTC time to microseconds since the Unix epoch, and set the system clock
 	 * from it when requested. Both only happen if the date is after the GPS epoch.
-	 * @param utc broken-down UTC time (modified by mktime)
+	 * @param utc broken-down UTC time (normalized in place)
 	 * @param nsec sub-second part [ns], may be negative
 	 * @param set_clock also set the system clock
-	 * @return microseconds since the Unix epoch, 0 if the date is implausible or mktime is unavailable
+	 * @return microseconds since the Unix epoch, 0 if the date is implausible or NO_MKTIME is defined
 	 */
 	uint64_t timeFromUtc(tm &utc, int32_t nsec, bool set_clock = true);
 

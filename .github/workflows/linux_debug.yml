@@ -5,12 +5,17 @@ on:
     branches:
       - main
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     strategy:
+      fail-fast: false
       matrix:
         BuildType: [Debug, Release]
 
@@ -29,20 +34,15 @@ jobs:
 
       - uses: seanmiddleditch/gha-setup-ninja@v5
 
-      - run: mkdir ${{ runner.temp }}/build
-
       - name: Configure
-        working-directory: ${{ runner.temp }}/build
-        run: cmake -S ${{ github.workspace }} -B . -G Ninja -DCMAKE_BUILD_TYPE=${{ matrix.BuildType }}
+        run: >-
+          cmake -S "$GITHUB_WORKSPACE" -B "$RUNNER_TEMP/build" -G Ninja
+          -DCMAKE_BUILD_TYPE=${{ matrix.BuildType }} -DBUILD_TESTING=ON
 
       - name: Build
-        working-directory: ${{ runner.temp }}/build
-        run: cmake --build . --target all --config ${{ matrix.BuildType }}
-
-      - name: Install
-        working-directory: ${{ runner.temp }}/build
-        run: cmake --install . --config ${{ matrix.BuildType }}
+        run: cmake --build "$RUNNER_TEMP/build" --parallel --config ${{ matrix.BuildType }}
 
       - name: Run unit tests
-        working-directory: ${{ runner.temp }}/build
-        run: ctest
+        run: >-
+          ctest --test-dir "$RUNNER_TEMP/build" --build-config ${{ matrix.BuildType }}
+          --output-on-failure --no-tests=error

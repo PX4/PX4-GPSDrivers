@@ -19,8 +19,11 @@ To test parsers, build and run the cmake project:
 
 ```
 cmake -Bbuild -H.
-cmake --build build && build/gps-parser-test
+cmake --build build && build/tests/gps-parser-test
 ```
+
+Run `ctest --test-dir build --output-on-failure` to also check UTC conversion in
+multiple host timezones, including daylight-saving transitions and SBF GPS-week normalization.
 
 ## ABI/API Compatibility
 

@@ -1610,6 +1610,40 @@ int GPSDriverUBX::restartSurveyIn()
 	if (_base_settings.type == BaseSettingsType::survey_in) {
 		UBX_DEBUG("Starting Survey-in");
 
+		// Reapplying survey-in mode does not restart an existing survey.
+		initCfgValset();
+		cfgValset<uint8_t>(UBX_CFG_KEY_TMODE_MODE, 0 /* Disabled */);
+
+		if (sendCfgValsetAcked() < 0) {
+			return -1;
+		}
+
+		// Time-mode changes take effect on a navigation epoch, not on the ACK.
+		_survey_in_stopped = false;
+		const gps_abstime stop_deadline = gps_absolute_time() + 3000000;
+
+		while (!_survey_in_stopped && gps_absolute_time() < stop_deadline) {
+			if (!sendMessage(UBX_MSG_NAV_SVIN, nullptr, 0)) {
+				return -1;
+			}
+
+			const gps_abstime poll_deadline = gps_absolute_time() + 100000;
+
+			while (!_survey_in_stopped && gps_absolute_time() < poll_deadline) {
+				bool read_error;
+				receiveInternal(100, read_error);
+
+				if (read_error) {
+					return -1;
+				}
+			}
+		}
+
+		if (!_survey_in_stopped) {
+			UBX_WARN("Survey-in did not stop");
+			return -1;
+		}
+
 		initCfgValset();
 		cfgValset<uint8_t>(UBX_CFG_KEY_TMODE_MODE, 1 /* Survey-in */);
 		cfgValset<uint32_t>(UBX_CFG_KEY_TMODE_SVIN_MIN_DUR, _base_settings.settings.survey_in.min_dur);
@@ -1696,6 +1730,13 @@ GPSDriverUBX::waitForGnssReset()
 int	// -1 = error, 0 = no message handled, 1 = message handled, 2 = sat info message handled
 GPSDriverUBX::receive(unsigned timeout)
 {
+	bool read_error;
+	return receiveInternal(timeout, read_error);
+}
+
+int GPSDriverUBX::receiveInternal(unsigned timeout, bool &read_error)
+{
+	read_error = false;
 	uint8_t buf[GPS_READ_BUFFER_SIZE];
 
 	/* timeout additional to poll */
@@ -1718,7 +1759,10 @@ GPSDriverUBX::receive(unsigned timeout)
 
 		if (ret < 0) {
 			/* something went wrong when polling or reading */
-			UBX_WARN("ubx poll_or_read err");
+			read_error = true;
+			if (ret != ReadCancelled) {
+				UBX_WARN("ubx poll_or_read err");
+			}
 			return -1;
 
 		} else if (ret > 0) {
@@ -1910,6 +1954,14 @@ GPSDriverUBX::payloadRxInit()
 	_rx_state = UBX_RXMSG_HANDLE;	// handle by default
 
 	switch (_rx_msg) {
+	case UBX_MSG_MON_COMMS:
+		if (_rx_payload_length < 8 || _rx_payload_length > sizeof(ubx_payload_rx_mon_comms_t)
+		    || (_rx_payload_length - 8) % sizeof(ubx_payload_rx_mon_comms_port_t) != 0) {
+			_rx_state = UBX_RXMSG_ERROR_LENGTH;
+		}
+
+		break;
+
 	case UBX_MSG_NAV_PVT:
 		if ((_rx_payload_length != UBX_PAYLOAD_RX_NAV_PVT_SIZE_UBX7)		/* u-blox 7 msg format */
 		    && (_rx_payload_length != UBX_PAYLOAD_RX_NAV_PVT_SIZE_UBX8)) {	/* u-blox 8+ msg format */
@@ -2045,10 +2097,6 @@ GPSDriverUBX::payloadRxInit()
 	case UBX_MSG_NAV_SVIN:
 		if (_rx_payload_length != sizeof(ubx_payload_rx_nav_svin_t)) {
 			_rx_state = UBX_RXMSG_ERROR_LENGTH;
-
-		} else if (!_configured) {
-			_rx_state = UBX_RXMSG_IGNORE;        // ignore if not _configured
-
 		}
 
 		break;
@@ -2656,7 +2704,15 @@ GPSDriverUBX::payloadRxDone()
 			uint8_t *p_buf = (uint8_t *)&_buf;
 			p_buf[_rx_payload_length] = 0;
 			UBX_WARN("ubx msg: %s", p_buf);
+
+			if (strncmp(reinterpret_cast<const char *>(p_buf), "txbuf", 5) == 0) {
+				requestCommsDiagnostics();
+			}
 		}
+		break;
+
+	case UBX_MSG_MON_COMMS:
+		logCommsDiagnostics();
 		break;
 
 	case UBX_MSG_NAV_POSLLH:
@@ -2769,6 +2825,12 @@ GPSDriverUBX::payloadRxDone()
 		UBX_TRACE_RXMSG("Rx NAV-SVIN");
 		{
 			ubx_payload_rx_nav_svin_t &svin = _buf.payload_rx_nav_svin;
+			_survey_in_stopped = svin.active == 0 && svin.valid == 0;
+
+			if (!_configured) {
+				ret = 1;
+				break;
+			}
 
 			UBX_DEBUG("Survey-in status: %lus cur accuracy: %lumm nr obs: %lu valid: %i active: %i",
 				  svin.dur, svin.meanAcc / 10, svin.obs, static_cast<int>(svin.valid), static_cast<int>(svin.active));
@@ -3114,6 +3176,57 @@ GPSDriverUBX::payloadRxDone()
 	}
 
 	return ret;
+}
+
+void GPSDriverUBX::requestCommsDiagnostics()
+{
+	const gps_abstime now = gps_absolute_time();
+
+	if (now < _next_comms_poll) {
+		return;
+	}
+
+	// A congested receiver must not be flooded with diagnostic requests.
+	_next_comms_poll = now + 5000000;
+	_comms_poll_deadline = sendMessage(UBX_MSG_MON_COMMS, nullptr, 0) ? now + 2000000 : 0;
+}
+
+void GPSDriverUBX::logCommsDiagnostics()
+{
+	if (_comms_poll_deadline == 0 || gps_absolute_time() > _comms_poll_deadline) {
+		return;
+	}
+
+	const auto &status = _buf.payload_rx_mon_comms;
+
+	if (status.version != 0 || status.nPorts > UBX_MON_COMMS_MAX_PORTS
+	    || _rx_payload_length != 8 + status.nPorts * sizeof(ubx_payload_rx_mon_comms_port_t)) {
+		return;
+	}
+
+	_comms_poll_deadline = 0;
+	UBX_WARN("MON-COMMS after txbuf: txErrors=0x%02x ports=%u (snapshot after warning)",
+		 (unsigned)status.txErrors, (unsigned)status.nPorts);
+
+	for (unsigned i = 0; i < status.nPorts; ++i) {
+		const auto &port = status.ports[i];
+		[[maybe_unused]] const char *name = "unknown";
+
+		switch (port.portId) {
+		case 0x0000: name = "I2C"; break;
+		case 0x0100: name = "UART1"; break;
+		case 0x0201: name = "UART2"; break;
+		case 0x0300: name = "USB"; break;
+		case 0x0400: name = "SPI"; break;
+		default: break;
+		}
+
+		UBX_WARN("MON-COMMS %s port=0x%04x txPending=%u txUsage=%u%% txPeakUsage=%u%% "
+			 "rxPending=%u rxUsage=%u%% overrunErrs=%u skipped=%lu",
+			 name, (unsigned)port.portId, (unsigned)port.txPending, (unsigned)port.txUsage,
+			 (unsigned)port.txPeakUsage, (unsigned)port.rxPending, (unsigned)port.rxUsage,
+			 (unsigned)port.overrunErrs, (unsigned long)port.skipped);
+	}
 }
 
 int
