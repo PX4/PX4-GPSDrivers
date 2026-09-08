@@ -1,5 +1,7 @@
 #include "gps_time.h"
 #include <cstdio>
+#include <cstdint>
+#include <limits>
 
 static tm calendar(int year, int month, int day, int hour, int minute, int second, int isdst = 0)
 {
