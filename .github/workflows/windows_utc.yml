@@ -1,0 +1,45 @@
+name: Windows UTC Test
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2022
+
+    strategy:
+      fail-fast: false
+      matrix:
+        BuildType: [Debug, Release]
+
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Configure MSVC
+        run: >-
+          cmake -S "$env:GITHUB_WORKSPACE" -B "$env:RUNNER_TEMP/build"
+          -G "Visual Studio 17 2022" -A x64 -DBUILD_TESTING=ON
+
+      - name: Build UTC tests
+        run: >-
+          cmake --build "$env:RUNNER_TEMP/build" --parallel
+          --config ${{ matrix.BuildType }} --target gps-time-test
+
+      # _WIN32 selects _mkgmtime even when GPS_NO_TIMEGM is defined.
+      # Run the native target once per timezone; the fallback target duplicates it.
+      - name: Run UTC tests
+        run: >-
+          ctest --test-dir "$env:RUNNER_TEMP/build" --build-config ${{ matrix.BuildType }}
+          --tests-regex "^GPSUtcTime-" --verbose --output-on-failure --no-tests=error
