@@ -1348,6 +1348,7 @@ private:
 	ubx_rxmsg_state_t       _rx_state{UBX_RXMSG_IGNORE};
 
 	bool _configured{false};
+	bool _survey_in_stopped{false};
 	bool _got_posllh{false};
 	bool _got_velned{false};
 	bool _got_sec_sig{false}; ///< SEC-SIG jammingState supersedes deprecated MON-RF flags
@@ -1385,5 +1386,4 @@ private:
 	const bool _ppk_output {};
 	const bool _jam_det_sensitivity_hi {};
 };
-
 

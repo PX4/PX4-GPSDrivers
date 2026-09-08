@@ -22,6 +22,9 @@ cmake -Bbuild -H.
 cmake --build build && build/gps-parser-test
 ```
 
+Run `ctest --test-dir build --output-on-failure` to also check UTC conversion in
+multiple host timezones, including daylight-saving transitions and SBF GPS-week normalization.
+
 ## ABI/API Compatibility
 
 PRs modifying header files are automatically checked for breaking changes. See [tools/README.md](tools/README.md) for details.

@@ -328,10 +328,10 @@ protected:
 	/**
 	 * Convert a broken-down UTC time to microseconds since the Unix epoch, and set the system clock
 	 * from it when requested. Both only happen if the date is after the GPS epoch.
-	 * @param utc broken-down UTC time (modified by mktime)
+	 * @param utc broken-down UTC time (normalized in place)
 	 * @param nsec sub-second part [ns], may be negative
 	 * @param set_clock also set the system clock
-	 * @return microseconds since the Unix epoch, 0 if the date is implausible or mktime is unavailable
+	 * @return microseconds since the Unix epoch, 0 if the date is implausible or NO_MKTIME is defined
 	 */
 	uint64_t timeFromUtc(tm &utc, int32_t nsec, bool set_clock = true);
 

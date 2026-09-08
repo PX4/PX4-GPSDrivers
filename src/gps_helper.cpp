@@ -32,6 +32,7 @@
  ****************************************************************************/
 
 #include "gps_helper.h"
+#include "gps_time.h"
 #include <math.h>
 #include <stdlib.h>
 #include <time.h>
@@ -152,7 +153,7 @@ double GPSHelper::nmeaToDegrees(double ddmm)
 uint64_t GPSHelper::timeFromUtc(tm &utc, int32_t nsec, bool set_clock)
 {
 #ifndef NO_MKTIME
-	const time_t epoch = mktime(&utc);
+	const time_t epoch = gpsTimeToEpoch(utc);
 
 	if (epoch > GPS_EPOCH_SECS) {
 		if (set_clock) {

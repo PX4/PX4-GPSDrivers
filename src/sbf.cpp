@@ -42,6 +42,7 @@
 */
 
 #include "sbf.h"
+#include "gps_time.h"
 #include "rtcm.h"
 
 #include <string.h>
@@ -602,7 +603,7 @@ int GPSDriverSBF::payloadRxDone()
 		timeinfo.tm_min = 0;
 		timeinfo.tm_sec = _buf.TOW / 1000;
 
-		epoch = mktime(&timeinfo);
+		epoch = gpsTimeToEpoch(timeinfo);
 
 		if (epoch > GPS_EPOCH_SECS) {
 			// FMUv2+ boards have a hardware RTC, but GPS helps us to configure it
