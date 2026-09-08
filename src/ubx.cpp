@@ -2439,6 +2439,11 @@ GPSDriverUBX::payloadRxAddMonVer(const uint8_t b)
 	} else {
 		if (_rx_payload_index == sizeof(ubx_payload_rx_mon_ver_part1_t)) {
 			// Part 1 complete: decode Part 1 buffer and calculate hash for SW&HW version strings
+			// The protocol specifies these as nul-terminated strings, but the terminator comes
+			// from the device, so enforce it before anything walks the field.
+			_buf.payload_rx_mon_ver_part1.swVersion[sizeof(_buf.payload_rx_mon_ver_part1.swVersion) - 1] = 0;
+			_buf.payload_rx_mon_ver_part1.hwVersion[sizeof(_buf.payload_rx_mon_ver_part1.hwVersion) - 1] = 0;
+
 			_ubx_version = fnv1_32_str(_buf.payload_rx_mon_ver_part1.swVersion, FNV1_32_INIT);
 			_ubx_version = fnv1_32_str(_buf.payload_rx_mon_ver_part1.hwVersion, _ubx_version);
 			UBX_DEBUG("VER hash 0x%08x", (uint16_t)_ubx_version);
@@ -2483,6 +2488,10 @@ GPSDriverUBX::payloadRxAddMonVer(const uint8_t b)
 
 		if (buf_index == sizeof(ubx_payload_rx_mon_ver_part2_t) - 1) {
 			// Part 2 complete: decode Part 2 buffer
+			// Same as above: the protocol specifies a nul-terminated string, the device provides
+			// the terminator, so enforce it before strstr() walks the field.
+			_buf.payload_rx_mon_ver_part2.extension[sizeof(_buf.payload_rx_mon_ver_part2.extension) - 1] = 0;
+
 			UBX_DEBUG("VER ext \" %30s\"", _buf.payload_rx_mon_ver_part2.extension);
 
 			// "FWVER=" Firmware of product category and version
