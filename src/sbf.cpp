@@ -115,9 +115,7 @@ int GPSDriverSBF::configure(unsigned &baudrate, const GPSConfig &config)
 
 		if (ret < 0) {
 			// something went wrong when reading
-			if (ret != ReadCancelled) {
-				SBF_WARN("sbf read err");
-			}
+			SBF_WARN("sbf read err");
 			return ret;
 		}
 
@@ -297,9 +295,7 @@ bool GPSDriverSBF::sendMessageAndWaitForAck(const char *msg, const int timeout)
 
 		if (ret < 0) {
 			// something went wrong when reading
-			if (ret != ReadCancelled) {
-				SBF_WARN("sbf read err");
-			}
+			SBF_WARN("sbf read err");
 			return false;
 		}
 
@@ -348,9 +344,7 @@ int GPSDriverSBF::receive(unsigned timeout)
 
 		if (ret < 0) {
 			// something went wrong when reading
-			if (ret != ReadCancelled) {
-				SBF_WARN("sbf read err");
-			}
+			SBF_WARN("sbf read err");
 			return -1;
 
 		} else {
