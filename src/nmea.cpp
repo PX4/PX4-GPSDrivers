@@ -887,9 +887,7 @@ int GPSDriverNMEA::receive(unsigned timeout)
 
 		if (ret < 0) {
 			/* something went wrong when polling or reading */
-			if (ret != ReadCancelled) {
-				NMEA_WARN("poll_or_read err");
-			}
+			NMEA_WARN("poll_or_read err");
 			return -1;
 
 		} else if (ret != 0) {
