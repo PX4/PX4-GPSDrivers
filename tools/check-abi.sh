@@ -123,6 +123,41 @@ struct sensor_gnss_relative_s {
     bool heading_valid;
     bool relative_position_normalized;
 };
+
+struct sensor_gnss_rf_s
+{
+	uint64_t timestamp;
+	uint64_t timestamp_sample;
+	uint32_t device_id;
+	uint32_t post_status;
+	uint32_t center_frequency;
+	uint16_t noise_per_ms;
+	uint16_t automatic_gain_control;
+	uint8_t block_id;
+	uint8_t antenna_status;
+	uint8_t antenna_power;
+	uint8_t jamming_indicator;
+	uint8_t jamming_state;
+	int8_t i_offset;
+	uint8_t i_magnitude;
+	int8_t q_offset;
+	uint8_t q_magnitude;
+	uint8_t _padding0[7];
+};
+
+struct sensor_gnss_spectrum_s
+{
+	uint64_t timestamp;
+	uint64_t timestamp_sample;
+	uint32_t device_id;
+	uint32_t spectrum_span;
+	uint32_t resolution;
+	uint32_t center_frequency;
+	uint8_t block_id;
+	uint8_t spectrum[256];
+	uint8_t programmable_gain_amplifier;
+	uint8_t _padding0[6];
+};
 EOF
 }
 
