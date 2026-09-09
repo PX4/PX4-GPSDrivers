@@ -48,3 +48,19 @@ target_compile_definitions(gps-ubx-test PRIVATE
 target_compile_options(gps-ubx-test PRIVATE -Wall -Wextra)
 add_test(NAME GPSUbxSurveyIn COMMAND gps-ubx-test)
 set_tests_properties(GPSUbxSurveyIn PROPERTIES TIMEOUT 10)
+
+add_executable(gps-receiver-mode-test
+    gps-receiver-mode-test.cpp
+    ${gps_driver_source_dir}/sbf.cpp
+    ${gps_driver_source_dir}/femtomes.cpp
+    ${gps_driver_source_dir}/gps_helper.cpp
+    ${gps_driver_source_dir}/rtcm.cpp
+    ${gps_driver_source_dir}/crc.cpp
+)
+target_include_directories(gps-receiver-mode-test PRIVATE ${gps_driver_source_dir}/)
+target_compile_definitions(gps-receiver-mode-test PRIVATE
+    GPS_DEFINITIONS_HEADER="${CMAKE_CURRENT_SOURCE_DIR}/definitions.h"
+)
+target_compile_options(gps-receiver-mode-test PRIVATE -Wall -Wextra)
+add_test(NAME GPSReceiverModes COMMAND gps-receiver-mode-test)
+set_tests_properties(GPSReceiverModes PROPERTIES TIMEOUT 10)

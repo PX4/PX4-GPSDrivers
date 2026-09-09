@@ -1327,6 +1327,7 @@ private:
 	 * @return 0 on success, <0 on error
 	 */
 	int restartSurveyIn();
+	int disableTimeMode();
 
 	/**
 	 * restartSurveyIn for protocol version < 27 (_proto_ver_27_or_higher == false)
@@ -1388,6 +1389,7 @@ private:
 
 	bool _configured{false};
 	bool _survey_in_stopped{false};
+	bool _is_m8p{false};
 	bool _got_posllh{false};
 	bool _got_velned{false};
 	bool _got_sec_sig{false}; ///< SEC-SIG jammingState supersedes deprecated MON-RF flags

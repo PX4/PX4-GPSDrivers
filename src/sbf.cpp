@@ -179,6 +179,11 @@ int GPSDriverSBF::configure(unsigned &baudrate, const GPSConfig &config)
 	// Set the type of dynamics the GNSS antenna is subjected to.
 	if (_output_mode != OutputMode::RTCM) {
 
+		// Release a previously configured static base position before starting navigation.
+		if (!sendMessageAndWaitForAck("setPVTMode, Rover, All, auto\n", SBF_CONFIG_TIMEOUT)) {
+			return -1;
+		}
+
 		// Specify the offsets that the receiver applies to the computed attitude angles.
 		snprintf(msg, sizeof(msg), SBF_CONFIG_ATTITUDE_OFFSET, (double)(_heading_offset * 180 / M_PI_F), (double)_pitch_offset);
 
@@ -229,7 +234,9 @@ int GPSDriverSBF::configure(unsigned &baudrate, const GPSConfig &config)
 		_rtcm_parsing->reset();
 	}
 
-	sendMessageAndWaitForAck(SBF_CONFIG_OUTPUT_RTCM3, SBF_CONFIG_TIMEOUT);
+	if (_output_mode != OutputMode::GPS) {
+		sendMessageAndWaitForAck(SBF_CONFIG_OUTPUT_RTCM3, SBF_CONFIG_TIMEOUT);
+	}
 
 	if (_output_mode == OutputMode::RTCM) {
 		switch (_base_settings.type) {

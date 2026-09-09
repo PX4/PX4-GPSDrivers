@@ -501,19 +501,40 @@ void GPSDriverFemto::decodeInit()
 
 int GPSDriverFemto::writeAckedCommandFemto(const char *command, const char *reply, const unsigned int timeout)
 {
-	/**< write command*/
-	write(command, strlen(command));
-	/**< wait for reply*/
+	const size_t command_length = strlen(command);
+	const size_t reply_length = strlen(reply);
 	uint8_t buf[GPS_READ_BUFFER_SIZE];
+
+	// read() needs room to pass an int timeout through the callback buffer.
+	if (reply_length == 0 || reply_length > sizeof(buf) - sizeof(int) + 1
+	    || write(command, command_length) != static_cast<int>(command_length)) {
+		return -1;
+	}
+
+	size_t buffered = 0;
 	gps_abstime time_started = gps_absolute_time();
 
 	while (time_started + timeout * 2000 > gps_absolute_time()) {
-		int ret = read(buf, sizeof(buf), timeout);
-		buf[sizeof(buf) - 1] = 0;
+		int ret = read(buf + buffered, sizeof(buf) - buffered, timeout);
 
-		if (ret > 0 && strstr((char *)buf, reply) != nullptr) {
-			FEMTO_DEBUG("Femto: command reply success: %s", command);
-			return 0;
+		if (ret < 0) {
+			return -1;
+		}
+
+		buffered += static_cast<size_t>(ret);
+
+		for (size_t i = 0; i + reply_length <= buffered; ++i) {
+			if (memcmp(buf + i, reply, reply_length) == 0) {
+				FEMTO_DEBUG("Femto: command reply success: %s", command);
+				return 0;
+			}
+		}
+
+		// Retain enough bytes to recognize an ACK split across reads, even after a full buffer of noise.
+		if (buffered >= reply_length) {
+			const size_t retained = reply_length - 1;
+			memmove(buf, buf + buffered - retained, retained);
+			buffered = retained;
 		}
 	}
 
@@ -610,6 +631,12 @@ int GPSDriverFemto::configure(unsigned &baudrate, const GPSConfig &config)
 	}
 
 	if (_output_mode == OutputMode::GPS) {
+		// Stop base averaging and release its fixed position before enabling navigation output.
+		if (writeAckedCommandFemto("POSAVE OFF\r\n", "<POSAVE OK", FEMTO_RESPONSE_TIMEOUT) != 0
+		    || writeAckedCommandFemto("FIX NONE\r\n", "<FIX OK", FEMTO_RESPONSE_TIMEOUT) != 0) {
+			return -1;
+		}
+
 		if (writeAckedCommandFemto("LOG UAVGPSB 0.1\r\n", "<LOG OK", FEMTO_RESPONSE_TIMEOUT) == 0) {
 			FEMTO_DEBUG("Femto: command LOG UAVGPSB 0.1 success");
 

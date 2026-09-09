@@ -52,6 +52,8 @@ class Receiver
 public:
 	std::vector<SurveyReply> replies{SurveyReply::stopped};
 	bool reject_disable = false;
+	bool legacy = false;
+	std::string module = "ZED-F9P";
 	bool reject_start = false;
 	bool fail_poll_write = false;
 	int poll_read_error = 0;
@@ -63,8 +65,11 @@ public:
 	unsigned starts = 0;
 	unsigned status_callbacks = 0;
 	unsigned rtcm_enables = 0;
+	unsigned polls_when_rtcm_enabled = 0;
 	std::vector<uint32_t> modes;
 	std::map<uint32_t, uint32_t> start_settings;
+	std::map<uint32_t, uint32_t> current_settings;
+	std::map<uint16_t, uint8_t> message_rates;
 	gps_abstime disabled_at = 0;
 	gps_abstime started_at = 0;
 
@@ -134,8 +139,10 @@ private:
 			CHECK(payload.empty());
 			Bytes version(70, 0);
 			memcpy(version.data(), "HPG 1.32", 8);
-			memcpy(version.data() + 30, "00190000", 8);
-			memcpy(version.data() + 40, "MOD=ZED-F9P", 11);
+			memcpy(version.data() + 30, legacy ? "00080000" : module == "ZED-X20P" ? "000B0000" : "00190000", 8);
+			const std::string identity = "MOD=" + module;
+			CHECK(identity.size() < 30);
+			memcpy(version.data() + 40, identity.c_str(), identity.size());
 			queue(packet(message, version));
 			return;
 		}
@@ -145,6 +152,31 @@ private:
 			CHECK(!modes.empty() && modes.back() == 0);
 			++polls;
 			survey(replies.at(std::min<size_t>(polls - 1, replies.size() - 1)));
+			return;
+		}
+
+		if (legacy) {
+			if (message == UBX_MSG_CFG_MSG) {
+				message_rates[uint16_t(littleEndian(payload, 0, 2))] = payload.at(2);
+			}
+
+			bool reject = message == UBX_MSG_CFG_VALSET;
+
+			if (message == UBX_MSG_CFG_MSG && littleEndian(payload, 0, 2) == UBX_MSG_RTCM3_1005
+			    && payload.at(2) > 0) {
+				++rtcm_enables;
+				polls_when_rtcm_enabled = polls;
+			}
+
+			if (message == UBX_MSG_CFG_TMODE3) {
+				const uint32_t mode = littleEndian(payload, 2, 2);
+				modes.push_back(mode);
+				disabled_at = gps_test_time;
+				reject = reject_disable && mode == 0;
+			}
+
+			queue(packet(reject ? UBX_MSG_ACK_NAK : UBX_MSG_ACK_ACK,
+				     {uint8_t(message), uint8_t(message >> 8)}));
 			return;
 		}
 
@@ -181,6 +213,21 @@ private:
 
 		if (settings[UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1005_I2C + 1] == 1) {
 			++rtcm_enables;
+			polls_when_rtcm_enabled = polls;
+		}
+
+		// M9 SPG has RTCM input, but no RTCM output protocol keys. Unknown keys
+		// reject the entire VALSET, even when the requested value is zero.
+		if (module == "NEO-M9N"
+		    && (settings.count(UBX_CFG_KEY_CFG_UART1OUTPROT_RTCM3X)
+			|| settings.count(UBX_CFG_KEY_CFG_USBOUTPROT_RTCM3X))) {
+			reject = true;
+		}
+
+		if (!reject) {
+			for (const auto &setting : settings) {
+				current_settings[setting.first] = setting.second;
+			}
 		}
 
 		queue(packet(reject ? UBX_MSG_ACK_NAK : UBX_MSG_ACK_ACK,
@@ -253,21 +300,22 @@ private:
 struct Fixture {
 	Receiver receiver;
 	sensor_gps_s position{};
-	GPSDriverUBX driver{GPSHelper::Interface::UART, Receiver::callback, &receiver,
-			    &position, nullptr, GPSDriverUBX::Settings{}};
+	GPSDriverUBX driver;
 
-	Fixture()
+	explicit Fixture(GPSDriverUBX::UBXMode mode = GPSDriverUBX::UBXMode::Normal)
+		: driver(GPSHelper::Interface::UART, Receiver::callback, &receiver, &position, nullptr,
+			 [mode] { GPSDriverUBX::Settings settings{}; settings.mode = mode; return settings; }())
 	{
 		gps_test_time = 0;
 		gps_test_warnings.clear();
 		driver.setSurveyInSpecs(12500, 60);
 	}
 
-	int configure()
+	int configure(GPSHelper::OutputMode output = GPSHelper::OutputMode::RTCM)
 	{
 		unsigned baudrate = 115200;
 		GPSHelper::GPSConfig config{};
-		config.output_mode = GPSHelper::OutputMode::RTCM;
+		config.output_mode = output;
 		return driver.configure(baudrate, config);
 	}
 
@@ -320,6 +368,113 @@ struct Fixture {
 		}
 	}
 };
+
+
+static void positionMode(bool legacy, bool base_capable,
+			 GPSDriverUBX::UBXMode mode = GPSDriverUBX::UBXMode::Normal,
+			 GPSHelper::OutputMode output = GPSHelper::OutputMode::GPS)
+{
+	Fixture f(mode);
+	f.receiver.legacy = legacy;
+	f.receiver.module = legacy ? (base_capable ? "NEO-M8P" : "NEO-M8N") : (base_capable ? "ZED-F9P" : "NEO-M9N");
+	if (mode == GPSDriverUBX::UBXMode::GalileoHAS) {
+		f.receiver.module = "ZED-X20P";
+	}
+	f.receiver.replies = {SurveyReply::active, SurveyReply::valid, SurveyReply::stopped};
+	if (base_capable) {
+		// Model settings left behind by a previous base session.
+		f.receiver.current_settings[UBX_CFG_KEY_CFG_USBOUTPROT_RTCM3X] = 1;
+		f.receiver.current_settings[UBX_CFG_KEY_CFG_UART1OUTPROT_RTCM3X] = 1;
+		f.receiver.current_settings[UBX_CFG_KEY_MSGOUT_UBX_NAV_SVIN_I2C + 1] = 5;
+		f.receiver.current_settings[UBX_CFG_KEY_MSGOUT_UBX_NAV_SVIN_I2C + 3] = 5;
+		f.receiver.message_rates[UBX_MSG_NAV_SVIN] = 5;
+	}
+	// A configured fixed base must not be re-applied when selecting GPS output.
+	f.driver.setBasePosition(47.0, 8.0, 500.0f, 1000.0f);
+	CHECK(f.configure(output) == 0);
+	CHECK(f.driver.receiverReady());
+	CHECK(f.receiver.modes == (base_capable ? std::vector<uint32_t>{0} : std::vector<uint32_t>{}));
+	CHECK(f.receiver.polls == (base_capable ? 3u : 0u));
+	CHECK(f.receiver.starts == 0);
+	CHECK(f.receiver.rtcm_enables == (output == GPSHelper::OutputMode::GPSAndRTCM ? 1u : 0u));
+	if (output == GPSHelper::OutputMode::GPSAndRTCM) {
+		// active, valid, then stopped must all be observed before correction output is enabled.
+		CHECK(f.receiver.polls_when_rtcm_enabled == (base_capable ? 3u : 0u));
+	}
+	CHECK(f.receiver.status_callbacks == 0);
+	CHECK(gps_test_warnings.empty());
+	if (base_capable) {
+		if (legacy) {
+			CHECK(f.receiver.message_rates.at(UBX_MSG_NAV_SVIN) == 0);
+		} else {
+			CHECK(f.receiver.current_settings.at(UBX_CFG_KEY_MSGOUT_UBX_NAV_SVIN_I2C + 1) == 0);
+			CHECK(f.receiver.current_settings.at(UBX_CFG_KEY_MSGOUT_UBX_NAV_SVIN_I2C + 3) == 0);
+		}
+	}
+	if (!legacy && base_capable) {
+		CHECK(f.receiver.current_settings.at(UBX_CFG_KEY_CFG_USBOUTPROT_RTCM3X)
+		      == (output != GPSHelper::OutputMode::GPS));
+		if (mode == GPSDriverUBX::UBXMode::Normal) {
+			CHECK(f.receiver.current_settings.at(UBX_CFG_KEY_CFG_UART1OUTPROT_RTCM3X)
+			      == (output != GPSHelper::OutputMode::GPS));
+		} else if (mode == GPSDriverUBX::UBXMode::MovingBaseUART1) {
+			CHECK(f.receiver.current_settings.at(UBX_CFG_KEY_CFG_UART1OUTPROT_RTCM3X) == 1);
+		}
+	} else if (!legacy) {
+		CHECK(f.receiver.current_settings.count(UBX_CFG_KEY_CFG_USBOUTPROT_RTCM3X) == 0);
+		CHECK(f.receiver.current_settings.count(UBX_CFG_KEY_CFG_UART1OUTPROT_RTCM3X) == 0);
+	}
+
+	Bytes pvt(sizeof(ubx_payload_rx_nav_pvt_t), 0);
+	pvt[20] = 3;
+	pvt[21] = 1;
+	pvt[23] = 12;
+	const auto store = [&](size_t offset, uint32_t value) {
+		for (size_t i = 0; i < 4; ++i) {
+			pvt[offset + i] = uint8_t(value >> (8 * i));
+		}
+	};
+	store(24, 100000000);
+	store(28, 200000000);
+	store(40, 800);
+	f.receiver.queue(packet(UBX_MSG_NAV_PVT, pvt));
+	CHECK(f.driver.receive(500) & 1);
+	CHECK(f.position.fix_type == 3);
+	CHECK(f.position.latitude_deg == 20.0);
+	CHECK(f.position.longitude_deg == 10.0);
+	CHECK(f.position.satellites_used == 12);
+}
+
+static void positionModeFailure(GPSDriverUBX::UBXMode mode = GPSDriverUBX::UBXMode::Normal,
+			       GPSHelper::OutputMode output = GPSHelper::OutputMode::GPS)
+{
+	for (bool legacy : {false, true}) {
+		for (int failure = 0; failure < 5; ++failure) {
+			Fixture f(mode);
+			f.receiver.legacy = legacy;
+			f.receiver.module = legacy ? "NEO-M8P" : "ZED-F9P";
+			f.receiver.reject_disable = failure == 0;
+			f.receiver.fail_poll_write = failure == 1;
+			if (failure == 2) {
+				f.receiver.replies = {SurveyReply::active};
+			}
+			if (failure >= 3) {
+				f.receiver.poll_read_error = failure == 3 ? -EIO : GPSHelper::ReadCancelled;
+			}
+			CHECK(f.configure(output) < 0);
+			CHECK(!f.driver.receiverReady());
+			CHECK(f.receiver.modes == std::vector<uint32_t>{0});
+			CHECK(f.receiver.starts == 0 && f.receiver.rtcm_enables == 0);
+			CHECK(f.receiver.status_callbacks == 0);
+			if (failure == 2) {
+				CHECK(gps_test_warnings == std::vector<std::string>{"Time mode did not stop"});
+			}
+			if (failure == 4) {
+				CHECK(gps_test_warnings.empty());
+			}
+		}
+	}
+}
 
 static Bytes commsPayload()
 {
@@ -437,6 +592,31 @@ int main()
 		const char *name;
 		void (*run)();
 	} cases[] = {
+		{"position-f9p", [] { positionMode(false, true); }},
+		{"position-m9n", [] { positionMode(false, false); }},
+		{"position-m8p", [] { positionMode(true, true); }},
+		{"position-m8n", [] { positionMode(true, false); }},
+		{"position-rtcm-f9p", [] {
+			positionMode(false, true, GPSDriverUBX::UBXMode::Normal, GPSHelper::OutputMode::GPSAndRTCM);
+		}},
+		{"position-rtcm-m8p", [] {
+			positionMode(true, true, GPSDriverUBX::UBXMode::Normal, GPSHelper::OutputMode::GPSAndRTCM);
+		}},
+		{"position-navigation-modes", [] {
+			using Mode = GPSDriverUBX::UBXMode;
+			for (Mode mode : {Mode::RoverWithStaticBaseUART2, Mode::RoverWithMovingBaseUART1,
+					  Mode::RoverWithMovingBaseUART2, Mode::MovingBaseUART1, Mode::MovingBaseUART2,
+					  Mode::GroundControlStation, Mode::UCenterUART2, Mode::GalileoHAS}) {
+				positionMode(false, true, mode);
+				positionMode(false, true, mode, GPSHelper::OutputMode::GPSAndRTCM);
+			}
+		}},
+		{"position-stop-failures", [] { positionModeFailure(); }},
+		{"position-rover-stop-failures", [] { positionModeFailure(GPSDriverUBX::UBXMode::RoverWithStaticBaseUART2); }},
+		{"position-rtcm-stop-failures", [] {
+			positionModeFailure(GPSDriverUBX::UBXMode::Normal, GPSHelper::OutputMode::GPSAndRTCM);
+			positionModeFailure(GPSDriverUBX::UBXMode::RoverWithStaticBaseUART2, GPSHelper::OutputMode::GPSAndRTCM);
+		}},
 		{"comms-diagnostic-values", commsDiagnostics},
 		{"comms-malformed-replies", invalidCommsDiagnostics},
 		{"comms-expired-reply", expiredCommsDiagnostics},

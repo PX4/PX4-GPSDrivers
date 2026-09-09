@@ -403,6 +403,15 @@ GPSDriverUBX::configure(unsigned &baudrate, const GPSConfig &config)
 		return ret;
 	}
 
+	// All GPS navigation modes, including heading rovers and moving bases, need time mode disabled.
+	if (_output_mode != OutputMode::RTCM
+	    && (_is_m8p || _board == Board::u_blox9_F9P_L1L2 || _board == Board::u_blox9_F9P_L1L5
+	        || _board == Board::u_blox_X20)) {
+		if (disableTimeMode() < 0) {
+			return -1;
+		}
+	}
+
 	if (_output_mode == OutputMode::RTCM) {
 		if (restartSurveyIn() < 0) {
 			return -1;
@@ -600,21 +609,21 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 
 		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1INPROT_RTCM3X, enable_corrections_in);
 
-		if (_output_mode != OutputMode::GPS) {
-			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1OUTPROT_RTCM3X, 1);
-		}
-
 		// USB
 		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_USBINPROT_UBX, 1);
 		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_USBINPROT_RTCM3X, enable_corrections_in);
 		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_USBINPROT_NMEA, 0);
 		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_USBOUTPROT_UBX, 1);
 
-		if (_output_mode != OutputMode::GPS) {
-			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_USBOUTPROT_RTCM3X, 1);
-		}
-
 		cfgValset<uint8_t>(UBX_CFG_KEY_CFG_USBOUTPROT_NMEA, 0);
+
+		// Only RTCM-output-capable receivers expose these keys. M9 SPG rejects
+		// the entire VALSET if they are included, even with a value of zero.
+		if (_board == Board::u_blox9_F9P_L1L2 || _board == Board::u_blox9_F9P_L1L5
+		    || _board == Board::u_blox_X20) {
+			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_UART1OUTPROT_RTCM3X, _output_mode != OutputMode::GPS);
+			cfgValset<uint8_t>(UBX_CFG_KEY_CFG_USBOUTPROT_RTCM3X, _output_mode != OutputMode::GPS);
+		}
 
 		if (sendCfgValsetAcked() < 0) {
 			return -1;
@@ -1507,6 +1516,59 @@ bool GPSDriverUBX::cfgValsetUart2Keys(const uint32_t *keys, size_t count, uint8_
 	}
 
 	return true;
+}
+
+int GPSDriverUBX::disableTimeMode()
+{
+	// GPS output alone does not release a receiver previously configured as a fixed base.
+	if (_proto_ver_27_or_higher) {
+		initCfgValset();
+		cfgValset<uint8_t>(UBX_CFG_KEY_TMODE_MODE, 0);
+		cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_SVIN_I2C, 0);
+
+		if (sendCfgValsetAcked() < 0) {
+			return -1;
+		}
+
+	} else {
+		if (!configureMessageRateAndAck(UBX_MSG_NAV_SVIN, 0, true)) {
+			return -1;
+		}
+
+		memset(&_buf.payload_tx_cfg_tmode3, 0, sizeof(_buf.payload_tx_cfg_tmode3));
+
+		if (!sendMessage(UBX_MSG_CFG_TMODE3, (uint8_t *)&_buf, sizeof(_buf.payload_tx_cfg_tmode3))
+		    || waitForAck(UBX_MSG_CFG_TMODE3, UBX_CONFIG_TIMEOUT, true) < 0) {
+			return -1;
+		}
+	}
+
+	_survey_in_stopped = false;
+	const gps_abstime stop_deadline = gps_absolute_time() + 3000000;
+
+	while (!_survey_in_stopped && gps_absolute_time() < stop_deadline) {
+		if (!sendMessage(UBX_MSG_NAV_SVIN, nullptr, 0)) {
+			return -1;
+		}
+
+		const gps_abstime poll_deadline = gps_absolute_time() + 100000;
+
+		while (!_survey_in_stopped && gps_absolute_time() < poll_deadline) {
+			bool read_error;
+			receiveInternal(100, read_error);
+
+			if (read_error) {
+				return -1;
+			}
+		}
+	}
+
+	if (!_survey_in_stopped) {
+		UBX_WARN("Time mode did not stop");
+		return -1;
+	}
+
+	return 0;
 }
 
 int GPSDriverUBX::restartSurveyInPreV27()
@@ -2566,6 +2628,7 @@ GPSDriverUBX::payloadRxAddMonVer(const uint8_t b)
 			const char *mod_str = strstr((const char *)_buf.payload_rx_mon_ver_part2.extension, "MOD=");
 
 			if (mod_str != nullptr) {
+				_is_m8p = strstr(mod_str, "M8P") != nullptr;
 				// in case of u-blox9 family, check if it's an F9P
 				if (_board == Board::u_blox9) {
 					if (strstr(mod_str, "F9P")) {
