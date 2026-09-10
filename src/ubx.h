@@ -1178,6 +1178,13 @@ private:
 	float relPosHeadingToYaw(int32_t heading) const;
 
 	/**
+	 * UTC time of a navigation epoch, from the last message that carried both iTOW and a valid UTC time.
+	 * @param itow GPS time of week [ms]
+	 * @return UTC time [us], 0 while the receiver's time is not valid
+	 */
+	uint64_t utcFromItow(uint32_t itow) const;
+
+	/**
 	 * While parsing add every byte (except the sync bytes) to the checksum
 	 */
 	void addByteToChecksum(const uint8_t);
@@ -1406,6 +1413,9 @@ private:
 	uint32_t _ubx_version{0};
 
 	uint64_t _last_timestamp_time{0};
+
+	uint64_t _last_utc_usec{0};
+	uint32_t _last_utc_itow{0};
 
 	Board _board{Board::unknown};
 
