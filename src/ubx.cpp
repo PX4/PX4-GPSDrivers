@@ -2685,12 +2685,15 @@ GPSDriverUBX::payloadRxDone()
 			timeinfo.tm_min		= _buf.payload_rx_nav_pvt.min;
 			timeinfo.tm_sec		= _buf.payload_rx_nav_pvt.sec;
 			_gps_position->time_utc_usec = timeFromUtc(timeinfo, _buf.payload_rx_nav_pvt.nano);
+			_last_utc_usec = _gps_position->time_utc_usec;
+			_last_utc_itow = _buf.payload_rx_nav_pvt.iTOW;
 
 		} else {
 			// The struct is reused across messages, so without this a receiver
 			// that lost time in a reset keeps reporting the last time it knew.
 			// 0 is the defined "unavailable" value.
 			_gps_position->time_utc_usec = 0;
+			_last_utc_usec = 0;
 		}
 
 		_gps_position->timestamp = gps_absolute_time();
@@ -2801,12 +2804,15 @@ GPSDriverUBX::payloadRxDone()
 			timeinfo.tm_min		= _buf.payload_rx_nav_timeutc.min;
 			timeinfo.tm_sec		= _buf.payload_rx_nav_timeutc.sec;
 			_gps_position->time_utc_usec = timeFromUtc(timeinfo, _buf.payload_rx_nav_timeutc.nano);
+			_last_utc_usec = _gps_position->time_utc_usec;
+			_last_utc_itow = _buf.payload_rx_nav_timeutc.iTOW;
 
 		} else {
 			// The struct is reused across messages, so without this a receiver
 			// that lost time in a reset keeps reporting the last time it knew.
 			// 0 is the defined "unavailable" value.
 			_gps_position->time_utc_usec = 0;
+			_last_utc_usec = 0;
 		}
 
 		_last_timestamp_time = gps_absolute_time();
@@ -2901,9 +2907,8 @@ GPSDriverUBX::payloadRxDone()
 
 			sensor_gnss_relative_s gps_rel{};
 
-			gps_rel.timestamp_sample = gps_absolute_time(); // TODO: adjust with delay estimate
-
-			gps_rel.time_utc_usec = _buf.payload_rx_nav_relposned.iTOW * 1000; // TODO: convert iTOW ms GPS time of week
+			// timestamp_sample is left unset: the receiver latency is not known here and is applied by the consumer
+			gps_rel.time_utc_usec = utcFromItow(_buf.payload_rx_nav_relposned.iTOW);
 			gps_rel.reference_station_id = _buf.payload_rx_nav_relposned.refStationId;
 
 			gps_rel.position[0] = (_buf.payload_rx_nav_relposned.relPosN + _buf.payload_rx_nav_relposned.relPosHPN * 1e-2f) * 1e-2f;
@@ -2964,10 +2969,8 @@ GPSDriverUBX::payloadRxDone()
 
 			sensor_gnss_relative_s gps_rel{};
 
-			gps_rel.timestamp_sample = gps_absolute_time();
-
-			// time_utc_usec is left at 0 (documented as unavailable): NAV-DAHEADING only carries
-			// iTOW, which cannot be converted to UTC without the week number and leap seconds.
+			// timestamp_sample is left unset: the receiver latency is not known here and is applied by the consumer
+			gps_rel.time_utc_usec = utcFromItow(_buf.payload_rx_nav_daheading.iTOW);
 
 			gps_rel.position[0] = _buf.payload_rx_nav_daheading.relPosN * 1e-3f; // mm -> m
 			gps_rel.position[1] = _buf.payload_rx_nav_daheading.relPosE * 1e-3f;
@@ -3373,6 +3376,28 @@ GPSDriverUBX::decodeInit()
 	_rx_ck_b = 0;
 	_rx_payload_length = 0;
 	_rx_payload_index = 0;
+}
+
+uint64_t
+GPSDriverUBX::utcFromItow(uint32_t itow) const
+{
+	if (_last_utc_usec == 0) {
+		return 0;
+	}
+
+	// GPS and UTC differ by a whole number of seconds, so the sub-week offset between epochs is the same in both
+	int64_t delta_ms = static_cast<int64_t>(itow) - static_cast<int64_t>(_last_utc_itow);
+
+	constexpr int64_t week_ms = 7 * 24 * 3600 * 1000LL;
+
+	if (delta_ms > week_ms / 2) {
+		delta_ms -= week_ms;
+
+	} else if (delta_ms < -week_ms / 2) {
+		delta_ms += week_ms;
+	}
+
+	return static_cast<uint64_t>(static_cast<int64_t>(_last_utc_usec) + delta_ms * 1000);
 }
 
 float
