@@ -74,12 +74,10 @@
 
 GPSDriverFemto::GPSDriverFemto(GPSCallbackPtr callback, void *callback_user,
 			       struct sensor_gps_s *gps_position,
-			       satellite_info_s *satellite_info,
-			       float heading_offset) :
+			       satellite_info_s *satellite_info) :
 	GPSBaseStationSupport(callback, callback_user),
 	_gps_position(gps_position),
-	_satellite_info(satellite_info),
-	_heading_offset(heading_offset)
+	_satellite_info(satellite_info)
 {
 	decodeInit();
 }
@@ -123,7 +121,6 @@ int GPSDriverFemto::handleMessage(int len)
 		if (_femto_uav_gps.heading_type == 6) {
 			float heading = _femto_uav_gps.heading;
 			heading *= M_PI_F / 180.0f; // deg to rad, now in range [0, 2pi]
-			heading -= _heading_offset; // range: [-pi, 3pi]
 
 			if (heading > M_PI_F) {
 				heading -= 2.f * M_PI_F; // final range is [-pi, pi]

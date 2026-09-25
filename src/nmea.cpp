@@ -64,12 +64,10 @@
 
 GPSDriverNMEA::GPSDriverNMEA(GPSCallbackPtr callback, void *callback_user,
 			     sensor_gps_s *gps_position,
-			     satellite_info_s *satellite_info,
-			     float heading_offset) :
+			     satellite_info_s *satellite_info) :
 	GPSHelper(callback, callback_user),
 	_gps_position(gps_position),
-	_satellite_info(satellite_info),
-	_heading_offset(heading_offset)
+	_satellite_info(satellite_info)
 {
 	decodeInit();
 }
@@ -980,15 +978,10 @@ int GPSDriverNMEA::receive(unsigned timeout)
 void GPSDriverNMEA::handleHeading(float heading_deg, float heading_stddev_deg)
 {
 	float heading_rad = heading_deg * M_PI_F / 180.0f; // rad in range [0, 2pi]
-	heading_rad -= _heading_offset; // rad in range [-pi, 3pi]
 
 	if (heading_rad > M_PI_F) {
 		heading_rad -= 2.f * M_PI_F; // rad in range [-pi, pi]
 	}
-
-	// We are not publishing heading_offset because it wasn't done in the past,
-	// and the UBX driver doesn't do it either. I'm assuming it would cause the
-	// offset to be applied twice.
 
 	_gps_position->heading = heading_rad;
 

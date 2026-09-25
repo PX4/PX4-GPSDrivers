@@ -104,7 +104,6 @@ GPSDriverUBX::GPSDriverUBX(Interface gpsInterface, GPSCallbackPtr callback, void
 	_min_elev(settings.min_elev),
 	_output_rate(settings.output_rate),
 	_mode(settings.mode),
-	_heading_offset(settings.heading_offset),
 	_uart1_baudrate(settings.uart1_baudrate),
 	_uart2_baudrate(settings.uart2_baudrate),
 	_ppk_output(settings.ppk_output),
@@ -3404,7 +3403,6 @@ float
 GPSDriverUBX::relPosHeadingToYaw(int32_t heading) const
 {
 	float heading_rad = heading * M_DEG_TO_RAD_F * 1e-5f;
-	heading_rad -= _heading_offset;
 
 	// Normalize to [-pi, pi]
 	if (heading_rad > M_PI_F) {

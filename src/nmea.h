@@ -55,13 +55,9 @@ class RTCMParsing;
 class GPSDriverNMEA : public GPSHelper
 {
 public:
-	/**
-	 * @param heading_offset heading offset in radians [-pi, pi]. It is substracted from the measurement.
-	 */
 	GPSDriverNMEA(GPSCallbackPtr callback, void *callback_user,
 		      sensor_gps_s *gps_position,
-		      satellite_info_s *satellite_info,
-		      float heading_offset = 0.f);
+		      satellite_info_s *satellite_info);
 
 	virtual ~GPSDriverNMEA();
 
@@ -129,6 +125,4 @@ private:
 	OutputMode _output_mode{OutputMode::GPS};
 
 	RTCMParsing *_rtcm_parsing{nullptr};
-
-	float _heading_offset;
 };
