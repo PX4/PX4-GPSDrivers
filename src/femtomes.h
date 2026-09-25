@@ -159,12 +159,8 @@ enum class FemtoDecodeState {
 class GPSDriverFemto : public GPSBaseStationSupport
 {
 public:
-	/**
-	 * @param heading_offset heading offset in radians [-pi, pi]. It is substracted from the measurement.
-	 */
 	GPSDriverFemto(GPSCallbackPtr callback, void *callback_user, struct sensor_gps_s *gps_position,
-		       satellite_info_s *satellite_info = nullptr,
-		       float heading_offset = 0.f);
+		       satellite_info_s *satellite_info = nullptr);
 	virtual ~GPSDriverFemto();
 
 	int receive(unsigned timeout) override;
@@ -220,7 +216,6 @@ private:
 	femto_uav_gps_t			_femto_uav_gps;
 	femto_msg_t 			_femto_msg;
 	satellite_info_s        *_satellite_info{nullptr};
-	float 					_heading_offset;
 
 	RTCMParsing             *_rtcm_parsing{nullptr};
 	OutputMode              _output_mode{OutputMode::GPS};

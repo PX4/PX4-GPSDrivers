@@ -49,11 +49,8 @@ class RTCMParsing;
 class GPSDriverAshtech : public GPSBaseStationSupport
 {
 public:
-	/**
-	 * @param heading_offset heading offset in radians [-pi, pi]. It is substracted from the measurement.
-	 */
 	GPSDriverAshtech(GPSCallbackPtr callback, void *callback_user, sensor_gps_s *gps_position,
-			 satellite_info_s *satellite_info, float heading_offset = 0.f);
+			 satellite_info_s *satellite_info);
 
 	virtual ~GPSDriverAshtech();
 
@@ -126,8 +123,6 @@ private:
 	uint8_t _rx_buffer[ASHTECH_RECV_BUFFER_SIZE];
 	uint16_t _rx_buffer_bytes{};
 	uint64_t _last_timestamp_time{0};
-
-	float _heading_offset;
 
 	gps_abstime _survey_in_start{0};
 
