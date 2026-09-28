@@ -667,63 +667,6 @@ int GPSDriverSBF::payloadRxDone()
 		//SBF_DEBUG("DOP handled");
 		break;
 
-	case SBF_ID_AttEuler: SBF_TRACE_RXMSG("Rx AttEuler");
-
-		if (!_buf.payload_att_euler.error_not_requested) {
-
-			int error_aux1 = _buf.payload_att_euler.error_aux1;
-			int error_aux2 = _buf.payload_att_euler.error_aux2;
-
-			// SBF_DEBUG("Mode: %u", _buf.payload_att_euler.mode)
-			if (error_aux1 == 0 && error_aux2 == 0) {
-				float heading = _buf.payload_att_euler.heading;
-				heading *= M_PI_F / 180.0f; // deg to rad, now in range [0, 2pi]
-
-
-				if (heading > M_PI_F) {
-					heading -= 2.f * M_PI_F; // final range is [-pi, pi]
-				}
-
-				_gps_position->heading = heading;
-				// SBF_DEBUG("Heading: %.3f rad", (double) _gps_position->heading)
-				//SBF_DEBUG("AttEuler handled");
-
-			} else if (error_aux1 != 0) {
-				//SBF_DEBUG("Error code for Main-Aux1 baseline: Not enough measurements");
-			} else if (error_aux2 != 0) {
-				//SBF_DEBUG("Error code for Main-Aux2 baseline: Not enough measurements");
-			}
-		} else {
-			//SBF_DEBUG("AttEuler: attitude not requested by user");
-		}
-
-
-		break;
-
-	case SBF_ID_AttCovEuler: SBF_TRACE_RXMSG("Rx AttCovEuler");
-
-		if (!_buf.payload_att_cov_euler.error_not_requested) {
-			int error_aux1 = _buf.payload_att_cov_euler.error_aux1;
-			int error_aux2 = _buf.payload_att_cov_euler.error_aux2;
-
-			if (error_aux1 == 0 && error_aux2 == 0) {
-				float heading_acc = _buf.payload_att_cov_euler.cov_headhead;
-				heading_acc *= M_PI_F / 180.0f; // deg to rad, now in range [0, 2pi]
-				_gps_position->heading_accuracy = heading_acc;
-				// SBF_DEBUG("Heading-Accuracy: %.3f rad", (double) _gps_position->heading_accuracy)
-				//SBF_DEBUG("AttCovEuler handled");
-
-			} else if (error_aux1 != 0) {
-				//SBF_DEBUG("Error code for Main-Aux1 baseline: %u: Not enough measurements", error_aux1);
-			} else if (error_aux2 != 0) {
-				//SBF_DEBUG("Error code for Main-Aux2 baseline: %u: Not enough measurements", error_aux2);
-			}
-		} else {
-			//SBF_DEBUG("AttCovEuler: attitude not requested by user");
-		}
-
-		break;
-
 	default:
 		SBF_TRACE_RXMSG("Rx other.");
 		break;

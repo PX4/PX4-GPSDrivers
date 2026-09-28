@@ -65,7 +65,7 @@ public:
 	int configure(unsigned &baudrate, const GPSConfig &config) override;
 
 private:
-	void handleHeading(float heading_deg, float heading_stddev_deg);
+	void publishUnicoreHeading();
 	void request_unicore_messages();
 
 	UnicoreParser _unicore_parser;
@@ -116,7 +116,6 @@ private:
 	bool _DOP_received{false};
 	bool _VEL_received{false};
 	bool _EPH_received{false};
-	bool _HEAD_received{false};
 
 	NMEADecodeState _decode_state{NMEADecodeState::uninit};
 	uint8_t _rx_buffer[NMEA_RECV_BUFFER_SIZE] {};
