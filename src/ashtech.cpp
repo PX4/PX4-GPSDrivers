@@ -242,30 +242,6 @@ int GPSDriverAshtech::handleMessage(int len)
 		_gps_position->c_variance_rad = 0.1f;
 		ret = 1;
 
-	} else if (memcmp(_rx_buffer, "$GPHDT,", 7) == 0 && uiCalcComma == 2) {
-		/*
-		Heading message
-		Example $GPHDT,121.2,T*35
-
-		f1 Last computed heading value, in degrees (0-359.99)
-		T "T" for "True"
-		 */
-
-		float heading = 0.f;
-
-		if (nmeaNextField(bufptr, heading)) {
-
-			ASH_DEBUG("heading update: %.3f", (double)heading);
-
-			heading *= M_PI_F / 180.0f; // deg to rad, now in range [0, 2pi]
-
-			if (heading > M_PI_F) {
-				heading -= 2.f * M_PI_F; // final range is [-pi, pi]
-			}
-
-			_gps_position->heading = heading;
-		}
-
 	} else if ((memcmp(_rx_buffer, "$PASHR,POS,", 11) == 0) && (uiCalcComma == 18)) {
 		_got_pashr_pos_message = true;
 		/*
@@ -1073,16 +1049,6 @@ int GPSDriverAshtech::configure(unsigned &baudrate, const GPSConfig &config)
 		if (writeAckedCommand(buffer, len, ASH_RESPONSE_TIMEOUT) != 0) {
 			ASH_DEBUG("command %s failed", buffer);
 			// some commands are not acked (e.g. GSV), so don't make this fatal
-		}
-	}
-
-	if (use_dual_mode) {
-		// enable heading output
-		const char heading_output[] = "$PASHS,NME,HDT,%c,ON,0.05\r\n";
-		int len = snprintf(buffer, sizeof(buffer), heading_output, _port);
-
-		if (writeAckedCommand(buffer, len, ASH_RESPONSE_TIMEOUT) != 0) {
-			ASH_DEBUG("command %s failed", buffer);
 		}
 	}
 

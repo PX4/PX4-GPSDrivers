@@ -323,23 +323,6 @@ int GPSDriverNMEA::handleMessage(int len)
 
 		_gps_position->c_variance_rad = 0.1f;
 
-	} else if (memcmp(_rx_buffer + 3, "HDT,", 4) == 0 && fieldCount == 2) {
-		/*
-		Heading message
-		Example $GPHDT,121.2,T*35
-
-		f1 Last computed heading value, in degrees (0-359.99)
-		T "T" for "True"
-		 */
-
-		float heading_deg = 0.f;
-
-		if (nmeaNextField(bufptr, heading_deg)) {
-			handleHeading(heading_deg, NAN);
-		}
-
-		_HEAD_received = true;
-
 	} else if ((memcmp(_rx_buffer + 3, "GNS,", 4) == 0) && (fieldCount >= 12)) {
 
 		/*
@@ -902,32 +885,16 @@ int GPSDriverNMEA::receive(unsigned timeout)
 
 				if (result == UnicoreParser::Result::GotHeading) {
 
-					// Don't mark this as handled, just publish it with position later.
+					// Don't mark this as handled, it is published on its own.
 
 					_unicore_heading_received_last = gps_absolute_time();
 
-					// Unicore seems to publish heading and standard deviation of 0
-					// to signal that it has not initialized the heading yet.
-					if (_unicore_parser.heading().heading_stddev_deg > 0.0f) {
-						// Unicore publishes the heading between True North and
-						// the baseline vector from master antenna to slave
-						// antenna.
-						// Assuming that the master is in front and the slave
-						// in the back, this means that we need to flip the
-						// heading 180 degrees.
-
-						handleHeading(
-							_unicore_parser.heading().heading_deg + 180.0f,
-							_unicore_parser.heading().heading_stddev_deg);
-					}
+					publishUnicoreHeading();
 
 					NMEA_DEBUG("Got heading: %.1f deg, stddev: %.1f deg, baseline: %.2f m\n",
 						   (double)_unicore_parser.heading().heading_deg,
 						   (double)_unicore_parser.heading().heading_stddev_deg,
 						   (double)_unicore_parser.heading().baseline_m);
-
-					// We don't specifically publish this but it's just added with the next position
-					// update.
 
 				} else if (result == UnicoreParser::Result::GotAgrica) {
 
@@ -975,18 +942,34 @@ int GPSDriverNMEA::receive(unsigned timeout)
 	}
 }
 
-void GPSDriverNMEA::handleHeading(float heading_deg, float heading_stddev_deg)
+void GPSDriverNMEA::publishUnicoreHeading()
 {
-	float heading_rad = heading_deg * M_PI_F / 180.0f; // rad in range [0, 2pi]
+	const UnicoreParser::Heading &heading = _unicore_parser.heading();
 
-	if (heading_rad > M_PI_F) {
-		heading_rad -= 2.f * M_PI_F; // rad in range [-pi, pi]
+	// UNIHEADINGA is the bearing of the baseline from the primary (master) antenna to the secondary (slave) one. A
+	// standard deviation of 0 means the receiver has no heading yet.
+	const bool heading_valid = heading.heading_stddev_deg > 0.f;
+
+	sensor_gnss_relative_s gps_rel{};
+
+	// timestamp_sample is left unset: the receiver latency is not known here and is applied by the consumer
+	gps_rel.position_length = heading.baseline_m;
+	gps_rel.heading_valid = heading_valid;
+	gps_rel.heading = NAN;
+	gps_rel.heading_accuracy = NAN;
+
+	if (heading_valid) {
+		float heading_rad = heading.heading_deg * M_PI_F / 180.0f; // rad in range [0, 2pi]
+
+		if (heading_rad > M_PI_F) {
+			heading_rad -= 2.f * M_PI_F; // rad in range [-pi, pi]
+		}
+
+		gps_rel.heading = heading_rad;
+		gps_rel.heading_accuracy = heading.heading_stddev_deg * M_PI_F / 180.0f;
 	}
 
-	_gps_position->heading = heading_rad;
-
-	const float heading_stddev_rad = heading_stddev_deg * M_PI_F / 180.0f;
-	_gps_position->heading_accuracy = heading_stddev_rad;
+	gotRelativePositionMessage(gps_rel);
 }
 
 void GPSDriverNMEA::request_unicore_messages()

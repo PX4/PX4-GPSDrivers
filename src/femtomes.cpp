@@ -118,20 +118,6 @@ int GPSDriverFemto::handleMessage(int len)
 		_gps_position->vel_ned_valid = _femto_uav_gps.vel_ned_valid;
 		_gps_position->satellites_used = _femto_uav_gps.satellites_used;
 
-		if (_femto_uav_gps.heading_type == 6) {
-			float heading = _femto_uav_gps.heading;
-			heading *= M_PI_F / 180.0f; // deg to rad, now in range [0, 2pi]
-
-			if (heading > M_PI_F) {
-				heading -= 2.f * M_PI_F; // final range is [-pi, pi]
-			}
-
-			_gps_position->heading = heading;
-
-		} else {
-			_gps_position->heading = NAN;
-		}
-
 		_gps_position->timestamp = gps_absolute_time();
 
 		ret = 1;

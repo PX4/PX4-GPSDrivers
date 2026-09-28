@@ -107,10 +107,6 @@ struct sensor_gps_s
 	static constexpr uint32_t SYSTEM_ERROR_OUTPUT_CONGESTION = 64;
 	uint32_t system_error;
 
-	float heading;
-	float heading_offset;
-	float heading_accuracy;
-
 	float rtcm_injection_rate;
 	uint8_t selected_rtcm_instance;
 

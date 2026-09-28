@@ -1059,7 +1059,7 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 
 	// Dual antenna heading, not used in a moving base setup where NAV-RELPOSNED provides it. The rate is
 	// always written so a mode change is idempotent; a NAK from a position-only X20P must not abort config.
-	// The receiver side heading offset is zeroed, leaving GPS_YAW_OFFSET as the only offset applied.
+	// The receiver side heading offset is zeroed so the heading is the measured baseline.
 	if (_board == Board::u_blox_X20) {
 		const bool moving_base_setup = (_mode == UBXMode::RoverWithMovingBaseUART2)
 					       || (_mode == UBXMode::RoverWithMovingBaseUART1)
@@ -2901,9 +2901,6 @@ GPSDriverUBX::payloadRxDone()
 				heading_acc_rad = _buf.payload_rx_nav_relposned.accHeading * M_DEG_TO_RAD_F * 1e-5f;
 			}
 
-			_gps_position->heading = heading_rad;
-			_gps_position->heading_accuracy = heading_acc_rad;
-
 			sensor_gnss_relative_s gps_rel{};
 
 			// timestamp_sample is left unset: the receiver latency is not known here and is applied by the consumer
@@ -2962,9 +2959,6 @@ GPSDriverUBX::payloadRxDone()
 				heading_rad = relPosHeadingToYaw(_buf.payload_rx_nav_daheading.relPosHeading);
 				heading_acc_rad = _buf.payload_rx_nav_daheading.accHeading * M_DEG_TO_RAD_F * 1e-5f;
 			}
-
-			_gps_position->heading = heading_rad;
-			_gps_position->heading_accuracy = heading_acc_rad;
 
 			sensor_gnss_relative_s gps_rel{};
 
