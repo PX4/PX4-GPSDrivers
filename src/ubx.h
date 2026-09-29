@@ -1122,7 +1122,7 @@ public:
 	};
 
 	GPSDriverUBX(Interface gpsInterface, GPSCallbackPtr callback, void *callback_user,
-		     sensor_gps_s *gps_position, satellite_info_s *satellite_info,
+		     sensor_gnss_s *gps_position, satellite_info_s *satellite_info,
 		     Settings settings);
 
 	virtual ~GPSDriverUBX();
@@ -1378,7 +1378,7 @@ private:
 	const Interface _interface{};
 
 	gps_abstime             _disable_cmd_last{0};
-	sensor_gps_s           *_gps_position {nullptr};
+	sensor_gnss_s          *_gps_position {nullptr};
 	satellite_info_s       *_satellite_info {nullptr};
 	ubx_ack_state_t         _ack_state{UBX_ACK_IDLE};
 	ubx_buf_t               _buf{};

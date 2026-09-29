@@ -60,7 +60,7 @@ create_definitions_h() {
 #include <cstdint>
 #include <ctime>
 
-struct sensor_gps_s {
+struct sensor_gnss_s {
     uint64_t timestamp;
     uint64_t time_utc_usec;
     double latitude;
@@ -69,13 +69,13 @@ struct sensor_gps_s {
     float altitude_ellipsoid;
     float eph;
     float epv;
-    float s_variance_m_s;
-    float c_variance_rad;
-    float vel_m_s;
-    float vel_n_m_s;
-    float vel_e_m_s;
-    float vel_d_m_s;
-    float cog_rad;
+    float speed_accuracy;
+    float course_accuracy;
+    float ground_speed;
+    float vel_north;
+    float vel_east;
+    float vel_down;
+    float course;
     int32_t lat;
     int32_t lon;
     int32_t alt;

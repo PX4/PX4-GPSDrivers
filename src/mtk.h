@@ -87,7 +87,7 @@ typedef struct {
 class GPSDriverMTK : public GPSHelper
 {
 public:
-	GPSDriverMTK(GPSCallbackPtr callback, void *callback_user, sensor_gps_s *gps_position);
+	GPSDriverMTK(GPSCallbackPtr callback, void *callback_user, sensor_gnss_s *gps_position);
 	virtual ~GPSDriverMTK() = default;
 
 	int receive(unsigned timeout) override;
@@ -114,7 +114,7 @@ private:
 	 */
 	void addByteToChecksum(uint8_t);
 
-	sensor_gps_s *_gps_position {nullptr};
+	sensor_gnss_s *_gps_position {nullptr};
 	mtk_decode_state_t _decode_state{MTK_DECODE_UNINIT};
 	uint8_t _mtk_revision{0};
 	unsigned _rx_count{};

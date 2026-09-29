@@ -93,7 +93,7 @@ static constexpr uint32_t RTCM_MSM7_UART2[] = {
 };
 
 GPSDriverUBX::GPSDriverUBX(Interface gpsInterface, GPSCallbackPtr callback, void *callback_user,
-			   sensor_gps_s *gps_position, satellite_info_s *satellite_info, Settings settings) :
+			   sensor_gnss_s *gps_position, satellite_info_s *satellite_info, Settings settings) :
 	GPSBaseStationSupport(callback, callback_user),
 	_interface(gpsInterface),
 	_gps_position(gps_position),
@@ -2649,10 +2649,10 @@ GPSDriverUBX::payloadRxDone()
 
 		if (_gps_position->fix_type < 6) {
 			// When RTK is active and solid (fix=6), these values will be filled by HPPOSLLH:
-			_gps_position->latitude_deg		= _buf.payload_rx_nav_pvt.lat * 1e-7;
-			_gps_position->longitude_deg		= _buf.payload_rx_nav_pvt.lon * 1e-7;
-			_gps_position->altitude_msl_m		= _buf.payload_rx_nav_pvt.hMSL * 1e-3;
-			_gps_position->altitude_ellipsoid_m	= _buf.payload_rx_nav_pvt.height * 1e-3;
+			_gps_position->latitude			= _buf.payload_rx_nav_pvt.lat * 1e-7;
+			_gps_position->longitude		= _buf.payload_rx_nav_pvt.lon * 1e-7;
+			_gps_position->altitude_msl		= _buf.payload_rx_nav_pvt.hMSL * 1e-3;
+			_gps_position->altitude_ellipsoid	= _buf.payload_rx_nav_pvt.height * 1e-3;
 
 			_gps_position->eph		= static_cast<float>(_buf.payload_rx_nav_pvt.hAcc) * 1e-3f;
 			_gps_position->epv		= static_cast<float>(_buf.payload_rx_nav_pvt.vAcc) * 1e-3f;
@@ -2661,16 +2661,16 @@ GPSDriverUBX::payloadRxDone()
 			_got_posllh = true;
 		}
 
-		_gps_position->s_variance_m_s	= static_cast<float>(_buf.payload_rx_nav_pvt.sAcc) * 1e-3f;
+		_gps_position->speed_accuracy	= static_cast<float>(_buf.payload_rx_nav_pvt.sAcc) * 1e-3f;
 
-		_gps_position->vel_m_s		= static_cast<float>(_buf.payload_rx_nav_pvt.gSpeed) * 1e-3f;
+		_gps_position->ground_speed	= static_cast<float>(_buf.payload_rx_nav_pvt.gSpeed) * 1e-3f;
 
-		_gps_position->vel_n_m_s	= static_cast<float>(_buf.payload_rx_nav_pvt.velN) * 1e-3f;
-		_gps_position->vel_e_m_s	= static_cast<float>(_buf.payload_rx_nav_pvt.velE) * 1e-3f;
-		_gps_position->vel_d_m_s	= static_cast<float>(_buf.payload_rx_nav_pvt.velD) * 1e-3f;
+		_gps_position->vel_north	= static_cast<float>(_buf.payload_rx_nav_pvt.velN) * 1e-3f;
+		_gps_position->vel_east		= static_cast<float>(_buf.payload_rx_nav_pvt.velE) * 1e-3f;
+		_gps_position->vel_down		= static_cast<float>(_buf.payload_rx_nav_pvt.velD) * 1e-3f;
 
-		_gps_position->cog_rad		= static_cast<float>(_buf.payload_rx_nav_pvt.headMot) * M_DEG_TO_RAD_F * 1e-5f;
-		_gps_position->c_variance_rad	= static_cast<float>(_buf.payload_rx_nav_pvt.headAcc) * M_DEG_TO_RAD_F * 1e-5f;
+		_gps_position->course		= static_cast<float>(_buf.payload_rx_nav_pvt.headMot) * M_DEG_TO_RAD_F * 1e-5f;
+		_gps_position->course_accuracy	= static_cast<float>(_buf.payload_rx_nav_pvt.headAcc) * M_DEG_TO_RAD_F * 1e-5f;
 
 		//Check if time and date fix flags are good
 		if ((_buf.payload_rx_nav_pvt.valid & UBX_RX_NAV_PVT_VALID_VALIDDATE)
@@ -2723,10 +2723,10 @@ GPSDriverUBX::payloadRxDone()
 	case UBX_MSG_NAV_POSLLH:
 		UBX_TRACE_RXMSG("Rx NAV-POSLLH");
 
-		_gps_position->latitude_deg	= _buf.payload_rx_nav_posllh.lat * 1e-7;
-		_gps_position->longitude_deg	= _buf.payload_rx_nav_posllh.lon * 1e-7;
-		_gps_position->altitude_msl_m	= _buf.payload_rx_nav_posllh.hMSL * 1e-3;
-		_gps_position->altitude_ellipsoid_m = _buf.payload_rx_nav_posllh.height * 1e-3;
+		_gps_position->latitude		= _buf.payload_rx_nav_posllh.lat * 1e-7;
+		_gps_position->longitude	= _buf.payload_rx_nav_posllh.lon * 1e-7;
+		_gps_position->altitude_msl	= _buf.payload_rx_nav_posllh.hMSL * 1e-3;
+		_gps_position->altitude_ellipsoid = _buf.payload_rx_nav_posllh.height * 1e-3;
 		_gps_position->eph	= static_cast<float>(_buf.payload_rx_nav_posllh.hAcc) * 1e-3f; // from mm to m
 		_gps_position->epv	= static_cast<float>(_buf.payload_rx_nav_posllh.vAcc) * 1e-3f; // from mm to m
 
@@ -2742,13 +2742,13 @@ GPSDriverUBX::payloadRxDone()
 		UBX_TRACE_RXMSG("Rx NAV-HPPOSLLH");
 
 		if (_buf.payload_rx_nav_hpposllh.flags == 0 && _gps_position->fix_type == 6) {
-			_gps_position->latitude_deg	= _buf.payload_rx_nav_hpposllh.lat * 1e-7 + _buf.payload_rx_nav_hpposllh.latHp *
+			_gps_position->latitude		= _buf.payload_rx_nav_hpposllh.lat * 1e-7 + _buf.payload_rx_nav_hpposllh.latHp *
 							  1e-9;  // regular precision lat/lon (1e7), plus high precision (1e9)
-			_gps_position->longitude_deg	= _buf.payload_rx_nav_hpposllh.lon * 1e-7 + _buf.payload_rx_nav_hpposllh.lonHp * 1e-9;
-			_gps_position->altitude_msl_m = _buf.payload_rx_nav_hpposllh.hMSL * 1e-3 + _buf.payload_rx_nav_hpposllh.hMSLHp *
-							1e-4;	// regular precision altitude, mm, plus high precision components of altitude, 0.1 mm
-			_gps_position->altitude_ellipsoid_m = _buf.payload_rx_nav_hpposllh.height * 1e-3 + _buf.payload_rx_nav_hpposllh.heightHp
-							      * 1e-4;
+			_gps_position->longitude	= _buf.payload_rx_nav_hpposllh.lon * 1e-7 + _buf.payload_rx_nav_hpposllh.lonHp * 1e-9;
+			_gps_position->altitude_msl = _buf.payload_rx_nav_hpposllh.hMSL * 1e-3 + _buf.payload_rx_nav_hpposllh.hMSLHp *
+						      1e-4;	// regular precision altitude, mm, plus high precision components of altitude, 0.1 mm
+			_gps_position->altitude_ellipsoid = _buf.payload_rx_nav_hpposllh.height * 1e-3 + _buf.payload_rx_nav_hpposllh.heightHp
+							    * 1e-4;
 			_gps_position->eph	= static_cast<float>(_buf.payload_rx_nav_hpposllh.hAcc) *
 						  1e-4f; // Accuracy estimates, convert from 0.1 mm to m
 			_gps_position->epv	= static_cast<float>(_buf.payload_rx_nav_hpposllh.vAcc) * 1e-4f;
@@ -2767,7 +2767,7 @@ GPSDriverUBX::payloadRxDone()
 		UBX_TRACE_RXMSG("Rx NAV-SOL");
 
 		_gps_position->fix_type		= _buf.payload_rx_nav_sol.gpsFix;
-		_gps_position->s_variance_m_s	= static_cast<float>(_buf.payload_rx_nav_sol.sAcc) * 1e-2f;	// from cm to m
+		_gps_position->speed_accuracy	= static_cast<float>(_buf.payload_rx_nav_sol.sAcc) * 1e-2f;	// from cm to m
 		_gps_position->satellites_used	= _buf.payload_rx_nav_sol.numSV;
 
 		ret = 1;
@@ -2866,12 +2866,12 @@ GPSDriverUBX::payloadRxDone()
 	case UBX_MSG_NAV_VELNED:
 		UBX_TRACE_RXMSG("Rx NAV-VELNED");
 
-		_gps_position->vel_m_s        = static_cast<float>(_buf.payload_rx_nav_velned.gSpeed) * 1e-2f;
-		_gps_position->vel_n_m_s      = static_cast<float>(_buf.payload_rx_nav_velned.velN)  * 1e-2f; // NED NORTH velocity
-		_gps_position->vel_e_m_s      = static_cast<float>(_buf.payload_rx_nav_velned.velE)  * 1e-2f; // NED EAST velocity
-		_gps_position->vel_d_m_s      = static_cast<float>(_buf.payload_rx_nav_velned.velD)  * 1e-2f; // NED DOWN velocity
-		_gps_position->cog_rad        = static_cast<float>(_buf.payload_rx_nav_velned.heading) * M_DEG_TO_RAD_F * 1e-5f;
-		_gps_position->c_variance_rad = static_cast<float>(_buf.payload_rx_nav_velned.cAcc)    * M_DEG_TO_RAD_F * 1e-5f;
+		_gps_position->ground_speed   = static_cast<float>(_buf.payload_rx_nav_velned.gSpeed) * 1e-2f;
+		_gps_position->vel_north      = static_cast<float>(_buf.payload_rx_nav_velned.velN)  * 1e-2f; // NED NORTH velocity
+		_gps_position->vel_east       = static_cast<float>(_buf.payload_rx_nav_velned.velE)  * 1e-2f; // NED EAST velocity
+		_gps_position->vel_down       = static_cast<float>(_buf.payload_rx_nav_velned.velD)  * 1e-2f; // NED DOWN velocity
+		_gps_position->course         = static_cast<float>(_buf.payload_rx_nav_velned.heading) * M_DEG_TO_RAD_F * 1e-5f;
+		_gps_position->course_accuracy = static_cast<float>(_buf.payload_rx_nav_velned.cAcc)    * M_DEG_TO_RAD_F * 1e-5f;
 		_gps_position->vel_ned_valid  = true;
 
 		_rate_count_vel++;
@@ -3012,7 +3012,7 @@ GPSDriverUBX::payloadRxDone()
 		switch (_rx_payload_length) {
 
 		case sizeof(ubx_payload_rx_mon_hw_ubx6_t):	/* u-blox 6 msg format */
-			_gps_position->noise_per_ms		= _buf.payload_rx_mon_hw_ubx6.noisePerMS;
+			_gps_position->noise			= _buf.payload_rx_mon_hw_ubx6.noisePerMS;
 			_gps_position->automatic_gain_control   = _buf.payload_rx_mon_hw_ubx6.agcCnt;
 			_gps_position->jamming_indicator	= _buf.payload_rx_mon_hw_ubx6.jamInd;
 
@@ -3020,7 +3020,7 @@ GPSDriverUBX::payloadRxDone()
 			break;
 
 		case sizeof(ubx_payload_rx_mon_hw_ubx7_t):	/* u-blox 7+ msg format */
-			_gps_position->noise_per_ms		= _buf.payload_rx_mon_hw_ubx7.noisePerMS;
+			_gps_position->noise			= _buf.payload_rx_mon_hw_ubx7.noisePerMS;
 			_gps_position->automatic_gain_control   = _buf.payload_rx_mon_hw_ubx7.agcCnt;
 			_gps_position->jamming_indicator	= _buf.payload_rx_mon_hw_ubx7.jamInd;
 
@@ -3045,7 +3045,7 @@ GPSDriverUBX::payloadRxDone()
 		// agcCnt and cwSuppression (jamInd). cwSuppression is the CW notch in effect per front end,
 		// i.e. the per-frequency mitigation state GNSS_BANDS wants; the block covering a SEC-SIG
 		// center frequency comes from rfBlockGnssBand (HPG 2.10) or blockId on older firmware.
-		_gps_position->noise_per_ms		= _buf.payload_rx_mon_rf.block[0].noisePerMS;
+		_gps_position->noise			= _buf.payload_rx_mon_rf.block[0].noisePerMS;
 		_gps_position->automatic_gain_control	= _buf.payload_rx_mon_rf.block[0].agcCnt;
 		_gps_position->jamming_indicator	= _buf.payload_rx_mon_rf.block[0].jamInd;
 
@@ -3174,7 +3174,7 @@ GPSDriverUBX::payloadRxDone()
 				const uint8_t jam_state = (flag_byte >> 1) & 0x03;
 
 				// SEC-SIG jamState: 0 unknown, 1 none, 2 warning (jamming indicated).
-				// Pre-v2 MON-RF also had 3 = critical. sensor_gps 2 is "mitigated";
+				// Pre-v2 MON-RF also had 3 = critical. sensor_gnss 2 is "mitigated";
 				// commander only alerts on 3 (detected).
 				if (jam_state >= 2) {
 					jamming_state = 3;
@@ -3188,7 +3188,7 @@ GPSDriverUBX::payloadRxDone()
 			_got_sec_sig = true;
 
 			// TODO: v2/v3 carry jamNumCentFreqs X4 groups after the header (bits 23..0 centFreq in
-			// kHz, bit 24 jammed), one per in-use band. Not parsed: sensor_gps has nowhere to put
+			// kHz, bit 24 jammed), one per in-use band. Not parsed: sensor_gnss has nowhere to put
 			// per-band state until the GNSS_BANDS message from mavlink/rfcs#30 lands, at which
 			// point both the RX struct and payloadRxInit() length check need the repeated group.
 		}
@@ -3232,7 +3232,7 @@ GPSDriverUBX::payloadRxDone()
 	case UBX_MSG_RXM_RTCM:
 		UBX_TRACE_RXMSG("Rx RXM-RTCM");
 
-		_gps_position->corrections_protocol = sensor_gps_s::CORRECTIONS_PROTOCOL_RTCM3;
+		_gps_position->corrections_protocol = sensor_gnss_s::CORRECTIONS_PROTOCOL_RTCM3;
 		_gps_position->corrections_crc_failed = (_buf.payload_rx_rxm_rtcm.flags & UBX_RX_RXM_RTCM_CRCFAILED_MASK) != 0;
 		_gps_position->corrections_msg_used = (_buf.payload_rx_rxm_rtcm.flags & UBX_RX_RXM_RTCM_MSGUSED_MASK) >>
 						      UBX_RX_RXM_RTCM_MSGUSED_SHIFT;
@@ -3245,18 +3245,18 @@ GPSDriverUBX::payloadRxDone()
 
 		{
 			const uint32_t status = _buf.payload_rx_rxm_cor.statusInfo;
-			uint8_t protocol = sensor_gps_s::CORRECTIONS_PROTOCOL_UNKNOWN;
+			uint8_t protocol = sensor_gnss_s::CORRECTIONS_PROTOCOL_UNKNOWN;
 
 			switch (status & UBX_RX_RXM_COR_PROTOCOL_MASK) {
-			case 1: protocol = sensor_gps_s::CORRECTIONS_PROTOCOL_RTCM3; break;
+			case 1: protocol = sensor_gnss_s::CORRECTIONS_PROTOCOL_RTCM3; break;
 
-			case 2: protocol = sensor_gps_s::CORRECTIONS_PROTOCOL_SPARTN; break;
+			case 2: protocol = sensor_gnss_s::CORRECTIONS_PROTOCOL_SPARTN; break;
 
-			case 5: protocol = sensor_gps_s::CORRECTIONS_PROTOCOL_HAS; break;
+			case 5: protocol = sensor_gnss_s::CORRECTIONS_PROTOCOL_HAS; break;
 
-			case 29: protocol = sensor_gps_s::CORRECTIONS_PROTOCOL_PMP; break;
+			case 29: protocol = sensor_gnss_s::CORRECTIONS_PROTOCOL_PMP; break;
 
-			case 30: protocol = sensor_gps_s::CORRECTIONS_PROTOCOL_QZSS_L6; break;
+			case 30: protocol = sensor_gnss_s::CORRECTIONS_PROTOCOL_QZSS_L6; break;
 			}
 
 			_gps_position->corrections_protocol = protocol;

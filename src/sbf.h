@@ -366,7 +366,7 @@ public:
 	 */
 	GPSDriverSBF(GPSCallbackPtr callback,
 		     void *callback_user,
-		     struct sensor_gps_s *gps_position,
+		     struct sensor_gnss_s *gps_position,
 		     satellite_info_s *satellite_info = nullptr,
 		     float heading_offset = 0.f,
 		     float pitch_offset = 0.f);
@@ -419,7 +419,7 @@ private:
 	 */
 	bool configSBFOutput(const char *com_port);
 
-	sensor_gps_s *_gps_position{nullptr};
+	sensor_gnss_s *_gps_position{nullptr};
 	satellite_info_s *_satellite_info{nullptr};
 	uint8_t _dynamic_model{7};
 	uint64_t _last_timestamp_time{0};

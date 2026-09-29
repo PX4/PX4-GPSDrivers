@@ -32,20 +32,20 @@ inline void gps_test_warn(const char *format, ...)
 #define M_RAD_TO_DEG 57.2957795130823208768
 
 
-struct sensor_gps_s
+struct sensor_gnss_s
 {
 	uint64_t timestamp;
 	uint64_t timestamp_sample;
 
 	uint32_t device_id;
 
-	double latitude_deg;
-	double longitude_deg;
-	double altitude_msl_m;
-	double altitude_ellipsoid_m;
+	double latitude;
+	double longitude;
+	double altitude_msl;
+	double altitude_ellipsoid;
 
-	float s_variance_m_s;
-	float c_variance_rad;
+	float speed_accuracy;
+	float course_accuracy;
 
 	static constexpr uint8_t FIX_TYPE_NONE = 1;
 	static constexpr uint8_t FIX_TYPE_2D = 2;
@@ -62,7 +62,7 @@ struct sensor_gps_s
 	float hdop;
 	float vdop;
 
-	int32_t noise_per_ms;
+	int32_t noise;
 	uint16_t automatic_gain_control;
 
 	static constexpr uint8_t JAMMING_STATE_UNKNOWN = 0;
@@ -85,11 +85,11 @@ struct sensor_gps_s
 	static constexpr uint8_t AUTHENTICATION_STATE_DISABLED = 4;
 	uint8_t authentication_state;
 
-	float vel_m_s;
-	float vel_n_m_s;
-	float vel_e_m_s;
-	float vel_d_m_s;
-	float cog_rad;
+	float ground_speed;
+	float vel_north;
+	float vel_east;
+	float vel_down;
+	float course;
 	bool vel_ned_valid;
 
 	int32_t timestamp_time_relative;
@@ -124,10 +124,6 @@ struct sensor_gps_s
 	static constexpr uint8_t CORRECTIONS_MSG_USED_NOT_USED = 1;
 	static constexpr uint8_t CORRECTIONS_MSG_USED_USED = 2;
 	uint8_t corrections_msg_used;
-
-	float antenna_offset_x;
-	float antenna_offset_y;
-	float antenna_offset_z;
 };
 
 struct sensor_gnss_relative_s
