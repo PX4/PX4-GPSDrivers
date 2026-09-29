@@ -63,7 +63,7 @@
 #define NMEA_DEBUG(...)        {/*GPS_WARN(__VA_ARGS__);*/}
 
 GPSDriverNMEA::GPSDriverNMEA(GPSCallbackPtr callback, void *callback_user,
-			     sensor_gps_s *gps_position,
+			     sensor_gnss_s *gps_position,
 			     satellite_info_s *satellite_info) :
 	GPSHelper(callback, callback_user),
 	_gps_position(gps_position),
@@ -194,8 +194,8 @@ int GPSDriverNMEA::handleMessage(int len)
 
 		/* only update the values if they are valid */
 		if (dvalid == 'A' && modeind == 'A') {
-			_gps_position->longitude_deg = nmeaToDegrees(lon);
-			_gps_position->latitude_deg = nmeaToDegrees(lat);
+			_gps_position->longitude = nmeaToDegrees(lon);
+			_gps_position->latitude = nmeaToDegrees(lat);
 
 			if (!_POS_received && (_last_POS_timeUTC < utc_time)) {
 				_last_POS_timeUTC = utc_time;
@@ -286,11 +286,11 @@ int GPSDriverNMEA::handleMessage(int len)
 		}
 
 		/* convert from degrees, minutes and seconds to degrees */
-		_gps_position->longitude_deg = nmeaToDegrees(lon);
-		_gps_position->latitude_deg = nmeaToDegrees(lat);
+		_gps_position->longitude = nmeaToDegrees(lon);
+		_gps_position->latitude = nmeaToDegrees(lat);
 		_gps_position->hdop = hdop;
-		_gps_position->altitude_msl_m = (double)alt;
-		_gps_position->altitude_ellipsoid_m = (double)(alt + geoid_h);
+		_gps_position->altitude_msl = (double)alt;
+		_gps_position->altitude_ellipsoid = (double)(alt + geoid_h);
 		_sat_num_gga = static_cast<int>(num_of_sv);
 
 
@@ -321,7 +321,7 @@ int GPSDriverNMEA::handleMessage(int len)
 		_SVNUM_received = true;
 		_FIX_received = true;
 
-		_gps_position->c_variance_rad = 0.1f;
+		_gps_position->course_accuracy = 0.1f;
 
 	} else if ((memcmp(_rx_buffer + 3, "GNS,", 4) == 0) && (fieldCount >= 12)) {
 
@@ -398,11 +398,11 @@ int GPSDriverNMEA::handleMessage(int len)
 		}
 
 		/* convert from degrees, minutes and seconds to degrees */
-		_gps_position->latitude_deg = nmeaToDegrees(lat);
-		_gps_position->longitude_deg = nmeaToDegrees(lon);
+		_gps_position->latitude = nmeaToDegrees(lat);
+		_gps_position->longitude = nmeaToDegrees(lon);
 		_gps_position->hdop = hdop;
-		_gps_position->altitude_msl_m = (double)alt;
-		_gps_position->altitude_ellipsoid_m = (double)(alt + geoid_h);
+		_gps_position->altitude_msl = (double)alt;
+		_gps_position->altitude_ellipsoid = (double)(alt + geoid_h);
 		_sat_num_gns = static_cast<int>(num_of_sv);
 
 		if (!_POS_received && (_last_POS_timeUTC < utc_time)) {
@@ -491,15 +491,15 @@ int GPSDriverNMEA::handleMessage(int len)
 		float velocity_north = velocity_ms * cosf(track_rad);
 		float velocity_east  = velocity_ms * sinf(track_rad);
 
-		_gps_position->cog_rad = track_rad;
-		_gps_position->c_variance_rad = 0.1f;
+		_gps_position->course = track_rad;
+		_gps_position->course_accuracy = 0.1f;
 
 		if (!_unicore_parser.agricaValid()) {
 			// We ignore RMC position for Unicore, because we have GGA configured at the rate we want.
 
 			/* convert from degrees, minutes and seconds to degrees */
-			_gps_position->latitude_deg = nmeaToDegrees(lat);
-			_gps_position->longitude_deg = nmeaToDegrees(lon);
+			_gps_position->latitude = nmeaToDegrees(lat);
+			_gps_position->longitude = nmeaToDegrees(lon);
 
 			if (!_POS_received && (_last_POS_timeUTC < utc_time)) {
 				_gps_position->timestamp = gps_absolute_time();
@@ -508,11 +508,11 @@ int GPSDriverNMEA::handleMessage(int len)
 				_rate_count_lat_lon++;
 			}
 
-			_gps_position->vel_m_s = velocity_ms;
-			_gps_position->vel_n_m_s = velocity_north;
-			_gps_position->vel_e_m_s = velocity_east;
+			_gps_position->ground_speed = velocity_ms;
+			_gps_position->vel_north = velocity_north;
+			_gps_position->vel_east = velocity_east;
 			_gps_position->vel_ned_valid = true; /**< Flag to indicate if NED speed is valid */
-			_gps_position->s_variance_m_s = 0;
+			_gps_position->speed_accuracy = 0;
 
 			if (!_VEL_received && (_last_VEL_timeUTC < utc_time)) {
 				_last_VEL_timeUTC = utc_time;
@@ -815,19 +815,19 @@ int GPSDriverNMEA::handleMessage(int len)
 			float velocity_ms = ground_speed / 1.9438445f;
 			float velocity_north = velocity_ms * cosf(track_rad);
 			float velocity_east  = velocity_ms * sinf(track_rad);
-			_gps_position->vel_m_s = velocity_ms;
-			_gps_position->vel_n_m_s = velocity_north;
-			_gps_position->vel_e_m_s = velocity_east;
+			_gps_position->ground_speed = velocity_ms;
+			_gps_position->vel_north = velocity_north;
+			_gps_position->vel_east = velocity_east;
 			_gps_position->vel_ned_valid = true; /** Flag to indicate if NED speed is valid */
-			_gps_position->c_variance_rad = 0.1f;
-			_gps_position->s_variance_m_s = 0;
+			_gps_position->course_accuracy = 0.1f;
+			_gps_position->speed_accuracy = 0;
 
 			if (!_VEL_received) {
 				_VEL_received = true;
 				_rate_count_vel++;
 			}
 
-			_gps_position->cog_rad = track_rad;
+			_gps_position->course = track_rad;
 		}
 
 	} else {
@@ -907,17 +907,17 @@ int GPSDriverNMEA::receive(unsigned timeout)
 						request_unicore_messages();
 					}
 
-					_gps_position->vel_m_s = _unicore_parser.agrica().velocity_m_s;
-					_gps_position->vel_n_m_s = _unicore_parser.agrica().velocity_north_m_s;
-					_gps_position->vel_e_m_s = _unicore_parser.agrica().velocity_east_m_s;
-					_gps_position->vel_d_m_s = -_unicore_parser.agrica().velocity_up_m_s;
-					// s_variance_m_s contains a 1-sigma speed accuracy in m/s.
-					_gps_position->s_variance_m_s = sqrtf(
+					_gps_position->ground_speed = _unicore_parser.agrica().velocity_m_s;
+					_gps_position->vel_north = _unicore_parser.agrica().velocity_north_m_s;
+					_gps_position->vel_east = _unicore_parser.agrica().velocity_east_m_s;
+					_gps_position->vel_down = -_unicore_parser.agrica().velocity_up_m_s;
+					// speed_accuracy contains a 1-sigma speed accuracy in m/s.
+					_gps_position->speed_accuracy = sqrtf(
 						(_unicore_parser.agrica().stddev_velocity_north_m_s * _unicore_parser.agrica().stddev_velocity_north_m_s +
 						 _unicore_parser.agrica().stddev_velocity_east_m_s * _unicore_parser.agrica().stddev_velocity_east_m_s +
 						 _unicore_parser.agrica().stddev_velocity_up_m_s * _unicore_parser.agrica().stddev_velocity_up_m_s));
 
-					_gps_position->cog_rad = atan2f(
+					_gps_position->course = atan2f(
 									 _unicore_parser.agrica().velocity_north_m_s,
 									 _unicore_parser.agrica().velocity_east_m_s);
 

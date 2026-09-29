@@ -56,7 +56,7 @@ class GPSDriverNMEA : public GPSHelper
 {
 public:
 	GPSDriverNMEA(GPSCallbackPtr callback, void *callback_user,
-		      sensor_gps_s *gps_position,
+		      sensor_gnss_s *gps_position,
 		      satellite_info_s *satellite_info);
 
 	virtual ~GPSDriverNMEA();
@@ -89,7 +89,7 @@ private:
 	double read_float();
 	char read_char();
 
-	sensor_gps_s *_gps_position {nullptr};
+	sensor_gnss_s *_gps_position {nullptr};
 	satellite_info_s *_satellite_info {nullptr};
 	double _last_POS_timeUTC{0};
 	double _last_VEL_timeUTC{0};

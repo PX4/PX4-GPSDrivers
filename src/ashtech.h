@@ -49,7 +49,7 @@ class RTCMParsing;
 class GPSDriverAshtech : public GPSBaseStationSupport
 {
 public:
-	GPSDriverAshtech(GPSCallbackPtr callback, void *callback_user, sensor_gps_s *gps_position,
+	GPSDriverAshtech(GPSCallbackPtr callback, void *callback_user, sensor_gnss_s *gps_position,
 			 satellite_info_s *satellite_info);
 
 	virtual ~GPSDriverAshtech();
@@ -126,7 +126,7 @@ private:
 
 	gps_abstime _survey_in_start{0};
 
-	sensor_gps_s *_gps_position {nullptr};
+	sensor_gnss_s *_gps_position {nullptr};
 
 	satellite_info_s *_satellite_info {nullptr};
 

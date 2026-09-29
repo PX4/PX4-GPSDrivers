@@ -73,7 +73,7 @@
 
 
 GPSDriverFemto::GPSDriverFemto(GPSCallbackPtr callback, void *callback_user,
-			       struct sensor_gps_s *gps_position,
+			       struct sensor_gnss_s *gps_position,
 			       satellite_info_s *satellite_info) :
 	GPSBaseStationSupport(callback, callback_user),
 	_gps_position(gps_position),
@@ -96,23 +96,23 @@ int GPSDriverFemto::handleMessage(int len)
 		memcpy(&_femto_uav_gps, _femto_msg.data, sizeof(femto_uav_gps_t));
 
 		_gps_position->time_utc_usec = _femto_uav_gps.time_utc_usec;
-		_gps_position->latitude_deg = _femto_uav_gps.lat / 1e7;
-		_gps_position->longitude_deg = _femto_uav_gps.lon / 1e7;
-		_gps_position->altitude_msl_m = _femto_uav_gps.alt / 1e3;
-		_gps_position->altitude_ellipsoid_m = _femto_uav_gps.alt_ellipsoid / 1e3;
-		_gps_position->s_variance_m_s = _femto_uav_gps.s_variance_m_s;
-		_gps_position->c_variance_rad = _femto_uav_gps.c_variance_rad;
+		_gps_position->latitude = _femto_uav_gps.lat / 1e7;
+		_gps_position->longitude = _femto_uav_gps.lon / 1e7;
+		_gps_position->altitude_msl = _femto_uav_gps.alt / 1e3;
+		_gps_position->altitude_ellipsoid = _femto_uav_gps.alt_ellipsoid / 1e3;
+		_gps_position->speed_accuracy = _femto_uav_gps.s_variance_m_s;
+		_gps_position->course_accuracy = _femto_uav_gps.c_variance_rad;
 		_gps_position->eph = _femto_uav_gps.eph;
 		_gps_position->epv = _femto_uav_gps.epv;
 		_gps_position->hdop = _femto_uav_gps.hdop;
 		_gps_position->vdop = _femto_uav_gps.vdop;
-		_gps_position->noise_per_ms = _femto_uav_gps.noise_per_ms;
+		_gps_position->noise = _femto_uav_gps.noise_per_ms;
 		_gps_position->jamming_indicator = _femto_uav_gps.jamming_indicator;
-		_gps_position->vel_m_s = _femto_uav_gps.vel_m_s;
-		_gps_position->vel_n_m_s = _femto_uav_gps.vel_n_m_s;
-		_gps_position->vel_e_m_s = _femto_uav_gps.vel_e_m_s;
-		_gps_position->vel_d_m_s = _femto_uav_gps.vel_d_m_s;
-		_gps_position->cog_rad = _femto_uav_gps.cog_rad;
+		_gps_position->ground_speed = _femto_uav_gps.vel_m_s;
+		_gps_position->vel_north = _femto_uav_gps.vel_n_m_s;
+		_gps_position->vel_east = _femto_uav_gps.vel_e_m_s;
+		_gps_position->vel_down = _femto_uav_gps.vel_d_m_s;
+		_gps_position->course = _femto_uav_gps.cog_rad;
 		_gps_position->timestamp_time_relative = _femto_uav_gps.timestamp_time_relative;
 		_gps_position->fix_type = _femto_uav_gps.fix_type;
 		_gps_position->vel_ned_valid = _femto_uav_gps.vel_ned_valid;

@@ -218,7 +218,7 @@ private:
 
 struct Fixture {
 	Receiver receiver;
-	sensor_gps_s position{};
+	sensor_gnss_s position{};
 	GPSDriverUBX driver{GPSHelper::Interface::UART, Receiver::callback, &receiver,
 			    &position, nullptr, GPSDriverUBX::Settings{}};
 

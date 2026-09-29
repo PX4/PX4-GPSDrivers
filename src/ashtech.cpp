@@ -47,7 +47,7 @@
 #define ASH_DEBUG(...)		{/*GPS_WARN(__VA_ARGS__);*/}
 
 GPSDriverAshtech::GPSDriverAshtech(GPSCallbackPtr callback, void *callback_user,
-				   sensor_gps_s *gps_position, satellite_info_s *satellite_info) :
+				   sensor_gnss_s *gps_position, satellite_info_s *satellite_info) :
 	GPSBaseStationSupport(callback, callback_user),
 	_gps_position(gps_position),
 	_satellite_info(satellite_info)
@@ -209,9 +209,9 @@ int GPSDriverAshtech::handleMessage(int len)
 		}
 
 		/* convert from degrees, minutes and seconds to degrees * 1e7 */
-		_gps_position->latitude_deg = nmeaToDegrees(lat);
-		_gps_position->longitude_deg = nmeaToDegrees(lon);
-		_gps_position->altitude_msl_m = alt;
+		_gps_position->latitude = nmeaToDegrees(lat);
+		_gps_position->longitude = nmeaToDegrees(lon);
+		_gps_position->altitude_msl = alt;
 		_rate_count_lat_lon++;
 
 		if (fix_quality <= 0) {
@@ -232,14 +232,14 @@ int GPSDriverAshtech::handleMessage(int len)
 
 		_gps_position->timestamp = gps_absolute_time();
 
-		_gps_position->vel_m_s = 0;                                  /**< GPS ground speed (m/s) */
-		_gps_position->vel_n_m_s = 0;                                /**< GPS ground speed in m/s */
-		_gps_position->vel_e_m_s = 0;                                /**< GPS ground speed in m/s */
-		_gps_position->vel_d_m_s = 0;                                /**< GPS ground speed in m/s */
-		_gps_position->cog_rad =
+		_gps_position->ground_speed = 0;                             /**< GPS ground speed (m/s) */
+		_gps_position->vel_north = 0;                                /**< GPS ground speed in m/s */
+		_gps_position->vel_east = 0;                                 /**< GPS ground speed in m/s */
+		_gps_position->vel_down = 0;                                 /**< GPS ground speed in m/s */
+		_gps_position->course =
 			0;                                  /**< Course over ground (NOT heading, but direction of movement) in rad, -PI..PI */
 		_gps_position->vel_ned_valid = true;                         /**< Flag to indicate if NED speed is valid */
-		_gps_position->c_variance_rad = 0.1f;
+		_gps_position->course_accuracy = 0.1f;
 		ret = 1;
 
 	} else if ((memcmp(_rx_buffer, "$PASHR,POS,", 11) == 0) && (uiCalcComma == 18)) {
@@ -353,9 +353,9 @@ int GPSDriverAshtech::handleMessage(int len)
 			lon = -lon;
 		}
 
-		_gps_position->latitude_deg = nmeaToDegrees(lat);
-		_gps_position->longitude_deg = nmeaToDegrees(lon);
-		_gps_position->altitude_msl_m = alt;
+		_gps_position->latitude = nmeaToDegrees(lat);
+		_gps_position->longitude = nmeaToDegrees(lon);
+		_gps_position->altitude_msl = alt;
 		_gps_position->hdop = static_cast<float>(hdop);
 		_gps_position->vdop = static_cast<float>(vdop);
 		_rate_count_lat_lon++;
@@ -392,14 +392,14 @@ int GPSDriverAshtech::handleMessage(int len)
 		float velocity_north = static_cast<float>(velocity_ms) * cosf(track_rad);
 		float velocity_east  = static_cast<float>(velocity_ms) * sinf(track_rad);
 
-		_gps_position->vel_m_s = velocity_ms;				/** GPS ground speed (m/s) */
-		_gps_position->vel_n_m_s = velocity_north;			/** GPS ground speed in m/s */
-		_gps_position->vel_e_m_s = velocity_east;			/** GPS ground speed in m/s */
-		_gps_position->vel_d_m_s = static_cast<float>(-vertic_vel);				/** GPS ground speed in m/s */
-		_gps_position->cog_rad =
+		_gps_position->ground_speed = velocity_ms;			/** GPS ground speed (m/s) */
+		_gps_position->vel_north = velocity_north;			/** GPS ground speed in m/s */
+		_gps_position->vel_east = velocity_east;			/** GPS ground speed in m/s */
+		_gps_position->vel_down = static_cast<float>(-vertic_vel);				/** GPS ground speed in m/s */
+		_gps_position->course =
 			track_rad;				/** Course over ground (NOT heading, but direction of movement) in rad, -PI..PI */
 		_gps_position->vel_ned_valid = true;				/** Flag to indicate if NED speed is valid */
-		_gps_position->c_variance_rad = 0.1f;
+		_gps_position->course_accuracy = 0.1f;
 		_rate_count_vel++;
 		ret = 1;
 
@@ -457,7 +457,7 @@ int GPSDriverAshtech::handleMessage(int len)
 					   + static_cast<float>(lon_err) * static_cast<float>(lon_err));
 		_gps_position->epv = static_cast<float>(alt_err);
 
-		_gps_position->s_variance_m_s = 0;
+		_gps_position->speed_accuracy = 0;
 
 	} else if ((memcmp(_rx_buffer + 3, "GSV,", 4) == 0) && (uiCalcComma >= 3)) {
 		/*

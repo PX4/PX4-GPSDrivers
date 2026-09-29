@@ -64,7 +64,7 @@
 #define SBF_WARN(...)        {GPS_WARN(__VA_ARGS__);}
 #define SBF_DEBUG(...)       {/*GPS_WARN(__VA_ARGS__);*/}
 
-GPSDriverSBF::GPSDriverSBF(GPSCallbackPtr callback, void *callback_user, struct sensor_gps_s *gps_position,
+GPSDriverSBF::GPSDriverSBF(GPSCallbackPtr callback, void *callback_user, struct sensor_gnss_s *gps_position,
 			   satellite_info_s *satellite_info, float heading_offset, float pitch_offset)
 	: GPSBaseStationSupport(callback, callback_user), _gps_position(gps_position), _satellite_info(satellite_info),
 	  _heading_offset(heading_offset), _pitch_offset(pitch_offset)
@@ -566,25 +566,25 @@ int GPSDriverSBF::payloadRxDone()
 			_gps_position->satellites_used = 0;
 		}
 
-		_gps_position->latitude_deg = _buf.payload_pvt_geodetic.latitude * M_RAD_TO_DEG;
-		_gps_position->longitude_deg = _buf.payload_pvt_geodetic.longitude * M_RAD_TO_DEG;
-		_gps_position->altitude_ellipsoid_m = _buf.payload_pvt_geodetic.height;
-		_gps_position->altitude_msl_m = _buf.payload_pvt_geodetic.height - static_cast<double>
-						(_buf.payload_pvt_geodetic.undulation);
+		_gps_position->latitude = _buf.payload_pvt_geodetic.latitude * M_RAD_TO_DEG;
+		_gps_position->longitude = _buf.payload_pvt_geodetic.longitude * M_RAD_TO_DEG;
+		_gps_position->altitude_ellipsoid = _buf.payload_pvt_geodetic.height;
+		_gps_position->altitude_msl = _buf.payload_pvt_geodetic.height - static_cast<double>
+					      (_buf.payload_pvt_geodetic.undulation);
 
 		/* H and V accuracy are reported in 2DRMS, but based off the uBlox reporting we expect RMS.
 		 * Devide by 100 from cm to m and in addition divide by 2 to get RMS. */
 		_gps_position->eph = static_cast<float>(_buf.payload_pvt_geodetic.h_accuracy) / 200.0f;
 		_gps_position->epv = static_cast<float>(_buf.payload_pvt_geodetic.v_accuracy) / 200.0f;
 
-		_gps_position->vel_n_m_s = static_cast<float>(_buf.payload_pvt_geodetic.vn);
-		_gps_position->vel_e_m_s = static_cast<float>(_buf.payload_pvt_geodetic.ve);
-		_gps_position->vel_d_m_s = -1.0f * static_cast<float>(_buf.payload_pvt_geodetic.vu);
-		_gps_position->vel_m_s = sqrtf(_gps_position->vel_n_m_s * _gps_position->vel_n_m_s +
-					       _gps_position->vel_e_m_s * _gps_position->vel_e_m_s);
+		_gps_position->vel_north = static_cast<float>(_buf.payload_pvt_geodetic.vn);
+		_gps_position->vel_east = static_cast<float>(_buf.payload_pvt_geodetic.ve);
+		_gps_position->vel_down = -1.0f * static_cast<float>(_buf.payload_pvt_geodetic.vu);
+		_gps_position->ground_speed = sqrtf(_gps_position->vel_north * _gps_position->vel_north +
+						    _gps_position->vel_east * _gps_position->vel_east);
 
-		_gps_position->cog_rad = static_cast<float>(_buf.payload_pvt_geodetic.cog) * M_DEG_TO_RAD_F;
-		_gps_position->c_variance_rad = 1.0f * M_DEG_TO_RAD_F;
+		_gps_position->course = static_cast<float>(_buf.payload_pvt_geodetic.cog) * M_DEG_TO_RAD_F;
+		_gps_position->course_accuracy = 1.0f * M_DEG_TO_RAD_F;
 
 		// _buf.payload_pvt_geodetic.cog is set to -2*10^10 for velocities below 0.1m/s
 		if (_buf.payload_pvt_geodetic.cog > 360.0f) {
@@ -631,9 +631,9 @@ int GPSDriverSBF::payloadRxDone()
 		// In RTCM mode, PVTGeodetic is used to get base station survey-in
 		if (_output_mode == OutputMode::RTCM) {
 			SurveyInStatus status{};
-			status.latitude = _gps_position->latitude_deg;
-			status.longitude = _gps_position->longitude_deg;
-			status.altitude = _gps_position->altitude_ellipsoid_m;
+			status.latitude = _gps_position->latitude;
+			status.longitude = _gps_position->longitude;
+			status.altitude = _gps_position->altitude_ellipsoid;
 			status.duration = _survey_active ? (float)(gps_absolute_time() - _survey_activation_date) / 1000000.0f : 0;
 			status.mean_accuracy = (_buf.payload_pvt_geodetic.h_accuracy + _buf.payload_pvt_geodetic.v_accuracy) /
 					       20; // Value in mm
@@ -647,14 +647,14 @@ int GPSDriverSBF::payloadRxDone()
 
 	case SBF_ID_VelCovGeodetic: SBF_TRACE_RXMSG("Rx VelCovGeodetic");
 		_msg_status |= 2;
-		_gps_position->s_variance_m_s = _buf.payload_vel_col_geodetic.cov_ve_ve;
+		_gps_position->speed_accuracy = _buf.payload_vel_col_geodetic.cov_ve_ve;
 
-		if (_gps_position->s_variance_m_s < _buf.payload_vel_col_geodetic.cov_vn_vn) {
-			_gps_position->s_variance_m_s = _buf.payload_vel_col_geodetic.cov_vn_vn;
+		if (_gps_position->speed_accuracy < _buf.payload_vel_col_geodetic.cov_vn_vn) {
+			_gps_position->speed_accuracy = _buf.payload_vel_col_geodetic.cov_vn_vn;
 		}
 
-		if (_gps_position->s_variance_m_s < _buf.payload_vel_col_geodetic.cov_vu_vu) {
-			_gps_position->s_variance_m_s = _buf.payload_vel_col_geodetic.cov_vu_vu;
+		if (_gps_position->speed_accuracy < _buf.payload_vel_col_geodetic.cov_vu_vu) {
+			_gps_position->speed_accuracy = _buf.payload_vel_col_geodetic.cov_vu_vu;
 		}
 
 		//SBF_DEBUG("VelCovGeodetic handled");

@@ -71,7 +71,7 @@
 
 
 GPSDriverEmlidReach::GPSDriverEmlidReach(GPSCallbackPtr callback, void *callback_user,
-		sensor_gps_s *gps_position, satellite_info_s *satellite_info) :
+		sensor_gnss_s *gps_position, satellite_info_s *satellite_info) :
 	GPSHelper(callback, callback_user),
 	_gps_position(gps_position), _satellite_info(satellite_info)
 {}
@@ -285,10 +285,10 @@ GPSDriverEmlidReach::handleErbSentence()
 		_gps_position->timestamp = gps_absolute_time();
 
 		_last_POS_timeGPS = _erb_buff.payload.geodic_position.timeGPS;
-		_gps_position->longitude_deg = _erb_buff.payload.geodic_position.longitude;
-		_gps_position->latitude_deg = _erb_buff.payload.geodic_position.latitude;
-		_gps_position->altitude_ellipsoid_m = _erb_buff.payload.geodic_position.altElipsoid;
-		_gps_position->altitude_msl_m = _erb_buff.payload.geodic_position.altMeanSeaLevel;
+		_gps_position->longitude = _erb_buff.payload.geodic_position.longitude;
+		_gps_position->latitude = _erb_buff.payload.geodic_position.latitude;
+		_gps_position->altitude_ellipsoid = _erb_buff.payload.geodic_position.altElipsoid;
+		_gps_position->altitude_msl = _erb_buff.payload.geodic_position.altMeanSeaLevel;
 
 		_rate_count_lat_lon++;
 
@@ -339,14 +339,14 @@ GPSDriverEmlidReach::handleErbSentence()
 
 		_last_VEL_timeGPS = _erb_buff.payload.ned_velocity.timeGPS;
 
-		_gps_position->vel_n_m_s = static_cast<float>(_erb_buff.payload.ned_velocity.velN) / 100.0f;
-		_gps_position->vel_e_m_s = static_cast<float>(_erb_buff.payload.ned_velocity.velE) / 100.0f;
-		_gps_position->vel_d_m_s = static_cast<float>(_erb_buff.payload.ned_velocity.velD) / 100.0f;
+		_gps_position->vel_north = static_cast<float>(_erb_buff.payload.ned_velocity.velN) / 100.0f;
+		_gps_position->vel_east = static_cast<float>(_erb_buff.payload.ned_velocity.velE) / 100.0f;
+		_gps_position->vel_down = static_cast<float>(_erb_buff.payload.ned_velocity.velD) / 100.0f;
 
-		_gps_position->vel_m_s = static_cast<float>(_erb_buff.payload.ned_velocity.speed) / 100.0f;
-		_gps_position->cog_rad = (static_cast<float>(_erb_buff.payload.ned_velocity.heading) / 1e5f) * GPS_PI / 180.0f;
+		_gps_position->ground_speed = static_cast<float>(_erb_buff.payload.ned_velocity.speed) / 100.0f;
+		_gps_position->course = (static_cast<float>(_erb_buff.payload.ned_velocity.heading) / 1e5f) * GPS_PI / 180.0f;
 
-		_gps_position->s_variance_m_s = static_cast<float>(_erb_buff.payload.ned_velocity.speedAccuracy) / 100.0f;
+		_gps_position->speed_accuracy = static_cast<float>(_erb_buff.payload.ned_velocity.speedAccuracy) / 100.0f;
 
 		_gps_position->vel_ned_valid = true;
 		_rate_count_vel++;
