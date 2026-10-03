@@ -655,6 +655,21 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 		}
 	}
 
+	// A moving base and its rover must share one navigation and measurement rate: the rover only solves epochs
+	// for which it holds the base's time-matched observations and flags every other epoch's relative position
+	// invalid (ZED-F9P Integration Manual 3.1.5.6, ZED-X20P Integration Manual 2.4.6). u-blox caps a moving base
+	// at 5 Hz on both parts, so every board runs 5 Hz in these modes and a mixed pair matches without being told.
+	const bool moving_base_setup = isMovingBase() || _mode == UBXMode::RoverWithMovingBaseUART1
+				       || _mode == UBXMode::RoverWithMovingBaseUART2;
+
+	if (moving_base_setup && rate_meas < 200) {
+		if (_output_rate > 0) {
+			UBX_WARN("Rate %u Hz exceeds the moving base max, limiting to 5Hz", _output_rate);
+		}
+
+		rate_meas = 200;
+	}
+
 	cfgValset<uint16_t>(UBX_CFG_KEY_RATE_MEAS, rate_meas, cfg_valset_msg_size);
 	cfgValset<uint16_t>(UBX_CFG_KEY_RATE_NAV, 1, cfg_valset_msg_size);
 	cfgValset<uint8_t>(UBX_CFG_KEY_RATE_TIMEREF, 0, cfg_valset_msg_size);
