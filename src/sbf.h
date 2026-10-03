@@ -438,4 +438,3 @@ private:
 };
 
 uint16_t crc16(const uint8_t *buf, uint32_t len);
-

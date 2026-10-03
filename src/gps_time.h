@@ -68,7 +68,7 @@ static inline time_t gpsTimeToEpoch(tm &utc)
 			     + days_before_month[month] + (month > 1 && leap ? 1 : 0)
 			     + static_cast<int64_t>(utc.tm_mday) - 1;
 	const int64_t seconds = days * 86400 + static_cast<int64_t>(utc.tm_hour) * 3600
-			       + static_cast<int64_t>(utc.tm_min) * 60 + utc.tm_sec;
+				+ static_cast<int64_t>(utc.tm_min) * 60 + utc.tm_sec;
 
 	if (seconds < 0) {
 		if (!std::numeric_limits<time_t>::is_signed

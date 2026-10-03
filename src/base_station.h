@@ -109,4 +109,3 @@ protected:
 	};
 	BaseSettings _base_settings;
 };
-

@@ -11,8 +11,8 @@
 
 // Keep checks active in Release, too.
 #define CHECK(condition) do { if (!(condition)) { \
-	throw std::runtime_error(std::string("line ") + std::to_string(__LINE__) + ": " #condition); \
-} } while (0)
+			throw std::runtime_error(std::string("line ") + std::to_string(__LINE__) + ": " #condition); \
+		} } while (0)
 
 using Bytes = std::vector<uint8_t>;
 
@@ -149,6 +149,7 @@ private:
 			if (mode->second == 0) {
 				disabled_at = gps_test_time;
 				reject = reject_disable;
+
 			} else if (mode->second == 1) {
 				++starts;
 				started_at = gps_test_time;
@@ -162,7 +163,7 @@ private:
 		}
 
 		queue(packet(reject ? UBX_MSG_ACK_NAK : UBX_MSG_ACK_ACK,
-			     {uint8_t(message), uint8_t(message >> 8)}));
+		{uint8_t(message), uint8_t(message >> 8)}));
 	}
 
 	int handle(GPSCallbackType type, void *data, int size)
@@ -220,7 +221,7 @@ struct Fixture {
 	Receiver receiver;
 	sensor_gnss_s position{};
 	GPSDriverUBX driver{GPSHelper::Interface::UART, Receiver::callback, &receiver,
-			    &position, nullptr, GPSDriverUBX::Settings{}};
+			     &position, nullptr, GPSDriverUBX::Settings{}};
 
 	Fixture()
 	{
@@ -272,82 +273,104 @@ int main()
 		void (*run)();
 	} cases[] = {
 		{"already-stopped", [] { Fixture f; f.success(1); }},
-		{"silent-then-stopped", [] {
-			Fixture f;
-			f.receiver.replies = {SurveyReply::silent, SurveyReply::stopped};
-			f.success(2);
-		}},
-		{"delayed-stop", [] {
-			Fixture f;
-			f.receiver.replies = {SurveyReply::active, SurveyReply::active, SurveyReply::stopped};
-			f.success(3);
-			CHECK(f.receiver.started_at - f.receiver.disabled_at >= 200000);
-		}},
-		{"completed-survey-is-not-stopped", [] {
-			Fixture f;
-			f.receiver.replies = {SurveyReply::valid, SurveyReply::stopped};
-			f.success(2);
-		}},
-		{"bad-checksum-is-not-confirmation", [] {
-			Fixture f;
-			f.receiver.replies = {SurveyReply::bad_checksum, SurveyReply::stopped};
-			f.success(2);
-		}},
-		{"bad-length-is-not-confirmation", [] {
-			Fixture f;
-			f.receiver.replies = {SurveyReply::bad_length, SurveyReply::stopped};
-			f.success(2);
-		}},
+		{
+			"silent-then-stopped", [] {
+				Fixture f;
+				f.receiver.replies = {SurveyReply::silent, SurveyReply::stopped};
+				f.success(2);
+			}
+		},
+		{
+			"delayed-stop", [] {
+				Fixture f;
+				f.receiver.replies = {SurveyReply::active, SurveyReply::active, SurveyReply::stopped};
+				f.success(3);
+				CHECK(f.receiver.started_at - f.receiver.disabled_at >= 200000);
+			}
+		},
+		{
+			"completed-survey-is-not-stopped", [] {
+				Fixture f;
+				f.receiver.replies = {SurveyReply::valid, SurveyReply::stopped};
+				f.success(2);
+			}
+		},
+		{
+			"bad-checksum-is-not-confirmation", [] {
+				Fixture f;
+				f.receiver.replies = {SurveyReply::bad_checksum, SurveyReply::stopped};
+				f.success(2);
+			}
+		},
+		{
+			"bad-length-is-not-confirmation", [] {
+				Fixture f;
+				f.receiver.replies = {SurveyReply::bad_length, SurveyReply::stopped};
+				f.success(2);
+			}
+		},
 		{"active-timeout", [] { Fixture f; f.receiver.replies = {SurveyReply::active}; f.timeout(); }},
 		{"valid-timeout", [] { Fixture f; f.receiver.replies = {SurveyReply::valid}; f.timeout(); }},
 		{"silent-timeout", [] { Fixture f; f.receiver.replies = {SurveyReply::silent}; f.timeout(); }},
-		{"reconfigure-does-not-reuse-stop-confirmation", [] {
-			Fixture f;
-			f.success(1);
-			f.receiver = Receiver{};
-			f.receiver.replies = {SurveyReply::silent};
-			f.timeout();
-		}},
-		{"disable-nak", [] {
-			Fixture f;
-			f.receiver.reject_disable = true;
-			CHECK(f.configure() < 0);
-			CHECK(!f.driver.receiverReady());
-			CHECK(f.receiver.modes == std::vector<uint32_t>({0}));
-			CHECK(f.receiver.polls == 0 && f.receiver.starts == 0);
-		}},
-		{"start-nak", [] {
-			Fixture f;
-			f.receiver.reject_start = true;
-			CHECK(f.configure() < 0);
-			CHECK(!f.driver.receiverReady());
-			CHECK(f.receiver.modes == std::vector<uint32_t>({0, 1}));
-			CHECK(f.receiver.polls == 1 && f.receiver.starts == 1);
-		}},
-		{"poll-write-failure", [] {
-			Fixture f;
-			f.receiver.fail_poll_write = true;
-			CHECK(f.configure() < 0);
-			CHECK(!f.driver.receiverReady());
-			CHECK(f.receiver.modes == std::vector<uint32_t>({0}));
-			CHECK(f.receiver.starts == 0);
-		}},
-		{"configured-status-callback", [] {
-			Fixture f;
-			f.success(1);
-			f.receiver.survey(SurveyReply::active);
-			f.driver.receive(100);
-			CHECK(f.receiver.status_callbacks == 1);
-		}},
-		{"fixed-base-does-not-poll", [] {
-			Fixture f;
-			f.driver.setBasePosition(47.0, 8.0, 500.0f, 1000.0f);
-			CHECK(f.configure() == 0);
-			CHECK(f.driver.receiverReady());
-			CHECK(f.receiver.modes == std::vector<uint32_t>({2}));
-			CHECK(f.receiver.polls == 0 && f.receiver.starts == 0);
-			CHECK(f.receiver.rtcm_enables == 1);
-		}},
+		{
+			"reconfigure-does-not-reuse-stop-confirmation", [] {
+				Fixture f;
+				f.success(1);
+				f.receiver = Receiver{};
+				f.receiver.replies = {SurveyReply::silent};
+				f.timeout();
+			}
+		},
+		{
+			"disable-nak", [] {
+				Fixture f;
+				f.receiver.reject_disable = true;
+				CHECK(f.configure() < 0);
+				CHECK(!f.driver.receiverReady());
+				CHECK(f.receiver.modes == std::vector<uint32_t>({0}));
+				CHECK(f.receiver.polls == 0 && f.receiver.starts == 0);
+			}
+		},
+		{
+			"start-nak", [] {
+				Fixture f;
+				f.receiver.reject_start = true;
+				CHECK(f.configure() < 0);
+				CHECK(!f.driver.receiverReady());
+				CHECK(f.receiver.modes == std::vector<uint32_t>({0, 1}));
+				CHECK(f.receiver.polls == 1 && f.receiver.starts == 1);
+			}
+		},
+		{
+			"poll-write-failure", [] {
+				Fixture f;
+				f.receiver.fail_poll_write = true;
+				CHECK(f.configure() < 0);
+				CHECK(!f.driver.receiverReady());
+				CHECK(f.receiver.modes == std::vector<uint32_t>({0}));
+				CHECK(f.receiver.starts == 0);
+			}
+		},
+		{
+			"configured-status-callback", [] {
+				Fixture f;
+				f.success(1);
+				f.receiver.survey(SurveyReply::active);
+				f.driver.receive(100);
+				CHECK(f.receiver.status_callbacks == 1);
+			}
+		},
+		{
+			"fixed-base-does-not-poll", [] {
+				Fixture f;
+				f.driver.setBasePosition(47.0, 8.0, 500.0f, 1000.0f);
+				CHECK(f.configure() == 0);
+				CHECK(f.driver.receiverReady());
+				CHECK(f.receiver.modes == std::vector<uint32_t>({2}));
+				CHECK(f.receiver.polls == 0 && f.receiver.starts == 0);
+				CHECK(f.receiver.rtcm_enables == 1);
+			}
+		},
 	};
 
 	bool success = true;

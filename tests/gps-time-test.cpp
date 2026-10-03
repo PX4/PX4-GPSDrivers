@@ -30,8 +30,10 @@ int main()
 		{"ignore-dst-flag", calendar(2026, 9, 8, 15, 58, 9, 1), 1788883089},
 		{"leap-day", calendar(2024, 2, 29, 23, 59, 59), 1709251199},
 		{"second-overflow", calendar(2024, 2, 29, 23, 59, 60), 1709251200},
-		{"sbf-gps-week", calendar(1980, 1, 6 + 2435 * 7, 0, 0, 2 * 86400 + 15 * 3600 + 58 * 60 + 9),
-		 1788883089},
+		{
+			"sbf-gps-week", calendar(1980, 1, 6 + 2435 * 7, 0, 0, 2 * 86400 + 15 * 3600 + 58 * 60 + 9),
+			1788883089
+		},
 		{"leap-century", calendar(2000, 2, 29, 23, 59, 60), 951868800},
 		{"non-leap-century", calendar(2100, 2, 29, 0, 0, 0), 4107542400LL},
 		{"month-underflow", calendar(2026, 0, 1, 0, 0, 0), 1764547200},
