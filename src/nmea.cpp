@@ -913,13 +913,13 @@ int GPSDriverNMEA::receive(unsigned timeout)
 					_gps_position->vel_down = -_unicore_parser.agrica().velocity_up_m_s;
 					// speed_accuracy contains a 1-sigma speed accuracy in m/s.
 					_gps_position->speed_accuracy = sqrtf(
-						(_unicore_parser.agrica().stddev_velocity_north_m_s * _unicore_parser.agrica().stddev_velocity_north_m_s +
-						 _unicore_parser.agrica().stddev_velocity_east_m_s * _unicore_parser.agrica().stddev_velocity_east_m_s +
-						 _unicore_parser.agrica().stddev_velocity_up_m_s * _unicore_parser.agrica().stddev_velocity_up_m_s));
+										(_unicore_parser.agrica().stddev_velocity_north_m_s * _unicore_parser.agrica().stddev_velocity_north_m_s +
+												_unicore_parser.agrica().stddev_velocity_east_m_s * _unicore_parser.agrica().stddev_velocity_east_m_s +
+												_unicore_parser.agrica().stddev_velocity_up_m_s * _unicore_parser.agrica().stddev_velocity_up_m_s));
 
 					_gps_position->course = atan2f(
-									 _unicore_parser.agrica().velocity_north_m_s,
-									 _unicore_parser.agrica().velocity_east_m_s);
+									_unicore_parser.agrica().velocity_north_m_s,
+									_unicore_parser.agrica().velocity_east_m_s);
 
 					_gps_position->vel_ned_valid = true;
 					_VEL_received = true;

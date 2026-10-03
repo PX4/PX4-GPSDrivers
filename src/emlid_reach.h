@@ -213,4 +213,3 @@ private:
 	bool testConnection();
 
 };
-

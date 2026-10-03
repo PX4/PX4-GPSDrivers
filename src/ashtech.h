@@ -142,4 +142,3 @@ private:
 
 	RTCMParsing *_rtcm_parsing{nullptr};
 };
-

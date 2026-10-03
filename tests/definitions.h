@@ -18,7 +18,7 @@ inline void gps_usleep(unsigned long usecs) { gps_test_time += usecs; }
 inline std::vector<std::string> gps_test_warnings;
 inline void gps_test_warn(const char *format, ...)
 {
-	char message[1024]{};
+	char message[1024] {};
 	va_list args;
 	va_start(args, format);
 	std::vsnprintf(message, sizeof(message), format, args);
@@ -32,8 +32,7 @@ inline void gps_test_warn(const char *format, ...)
 #define M_RAD_TO_DEG 57.2957795130823208768
 
 
-struct sensor_gnss_s
-{
+struct sensor_gnss_s {
 	uint64_t timestamp;
 	uint64_t timestamp_sample;
 
@@ -126,8 +125,7 @@ struct sensor_gnss_s
 	uint8_t corrections_msg_used;
 };
 
-struct sensor_gnss_relative_s
-{
+struct sensor_gnss_relative_s {
 	uint64_t timestamp;
 	uint64_t timestamp_sample;
 
@@ -158,8 +156,7 @@ struct sensor_gnss_relative_s
 	bool relative_position_normalized;
 };
 
-struct satellite_info_s
-{
+struct satellite_info_s {
 	uint64_t timestamp;
 	static constexpr uint8_t SAT_INFO_MAX_SATELLITES = 40;
 
@@ -172,8 +169,7 @@ struct satellite_info_s
 	uint8_t prn[SAT_INFO_MAX_SATELLITES];
 };
 
-struct sensor_gnss_rf_s
-{
+struct sensor_gnss_rf_s {
 	uint64_t timestamp;
 	uint64_t timestamp_sample;
 	uint32_t device_id;
@@ -193,8 +189,7 @@ struct sensor_gnss_rf_s
 	uint8_t _padding0[7];
 };
 
-struct sensor_gnss_spectrum_s
-{
+struct sensor_gnss_spectrum_s {
 	uint64_t timestamp;
 	uint64_t timestamp_sample;
 	uint32_t device_id;

@@ -1,0 +1,28 @@
+name: Format
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  format:
+    # ubuntu-22.04 ships astyle 3.1, the version the PX4 style rules are written for
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install astyle
+        run: sudo apt-get update && sudo apt-get install -y astyle
+
+      - name: Code style
+        run: tools/astyle/check_code_style.sh
+
+      - name: Newlines
+        run: tools/astyle/check_newlines.sh

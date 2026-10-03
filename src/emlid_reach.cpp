@@ -372,5 +372,3 @@ GPSDriverEmlidReach::handleErbSentence()
 
 	return ret;
 }
-
-
