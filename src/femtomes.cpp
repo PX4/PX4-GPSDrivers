@@ -58,7 +58,9 @@
 #define FEMTO_PREAMBLE2			0x44
 #define FEMTO_PREAMBLE3			0x12
 
+#ifndef MIN
 #define MIN(X,Y)	((X) < (Y) ? (X) : (Y))
+#endif
 #define FEMTO_UNUSED(x) (void)x;
 
 #if defined _FMTOMES_DEBUG
