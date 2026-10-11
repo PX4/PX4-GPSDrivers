@@ -56,7 +56,9 @@
 #include "rtcm.h"
 #include "ubx.h"
 
+#ifndef MIN
 #define MIN(X,Y)              ((X) < (Y) ? (X) : (Y))
+#endif
 #define SWAP16(X)             ((((X) >>  8) & 0x00ff) | (((X) << 8) & 0xff00))
 
 /**** Trace macros, disable for production builds */

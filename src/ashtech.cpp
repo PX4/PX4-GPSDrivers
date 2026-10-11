@@ -40,7 +40,9 @@
 #include "ashtech.h"
 #include "rtcm.h"
 
+#ifndef MIN
 #define MIN(X,Y)	((X) < (Y) ? (X) : (Y))
+#endif
 #define ASH_UNUSED(x) (void)x;
 
 //#define ASH_DEBUG(...)		{GPS_WARN(__VA_ARGS__);}

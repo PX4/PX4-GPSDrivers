@@ -55,7 +55,9 @@
 # define M_PI_F 3.14159265358979323846f
 #endif
 
+#ifndef MAX
 #define MAX(X,Y)    ((X) > (Y) ? (X) : (Y))
+#endif
 #define NMEA_UNUSED(x) (void)x;
 
 /**** Warning macros, disable to save memory */
