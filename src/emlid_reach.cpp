@@ -74,7 +74,6 @@
 static unsigned erbMinPayloadLen(uint8_t id)
 {
 	switch (id) {
-	case ERB_ID_VERSION:         return sizeof(erb_version_t) - sizeof(erb_checksum_t);
 
 	case ERB_ID_GEODIC_POSITION: return sizeof(erb_geodic_position_t) - sizeof(erb_checksum_t);
 

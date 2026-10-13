@@ -197,7 +197,7 @@ int main()
 	CHECK(satellites.count == 1);
 	CHECK(satellites.svid[0] == 9);
 
-	// A UAVSTATUS with none of its fixed part is dropped
+	// A UAVSTATUS whose fixed part is cut short (20 of 40 bytes) is dropped
 	receiver.queue(femtoFrame(8017, Bytes(20, 0)));
 	CHECK(driver.receive(100) == -1);
 	CHECK(satellites.count == 1);
