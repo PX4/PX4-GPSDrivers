@@ -95,6 +95,12 @@ int GPSDriverFemto::handleMessage(int len)
 	uint16_t messageid = _femto_msg.header.femto_header.messageid;
 
 	if (messageid == FEMTO_MSG_ID_UAVGPS) { /**< uavgpsB*/
+		if (_femto_msg.header.femto_header.messagelength < sizeof(femto_uav_gps_t)) {
+			FEMTO_DEBUG("Femto: UAVGPS payload of %u bytes is shorter than the message",
+				    (unsigned)_femto_msg.header.femto_header.messagelength);
+			return 0;
+		}
+
 		memcpy(&_femto_uav_gps, _femto_msg.data, sizeof(femto_uav_gps_t));
 
 		_gps_position->time_utc_usec = _femto_uav_gps.time_utc_usec;
@@ -127,7 +133,29 @@ int GPSDriverFemto::handleMessage(int len)
 	} else if (_satellite_info && messageid == FEMTO_MSG_ID_UAVSTATUS) {	/**< set satellite info */
 		const femto_uav_status_t *uav_status = (const femto_uav_status_t *)_femto_msg.data;
 
-		_satellite_info->count = MIN(uav_status->sat_number, satellite_info_s::SAT_INFO_MAX_SATELLITES);
+		// sat_number is only trusted as far as the payload actually carries satellite records
+		constexpr unsigned fixed_len = sizeof(femto_uav_status_t) - sizeof(uav_status->sat_status);
+		constexpr unsigned record_len = sizeof(uav_status->sat_status[0]);
+		constexpr uint32_t max_records = sizeof(uav_status->sat_status) / record_len;
+		const unsigned payload_len = _femto_msg.header.femto_header.messagelength;
+
+		if (payload_len < fixed_len) {
+			FEMTO_DEBUG("Femto: UAVSTATUS payload of %u bytes is shorter than the message", payload_len);
+			return 0;
+		}
+
+		const uint32_t records_present = (payload_len - fixed_len) / record_len;
+		uint32_t sat_count = uav_status->sat_number;
+
+		if (sat_count > records_present) {
+			sat_count = records_present;
+		}
+
+		if (sat_count > max_records) {
+			sat_count = max_records;
+		}
+
+		_satellite_info->count = MIN(sat_count, satellite_info_s::SAT_INFO_MAX_SATELLITES);
 
 		for (int8_t i = 0; i < _satellite_info->count; i++) {
 			_satellite_info->svid[i] = uav_status->sat_status[i].svid;

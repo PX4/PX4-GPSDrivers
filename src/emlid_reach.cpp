@@ -69,6 +69,25 @@
 
 #define AUTO_DETECT_MAX_READ_SENTENCE 5  // if more detect succeed
 
+// Payload bytes a frame must carry before handleErbSentence() may read the struct for its id; the structs end
+// with the two checksum bytes, which travel after the payload. Ids the handler does not interpret need nothing.
+static unsigned erbMinPayloadLen(uint8_t id)
+{
+	switch (id) {
+	case ERB_ID_VERSION:         return sizeof(erb_version_t) - sizeof(erb_checksum_t);
+
+	case ERB_ID_GEODIC_POSITION: return sizeof(erb_geodic_position_t) - sizeof(erb_checksum_t);
+
+	case ERB_ID_NAV_STATUS:      return sizeof(erb_navigation_status_t) - sizeof(erb_checksum_t);
+
+	case ERB_ID_DOPS:            return sizeof(erb_dop_t) - sizeof(erb_checksum_t);
+
+	case ERB_ID_VELOCITY_NED:    return sizeof(erb_ned_velocity_t) - sizeof(erb_checksum_t);
+
+	default:                     return 0;
+	}
+}
+
 
 GPSDriverEmlidReach::GPSDriverEmlidReach(GPSCallbackPtr callback, void *callback_user,
 		sensor_gnss_s *gps_position, satellite_info_s *satellite_info) :
@@ -258,7 +277,9 @@ GPSDriverEmlidReach::erbParseChar(uint8_t b)
 			ckb += cka;
 		}
 
-		if (cka == _erb_checksum.ck_a && ckb == _erb_checksum.ck_b) {
+		// A checksum-valid frame shorter than its message struct would be read from the reused buffer
+		if (cka == _erb_checksum.ck_a && ckb == _erb_checksum.ck_b
+		    && _erb_payload_len >= erbMinPayloadLen(_erb_buff.header.id)) {
 			ret = 1;
 
 		} else {

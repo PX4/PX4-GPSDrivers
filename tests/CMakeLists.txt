@@ -48,3 +48,32 @@ target_compile_definitions(gps-ubx-test PRIVATE
 target_compile_options(gps-ubx-test PRIVATE -Wall -Wextra)
 add_test(NAME GPSUbxSurveyIn COMMAND gps-ubx-test)
 set_tests_properties(GPSUbxSurveyIn PROPERTIES TIMEOUT 10)
+
+add_executable(gps-erb-test
+    gps-erb-test.cpp
+    ${gps_driver_source_dir}/emlid_reach.cpp
+    ${gps_driver_source_dir}/gps_helper.cpp
+    ${gps_driver_source_dir}/rtcm.cpp
+)
+target_include_directories(gps-erb-test PRIVATE ${gps_driver_source_dir}/)
+target_compile_definitions(gps-erb-test PRIVATE
+    GPS_DEFINITIONS_HEADER="${CMAKE_CURRENT_SOURCE_DIR}/definitions.h"
+)
+target_compile_options(gps-erb-test PRIVATE -Wall -Wextra)
+add_test(NAME GPSErbPayloadLength COMMAND gps-erb-test)
+set_tests_properties(GPSErbPayloadLength PROPERTIES TIMEOUT 10)
+
+add_executable(gps-femto-test
+    gps-femto-test.cpp
+    ${gps_driver_source_dir}/femtomes.cpp
+    ${gps_driver_source_dir}/gps_helper.cpp
+    ${gps_driver_source_dir}/rtcm.cpp
+    ${gps_driver_source_dir}/crc.cpp
+)
+target_include_directories(gps-femto-test PRIVATE ${gps_driver_source_dir}/)
+target_compile_definitions(gps-femto-test PRIVATE
+    GPS_DEFINITIONS_HEADER="${CMAKE_CURRENT_SOURCE_DIR}/definitions.h"
+)
+target_compile_options(gps-femto-test PRIVATE -Wall -Wextra)
+add_test(NAME GPSFemtoPayloadLength COMMAND gps-femto-test)
+set_tests_properties(GPSFemtoPayloadLength PROPERTIES TIMEOUT 10)
