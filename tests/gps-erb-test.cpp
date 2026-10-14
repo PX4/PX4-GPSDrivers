@@ -174,6 +174,16 @@ int main()
 	GPSDriverEmlidReach driver{Receiver::callback, &receiver, &position, &satellites};
 	gps_test_time = 0;
 
+	// configure() initializes the parser state and probes for five valid sentences before receiving positions.
+	for (unsigned i = 0; i < 5; ++i) {
+		receiver.queue(erbFrame(0x03, navStatus(1000, 3, 1, 12)));
+	}
+
+	unsigned baudrate = 57600;
+	GPSHelper::GPSConfig config{};
+	config.output_mode = GPSHelper::OutputMode::GPS;
+	CHECK(driver.configure(baudrate, config) == 0);
+
 	// A complete position: NAV_STATUS (RTK fix, 12 satellites), GEODIC_POSITION and VELOCITY_NED for the same time
 	Bytes full_position;
 	put32(full_position, 1000);
