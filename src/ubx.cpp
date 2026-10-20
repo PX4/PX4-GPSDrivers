@@ -2348,7 +2348,7 @@ GPSDriverUBX::payloadRxAddNavSat(const uint8_t b)
 				uint8_t svinfo_svid = 255;
 
 				switch (ubx_sat_gnssId) {
-				case 0:  // GPS: G1-G23 -> 1-32
+				case 0:  // GPS: G1-G32 -> 1-32
 					if (ubx_sat_svId >= 1 && ubx_sat_svId <= 32) {
 						svinfo_svid = ubx_sat_svId;
 					}
@@ -2370,11 +2370,11 @@ GPSDriverUBX::payloadRxAddNavSat(const uint8_t b)
 					break;
 
 				case 3:  // BeiDou: B1-B37 -> 159-163,33-64
-					if (ubx_sat_svId >= 1 && ubx_sat_svId <= 4) {
+					if (ubx_sat_svId >= 1 && ubx_sat_svId <= 5) {
 						svinfo_svid = ubx_sat_svId + 158;
 
-					} else if (ubx_sat_svId >= 5 && ubx_sat_svId <= 37) {
-						svinfo_svid = ubx_sat_svId + 28;
+					} else if (ubx_sat_svId >= 6 && ubx_sat_svId <= 37) {
+						svinfo_svid = ubx_sat_svId + 27;
 					}
 
 					break;
@@ -2386,7 +2386,7 @@ GPSDriverUBX::payloadRxAddNavSat(const uint8_t b)
 
 					break;
 
-				case 5:  // QZSS: Q1-A10 -> 193-202
+				case 5:  // QZSS: Q1-Q10 -> 193-202
 					if (ubx_sat_svId >= 1 && ubx_sat_svId <= 10) {
 						svinfo_svid = ubx_sat_svId + 192;
 					}

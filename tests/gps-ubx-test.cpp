@@ -93,6 +93,23 @@ public:
 		queue(bytes);
 	}
 
+	// NAV-SAT: 8-byte header with numSvs at offset 5, then 12 bytes per satellite, gnssId and svId first.
+	void satellites(const std::vector<std::pair<uint8_t, uint8_t>> &gnss_sv_ids)
+	{
+		Bytes payload(8, 0);
+		payload[4] = 1;
+		payload[5] = uint8_t(gnss_sv_ids.size());
+
+		for (const auto &[gnss_id, sv_id] : gnss_sv_ids) {
+			Bytes satellite(12, 0);
+			satellite[0] = gnss_id;
+			satellite[1] = sv_id;
+			payload.insert(payload.end(), satellite.begin(), satellite.end());
+		}
+
+		queue(packet(UBX_MSG_NAV_SAT, payload));
+	}
+
 private:
 	Bytes outgoing;
 	std::deque<uint8_t> incoming;
@@ -220,8 +237,9 @@ private:
 struct Fixture {
 	Receiver receiver;
 	sensor_gnss_s position{};
+	satellite_info_s satellite_info{};
 	GPSDriverUBX driver{GPSHelper::Interface::UART, Receiver::callback, &receiver,
-			     &position, nullptr, GPSDriverUBX::Settings{}};
+			     &position, &satellite_info, GPSDriverUBX::Settings{}};
 
 	Fixture()
 	{
@@ -369,6 +387,18 @@ int main()
 				CHECK(f.receiver.modes == std::vector<uint32_t>({2}));
 				CHECK(f.receiver.polls == 0 && f.receiver.starts == 0);
 				CHECK(f.receiver.rtcm_enables == 1);
+			}
+		},
+		{
+			"nav-sat-svid-numbering", [] {
+				Fixture f;
+				f.success(1);
+				// BeiDou C1-C5 -> 159-163 and C6-C37 -> 33-64; GLONASS R1 -> 65 follows C37.
+				f.receiver.satellites({{3, 1}, {3, 5}, {3, 6}, {3, 37}, {6, 1}, {0, 32}, {2, 1}, {5, 1}});
+				f.driver.receive(100); // Returns only for a position; the satellites are parsed on the way.
+				const std::vector<uint8_t> expected{159, 163, 33, 64, 65, 32, 211, 193};
+				CHECK(f.satellite_info.count == expected.size());
+				CHECK(std::equal(expected.begin(), expected.end(), f.satellite_info.svid));
 			}
 		},
 	};
