@@ -64,7 +64,6 @@
 /**** Trace macros, disable for production builds */
 #define UBX_TRACE_PARSER(...) {/*GPS_INFO(__VA_ARGS__);*/}    // decoding progress in parse_char()
 #define UBX_TRACE_RXMSG(...)  {/*GPS_INFO(__VA_ARGS__);*/}    // Rx msgs in payload_rx_done()
-#define UBX_TRACE_SVINFO(...) {/*GPS_INFO(__VA_ARGS__);*/}    // NAV-SVINFO processing (debug use only, will cause rx buffer overflows)
 
 /**** Warning macros, disable to save memory */
 #define UBX_WARN(...)         {GPS_WARN(__VA_ARGS__);}
@@ -112,15 +111,21 @@ GPSDriverUBX::GPSDriverUBX(Interface gpsInterface, GPSCallbackPtr callback, void
 #if defined(CONFIG_GPS_UBX_SPAN)
 	_spectrum_analyzer(settings.spectrum_analyzer),
 #endif
-	_jam_det_sensitivity_hi(settings.jam_det_sensitivity_hi)
+	_jam_det_sensitivity_hi(settings.jam_det_sensitivity_hi),
+	_sat_info_per_signal(settings.sat_info_per_signal && satellite_info != nullptr)
 
 {
 	decodeInit();
+
+	if (_sat_info_per_signal) {
+		_sat_geometry = new SatelliteGeometry[satellite_info_s::SAT_INFO_MAX_SATELLITES];
+	}
 }
 
 GPSDriverUBX::~GPSDriverUBX()
 {
 	delete _rtcm_parsing;
+	delete[] _sat_geometry;
 }
 
 int
@@ -1023,13 +1028,28 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 
 	_use_nav_pvt = true;
 	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_DOP_I2C, 1);
-	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_SAT_I2C, (_satellite_info != nullptr) ? 10 : 0);
+	// Satellite info once a second, whatever the navigation rate
+	const uint8_t sat_info_divisor = (_satellite_info != nullptr) ? static_cast<uint8_t>(1000 / rate_meas) : 0;
+	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_SAT_I2C, sat_info_divisor);
 	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_STATUS_I2C, 1);
 	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_MON_RF_I2C, 1);
 	_got_sec_sig = false;
 
 	if (sendCfgValsetAcked() < 0) {
 		return -1;
+	}
+
+	// NAV-SIG is absent on early protocol-27 firmware; without it the satellite info stays per satellite
+	_use_nav_sig = false;
+
+	if (_sat_info_per_signal) {
+		initCfgValset();
+		cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_NAV_SIG_I2C, sat_info_divisor);
+		_use_nav_sig = sendCfgValsetAcked(false) == 0;
+
+		if (!_use_nav_sig) {
+			UBX_WARN("NAV-SIG not supported, satellite info per satellite");
+		}
 	}
 
 	// Correction input status. RXM-COR reports every protocol (RTCM3, SPARTN, HAS) and is
@@ -1360,6 +1380,7 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 			// NAV-SAT is 12 bytes per satellite against ~250 for all of the above together, so it
 			// gets the same decimation the driver uses for itself rather than setting the link speed
 			cfgValsetUart2(UBX_CFG_KEY_MSGOUT_UBX_NAV_SAT_I2C, 10);
+			cfgValsetUart2(UBX_CFG_KEY_MSGOUT_UBX_NAV_SIG_I2C, 10);
 
 			if (_board != Board::u_blox9) {
 				cfgValsetUart2(UBX_CFG_KEY_MSGOUT_UBX_NAV_HPPOSLLH_I2C, 1);
@@ -1894,6 +1915,10 @@ GPSDriverUBX::parseChar(const uint8_t b)
 			ret = payloadRxAddNavSat(b);	// add a NAV-SAT payload byte
 			break;
 
+		case UBX_MSG_NAV_SIG:
+			ret = payloadRxAddNavSig(b);	// add a NAV-SIG payload byte
+			break;
+
 		case UBX_MSG_NAV_SVINFO:
 			ret = payloadRxAddNavSvinfo(b);	// add a NAV-SVINFO payload byte
 			break;
@@ -2094,6 +2119,22 @@ GPSDriverUBX::payloadRxInit()
 		} else if (!_configured) {
 			_rx_state = UBX_RXMSG_IGNORE;        // ignore if not _configured
 
+		} else if (_rx_msg == UBX_MSG_NAV_SAT && _use_nav_sig) {
+			_sat_geometry_count = 0;        // NAV-SAT only refreshes the geometry for NAV-SIG
+
+		} else {
+			memset(_satellite_info, 0, sizeof(*_satellite_info));        // initialize sat info
+		}
+
+		break;
+
+	case UBX_MSG_NAV_SIG:
+		if (!_sat_info_per_signal) {
+			_rx_state = UBX_RXMSG_DISABLE;        // disable if per-signal sat info not requested
+
+		} else if (!_configured || !_use_nav_sig) {
+			_rx_state = UBX_RXMSG_IGNORE;
+
 		} else {
 			memset(_satellite_info, 0, sizeof(*_satellite_info));        // initialize sat info
 		}
@@ -2246,6 +2287,14 @@ GPSDriverUBX::payloadRxInit()
 			case UBX_MSG_NAV_TIMEGPS:
 				key_id = UBX_CFG_KEY_MSGOUT_UBX_NAV_TIMEGPS_I2C;
 				break;
+
+			case UBX_MSG_NAV_SAT:
+				key_id = UBX_CFG_KEY_MSGOUT_UBX_NAV_SAT_I2C;
+				break;
+
+			case UBX_MSG_NAV_SIG:
+				key_id = UBX_CFG_KEY_MSGOUT_UBX_NAV_SIG_I2C;
+				break;
 			}
 
 			if (key_id != 0) {
@@ -2311,6 +2360,201 @@ GPSDriverUBX::payloadRxAdd(const uint8_t b)
 	return ret;
 }
 
+namespace
+{
+
+// Satellite number as satellite_info carries it: the PRN, with QZSS as 193-202 and GLONASS as its slot (0 while unknown)
+uint8_t ubxPrn(uint8_t gnss_id, uint8_t sv_id)
+{
+	if (gnss_id == satellite_info_s::GNSS_ID_QZSS && sv_id >= 1 && sv_id <= 10) {
+		return sv_id + 192;
+	}
+
+	if (gnss_id == satellite_info_s::GNSS_ID_GLONASS && sv_id == 255) {
+		return 0;
+	}
+
+	return sv_id;
+}
+
+// RINEX 3 frequency band of a NAV-SIG signal, 0 for a signal this table does not know
+uint8_t ubxBand(uint8_t gnss_id, uint8_t sig_id)
+{
+	switch (gnss_id) {
+	case satellite_info_s::GNSS_ID_GPS:
+		switch (sig_id) {
+		case 0: return 1;           // L1 C/A
+
+		case 3: case 4: return 2;   // L2 CL, CM
+
+		case 6: case 7: return 5;   // L5 I, Q
+		}
+
+		break;
+
+	case satellite_info_s::GNSS_ID_SBAS:
+		return sig_id == 0 ? 1 : 0; // L1 C/A
+
+	case satellite_info_s::GNSS_ID_GALILEO:
+		switch (sig_id) {
+		case 0: case 1: return 1;   // E1 C, B
+
+		case 3: case 4: return 5;   // E5a I, Q
+
+		case 5: case 6: return 7;   // E5b I, Q
+
+		case 8: case 9: return 6;   // E6 B, C
+		}
+
+		break;
+
+	case satellite_info_s::GNSS_ID_BEIDOU:
+		switch (sig_id) {
+		case 0: case 1: return 2;   // B1I D1, D2
+
+		case 2: case 3: return 7;   // B2I D1, D2
+
+		case 4: case 10: return 6;  // B3I D1, D2
+
+		case 5: case 6: return 1;   // B1C pilot, data
+
+		case 7: case 8: return 5;   // B2a pilot, data
+		}
+
+		break;
+
+	case satellite_info_s::GNSS_ID_QZSS:
+		switch (sig_id) {
+		case 0: case 1: case 12: return 1; // L1 C/A, L1S, L1C/B
+
+		case 4: case 5: return 2;   // L2 CM, CL
+
+		case 8: case 9: return 5;   // L5 I, Q
+		}
+
+		break;
+
+	case satellite_info_s::GNSS_ID_GLONASS:
+		switch (sig_id) {
+		case 0: return 1;           // L1 OF
+
+		case 2: return 2;           // L2 OF
+		}
+
+		break;
+
+	case satellite_info_s::GNSS_ID_NAVIC:
+		return sig_id == 0 ? 5 : 0; // L5 A
+	}
+
+	return 0;
+}
+
+// NAV-SAT, NAV-SIG and NAV-SVINFO quality indicator: 0-1 searching, 2-3 acquired, 4 code locked, 5-7 code and carrier locked
+uint8_t ubxTracking(uint8_t quality)
+{
+	if (quality >= 5) {
+		return satellite_info_s::TRACKING_CARRIER;
+
+	} else if (quality == 4) {
+		return satellite_info_s::TRACKING_CODE;
+
+	} else if (quality >= 2) {
+		return satellite_info_s::TRACKING_SIGNAL;
+	}
+
+	return satellite_info_s::TRACKING_NONE;
+}
+
+// The receiver marks an unknown elevation by putting it outside +-90, and then the azimuth means nothing
+int8_t ubxElevation(int8_t elev)
+{
+	return (elev >= -90 && elev <= 90) ? elev : satellite_info_s::ELEVATION_UNKNOWN;
+}
+
+uint16_t ubxAzimuth(int16_t azim, int8_t elev)
+{
+	if (ubxElevation(elev) == satellite_info_s::ELEVATION_UNKNOWN || azim < 0 || azim > 360) {
+		return satellite_info_s::AZIMUTH_UNKNOWN;
+	}
+
+	return static_cast<uint16_t>(azim % 360);
+}
+
+// NAV-SVINFO numbers satellites in one range for all constellations
+bool legacySvid(uint8_t svid, uint8_t &gnss_id, uint8_t &prn)
+{
+	if (svid >= 1 && svid <= 32) {
+		gnss_id = satellite_info_s::GNSS_ID_GPS;
+		prn = svid;
+
+	} else if (svid >= 33 && svid <= 64) {
+		gnss_id = satellite_info_s::GNSS_ID_BEIDOU; // C6-C37
+		prn = svid - 27;
+
+	} else if (svid >= 65 && svid <= 96) {
+		gnss_id = satellite_info_s::GNSS_ID_GLONASS;
+		prn = svid - 64;
+
+	} else if (svid >= 120 && svid <= 158) {
+		gnss_id = satellite_info_s::GNSS_ID_SBAS;
+		prn = svid;
+
+	} else if (svid >= 159 && svid <= 163) {
+		gnss_id = satellite_info_s::GNSS_ID_BEIDOU; // C1-C5
+		prn = svid - 158;
+
+	} else if (svid >= 193 && svid <= 202) {
+		gnss_id = satellite_info_s::GNSS_ID_QZSS;
+		prn = svid;
+
+	} else if (svid >= 211 && svid <= 246) {
+		gnss_id = satellite_info_s::GNSS_ID_GALILEO;
+		prn = svid - 210;
+
+	} else if (svid == 255) {
+		gnss_id = satellite_info_s::GNSS_ID_GLONASS; // slot not known yet
+		prn = 0;
+
+	} else {
+		return false;
+	}
+
+	return true;
+}
+
+// Adds an entry, merging it into one for the same signal: NAV-SIG lists both components of some bands
+void addSatelliteEntry(satellite_info_s &info, uint8_t gnss_id, uint8_t prn, uint8_t band, int8_t elevation,
+		       uint16_t azimuth, uint8_t cn0, uint8_t tracking, uint8_t flags)
+{
+	if (prn != 0) {
+		for (unsigned i = 0; i < info.count; i++) {
+			if (info.gnss_id[i] == gnss_id && info.prn[i] == prn && info.band[i] == band) {
+				info.cn0[i] = cn0 > info.cn0[i] ? cn0 : info.cn0[i];
+				info.tracking[i] = tracking > info.tracking[i] ? tracking : info.tracking[i];
+				info.flags[i] |= flags;
+				return;
+			}
+		}
+	}
+
+	if (info.count >= satellite_info_s::SAT_INFO_MAX_SATELLITES) {
+		return;
+	}
+
+	const unsigned i = info.count++;
+	info.gnss_id[i] = gnss_id;
+	info.prn[i] = prn;
+	info.band[i] = band;
+	info.elevation[i] = elevation;
+	info.azimuth[i] = azimuth;
+	info.cn0[i] = cn0;
+	info.tracking[i] = tracking;
+	info.flags[i] = flags;
+}
+
+} // namespace
+
 int	// -1 = error, 0 = ok, 1 = payload completed
 GPSDriverUBX::payloadRxAddNavSat(const uint8_t b)
 {
@@ -2322,105 +2566,103 @@ GPSDriverUBX::payloadRxAddNavSat(const uint8_t b)
 		p_buf[_rx_payload_index] = b;
 
 	} else {
-		if (_rx_payload_index == sizeof(ubx_payload_rx_nav_sat_part1_t)) {
-			// Part 1 complete: decode Part 1 buffer
-			_satellite_info->count = MIN(_buf.payload_rx_nav_sat_part1.numSvs, satellite_info_s::SAT_INFO_MAX_SATELLITES);
-			UBX_TRACE_SVINFO("SAT len %u  numCh %u", (unsigned)_rx_payload_length,
-					 (unsigned)_buf.payload_rx_nav_sat_part1.numSvs);
-		}
+		const unsigned buf_index = (_rx_payload_index - sizeof(ubx_payload_rx_nav_sat_part1_t)) % sizeof(
+						   ubx_payload_rx_nav_sat_part2_t);
+		p_buf[buf_index] = b;
 
-		if (_rx_payload_index < sizeof(ubx_payload_rx_nav_sat_part1_t) + _satellite_info->count * sizeof(
-			    ubx_payload_rx_nav_sat_part2_t)) {
-			// Still room in _satellite_info: fill Part 2 buffer
-			unsigned buf_index = (_rx_payload_index - sizeof(ubx_payload_rx_nav_sat_part1_t)) % sizeof(
-						     ubx_payload_rx_nav_sat_part2_t);
-			p_buf[buf_index] = b;
+		if (buf_index == sizeof(ubx_payload_rx_nav_sat_part2_t) - 1) {
+			// Part 2 complete: decode Part 2 buffer
+			const ubx_payload_rx_nav_sat_part2_t &sat = _buf.payload_rx_nav_sat_part2;
+			const int8_t elevation = ubxElevation(sat.elev);
+			const uint16_t azimuth = ubxAzimuth(sat.azim, sat.elev);
 
-			if (buf_index == sizeof(ubx_payload_rx_nav_sat_part2_t) - 1) {
-				// Part 2 complete: decode Part 2 buffer
-				unsigned sat_index = (_rx_payload_index - sizeof(ubx_payload_rx_nav_sat_part1_t)) /
-						     sizeof(ubx_payload_rx_nav_sat_part2_t);
-
-				// convert gnssId:svId to a 8 bit number (use svId numbering from NAV-SVINFO)
-				uint8_t ubx_sat_gnssId = static_cast<uint8_t>(_buf.payload_rx_nav_sat_part2.gnssId);
-				uint8_t ubx_sat_svId = static_cast<uint8_t>(_buf.payload_rx_nav_sat_part2.svId);
-
-				uint8_t svinfo_svid = 255;
-
-				switch (ubx_sat_gnssId) {
-				case 0:  // GPS: G1-G32 -> 1-32
-					if (ubx_sat_svId >= 1 && ubx_sat_svId <= 32) {
-						svinfo_svid = ubx_sat_svId;
-					}
-
-					break;
-
-				case 1:  // SBAS: S120-S158 -> 120-158
-					if (ubx_sat_svId >= 120 && ubx_sat_svId <= 158) {
-						svinfo_svid = ubx_sat_svId;
-					}
-
-					break;
-
-				case 2:  // Galileo: E1-E36 -> 211-246
-					if (ubx_sat_svId >= 1 && ubx_sat_svId <= 36) {
-						svinfo_svid = ubx_sat_svId + 210;
-					}
-
-					break;
-
-				case 3:  // BeiDou: B1-B37 -> 159-163,33-64
-					if (ubx_sat_svId >= 1 && ubx_sat_svId <= 5) {
-						svinfo_svid = ubx_sat_svId + 158;
-
-					} else if (ubx_sat_svId >= 6 && ubx_sat_svId <= 37) {
-						svinfo_svid = ubx_sat_svId + 27;
-					}
-
-					break;
-
-				case 4:  // IMES: I1-I10 -> 173-182
-					if (ubx_sat_svId >= 1 && ubx_sat_svId <= 10) {
-						svinfo_svid = ubx_sat_svId + 172;
-					}
-
-					break;
-
-				case 5:  // QZSS: Q1-Q10 -> 193-202
-					if (ubx_sat_svId >= 1 && ubx_sat_svId <= 10) {
-						svinfo_svid = ubx_sat_svId + 192;
-					}
-
-					break;
-
-				case 6:  // GLONASS: R1-R32 -> 65-96, R? -> 255
-					if (ubx_sat_svId >= 1 && ubx_sat_svId <= 32) {
-						svinfo_svid = ubx_sat_svId + 64;
-					}
-
-					break;
+			if (_use_nav_sig) {
+				if (_sat_geometry_count < satellite_info_s::SAT_INFO_MAX_SATELLITES) {
+					_sat_geometry[_sat_geometry_count++] = {sat.gnssId, sat.svId, elevation, azimuth};
 				}
 
-				_satellite_info->svid[sat_index]	  = svinfo_svid;
-				// NAV-SAT flags: bits 2..0 qualityInd, bit 3 svUsed
-				_satellite_info->used[sat_index]	  = static_cast<uint8_t>((_buf.payload_rx_nav_sat_part2.flags >> 3) & 0x01);
-				// TODO: elev and azim are signed on the wire but unsigned in satellite_info, so
-				// negatives wrap. Needs SatelliteInfo.msg to carry signed angles and an unknown
-				// marker; its elevation comment is inverted too.
-				_satellite_info->elevation[sat_index] = static_cast<uint8_t>(_buf.payload_rx_nav_sat_part2.elev);
-				_satellite_info->azimuth[sat_index]	  = static_cast<uint8_t>(static_cast<float>(_buf.payload_rx_nav_sat_part2.azim) *
-						255.0f / 360.0f);
-				_satellite_info->snr[sat_index]		  = static_cast<uint8_t>(_buf.payload_rx_nav_sat_part2.cno);
-				_satellite_info->prn[sat_index]		  = svinfo_svid;
-				UBX_TRACE_SVINFO("SAT #%02u  svid %3u  used %u  elevation %3u  azimuth %3u  snr %3u  prn %3u",
-						 static_cast<unsigned>(sat_index + 1),
-						 static_cast<unsigned>(_satellite_info->svid[sat_index]),
-						 static_cast<unsigned>(_satellite_info->used[sat_index]),
-						 static_cast<unsigned>(_satellite_info->elevation[sat_index]),
-						 static_cast<unsigned>(_satellite_info->azimuth[sat_index]),
-						 static_cast<unsigned>(_satellite_info->snr[sat_index]),
-						 static_cast<unsigned>(_satellite_info->prn[sat_index])
-						);
+			} else if (sat.gnssId != 4) { // IMES, obsolete, has no satellites
+				// NAV-SAT flags: bits 2..0 qualityInd, bit 3 svUsed, bits 5..4 health, bits 23..16 corrections used
+				uint8_t flags = 0;
+
+				if (sat.flags & (1 << 3)) {
+					flags |= satellite_info_s::FLAG_USED;
+				}
+
+				if (((sat.flags >> 4) & 0x3) == 2) {
+					flags |= satellite_info_s::FLAG_UNHEALTHY;
+				}
+
+				if (sat.flags & 0x00ff0000) {
+					flags |= satellite_info_s::FLAG_CORRECTIONS;
+				}
+
+				addSatelliteEntry(*_satellite_info, sat.gnssId, ubxPrn(sat.gnssId, sat.svId), 0, elevation, azimuth,
+						  sat.cno, ubxTracking(sat.flags & 0x7), flags);
+			}
+		}
+	}
+
+	if (++_rx_payload_index >= _rx_payload_length) {
+		ret = 1;	// payload received completely
+	}
+
+	return ret;
+}
+
+/**
+ * Add NAV-SIG payload rx byte
+ */
+int	// -1 = error, 0 = ok, 1 = payload completed
+GPSDriverUBX::payloadRxAddNavSig(const uint8_t b)
+{
+	int ret = 0;
+	uint8_t *p_buf = (uint8_t *)&_buf;
+
+	if (_rx_payload_index < sizeof(ubx_payload_rx_nav_sig_part1_t)) {
+		// Fill Part 1 buffer
+		p_buf[_rx_payload_index] = b;
+
+	} else {
+		const unsigned buf_index = (_rx_payload_index - sizeof(ubx_payload_rx_nav_sig_part1_t)) % sizeof(
+						   ubx_payload_rx_nav_sig_part2_t);
+		p_buf[buf_index] = b;
+
+		if (buf_index == sizeof(ubx_payload_rx_nav_sig_part2_t) - 1) {
+			// Part 2 complete: decode Part 2 buffer
+			const ubx_payload_rx_nav_sig_part2_t &sig = _buf.payload_rx_nav_sig_part2;
+			const uint8_t band = ubxBand(sig.gnssId, sig.sigId);
+
+			if (band != 0) {
+				int8_t elevation = satellite_info_s::ELEVATION_UNKNOWN;
+				uint16_t azimuth = satellite_info_s::AZIMUTH_UNKNOWN;
+
+				for (unsigned i = 0; i < _sat_geometry_count; i++) {
+					if (_sat_geometry[i].gnss_id == sig.gnssId && _sat_geometry[i].sv_id == sig.svId) {
+						elevation = _sat_geometry[i].elevation;
+						azimuth = _sat_geometry[i].azimuth;
+						break;
+					}
+				}
+
+				// NAV-SIG sigFlags: bits 1..0 health, bits 5..3 pseudorange/carrier/Doppler used,
+				// bits 8..6 corrections used for each
+				uint8_t flags = 0;
+
+				if (sig.sigFlags & (0x7 << 3)) {
+					flags |= satellite_info_s::FLAG_USED;
+				}
+
+				if ((sig.sigFlags & 0x3) == 2) {
+					flags |= satellite_info_s::FLAG_UNHEALTHY;
+				}
+
+				if (sig.sigFlags & (0x7 << 6)) {
+					flags |= satellite_info_s::FLAG_CORRECTIONS;
+				}
+
+				addSatelliteEntry(*_satellite_info, sig.gnssId, ubxPrn(sig.gnssId, sig.svId), band, elevation, azimuth,
+						  sig.cno, ubxTracking(sig.qualityInd), flags);
 			}
 		}
 	}
@@ -2446,43 +2688,34 @@ GPSDriverUBX::payloadRxAddNavSvinfo(const uint8_t b)
 		p_buf[_rx_payload_index] = b;
 
 	} else {
-		if (_rx_payload_index == sizeof(ubx_payload_rx_nav_svinfo_part1_t)) {
-			// Part 1 complete: decode Part 1 buffer
-			_satellite_info->count = MIN(_buf.payload_rx_nav_svinfo_part1.numCh, satellite_info_s::SAT_INFO_MAX_SATELLITES);
-			UBX_TRACE_SVINFO("SVINFO len %u  numCh %u", (unsigned)_rx_payload_length,
-					 (unsigned)_buf.payload_rx_nav_svinfo_part1.numCh);
-		}
+		const unsigned buf_index = (_rx_payload_index - sizeof(ubx_payload_rx_nav_svinfo_part1_t)) % sizeof(
+						   ubx_payload_rx_nav_svinfo_part2_t);
+		p_buf[buf_index] = b;
 
-		if (_rx_payload_index < sizeof(ubx_payload_rx_nav_svinfo_part1_t) + _satellite_info->count * sizeof(
-			    ubx_payload_rx_nav_svinfo_part2_t)) {
-			// Still room in _satellite_info: fill Part 2 buffer
-			unsigned buf_index = (_rx_payload_index - sizeof(ubx_payload_rx_nav_svinfo_part1_t)) % sizeof(
-						     ubx_payload_rx_nav_svinfo_part2_t);
-			p_buf[buf_index] = b;
+		if (buf_index == sizeof(ubx_payload_rx_nav_svinfo_part2_t) - 1) {
+			// Part 2 complete: decode Part 2 buffer
+			const ubx_payload_rx_nav_svinfo_part2_t &sv = _buf.payload_rx_nav_svinfo_part2;
+			uint8_t gnss_id = 0;
+			uint8_t prn = 0;
 
-			if (buf_index == sizeof(ubx_payload_rx_nav_svinfo_part2_t) - 1) {
-				// Part 2 complete: decode Part 2 buffer
-				unsigned sat_index = (_rx_payload_index - sizeof(ubx_payload_rx_nav_svinfo_part1_t)) /
-						     sizeof(ubx_payload_rx_nav_svinfo_part2_t);
-				_satellite_info->svid[sat_index]      = static_cast<uint8_t>(_buf.payload_rx_nav_svinfo_part2.svid);
-				// NAV-SVINFO flags: bit 0 svUsed
-				_satellite_info->used[sat_index]      = static_cast<uint8_t>(_buf.payload_rx_nav_svinfo_part2.flags & 0x01);
-				// TODO: same elev/azim wrap as NAV-SAT above
-				_satellite_info->elevation[sat_index] = static_cast<uint8_t>(_buf.payload_rx_nav_svinfo_part2.elev);
-				_satellite_info->azimuth[sat_index]   = static_cast<uint8_t>(static_cast<float>(_buf.payload_rx_nav_svinfo_part2.azim) *
-									255.0f / 360.0f);
-				_satellite_info->snr[sat_index]       = static_cast<uint8_t>(_buf.payload_rx_nav_svinfo_part2.cno);
-				_satellite_info->prn[sat_index]       = static_cast<uint8_t>(_buf.payload_rx_nav_svinfo_part2.svid);
+			if (legacySvid(sv.svid, gnss_id, prn)) {
+				// NAV-SVINFO flags: bit 0 svUsed, bit 1 diffCorr (corrections available, the closest it has), bit 4 unhealthy
+				uint8_t flags = 0;
 
-				UBX_TRACE_SVINFO("SVINFO #%02u  svid %3u  used %u  elevation %3u  azimuth %3u  snr %3u  prn %3u",
-						 static_cast<unsigned>(sat_index + 1),
-						 static_cast<unsigned>(_satellite_info->svid[sat_index]),
-						 static_cast<unsigned>(_satellite_info->used[sat_index]),
-						 static_cast<unsigned>(_satellite_info->elevation[sat_index]),
-						 static_cast<unsigned>(_satellite_info->azimuth[sat_index]),
-						 static_cast<unsigned>(_satellite_info->snr[sat_index]),
-						 static_cast<unsigned>(_satellite_info->prn[sat_index])
-						);
+				if (sv.flags & 0x01) {
+					flags |= satellite_info_s::FLAG_USED;
+				}
+
+				if (sv.flags & 0x10) {
+					flags |= satellite_info_s::FLAG_UNHEALTHY;
+				}
+
+				if (sv.flags & 0x02) {
+					flags |= satellite_info_s::FLAG_CORRECTIONS;
+				}
+
+				addSatelliteEntry(*_satellite_info, gnss_id, prn, 0, ubxElevation(sv.elev), ubxAzimuth(sv.azim, sv.elev),
+						  sv.cno, ubxTracking(sv.quality), flags);
 			}
 		}
 	}
@@ -2833,10 +3066,16 @@ GPSDriverUBX::payloadRxDone()
 		break;
 
 	case UBX_MSG_NAV_SAT:
+	case UBX_MSG_NAV_SIG:
 	case UBX_MSG_NAV_SVINFO:
-		UBX_TRACE_RXMSG("Rx NAV-SVINFO");
+		UBX_TRACE_RXMSG("Rx NAV-SAT/SIG/SVINFO");
 
-		// _satellite_info already populated by payloadRxAddNavSvinfo(), just add a timestamp
+		// Per signal, NAV-SAT only refreshed the geometry and the set is NAV-SIG's
+		if (_rx_msg == UBX_MSG_NAV_SAT && _use_nav_sig) {
+			break;
+		}
+
+		// _satellite_info already populated while the payload came in, just add a timestamp
 		_satellite_info->timestamp = gps_absolute_time();
 
 		ret = 2;

@@ -58,6 +58,9 @@
 #ifndef MAX
 #define MAX(X,Y)    ((X) > (Y) ? (X) : (Y))
 #endif
+#ifndef MIN
+#define MIN(X,Y)    ((X) < (Y) ? (X) : (Y))
+#endif
 #define NMEA_UNUSED(x) (void)x;
 
 /**** Warning macros, disable to save memory */
@@ -674,6 +677,7 @@ int GPSDriverNMEA::handleMessage(int len)
 			int elevation;
 			int azimuth;
 			int snr;
+			bool position_known;
 		} sat[4] {};
 
 		nmeaNextField(bufptr, all_page_num);
@@ -710,11 +714,7 @@ int GPSDriverNMEA::handleMessage(int len)
 		}
 
 		if (this_page_num == 0 && _satellite_info) {
-			memset(_satellite_info->svid,     0, sizeof(_satellite_info->svid));
-			memset(_satellite_info->used,     0, sizeof(_satellite_info->used));
-			memset(_satellite_info->snr,      0, sizeof(_satellite_info->snr));
-			memset(_satellite_info->elevation, 0, sizeof(_satellite_info->elevation));
-			memset(_satellite_info->azimuth,  0, sizeof(_satellite_info->azimuth));
+			memset(_satellite_info, 0, sizeof(*_satellite_info));
 		}
 
 		const int remaining_satellites = tot_sv_visible - static_cast<int>(page_start);
@@ -739,20 +739,31 @@ int GPSDriverNMEA::handleMessage(int len)
 			for (int y = 0; y < satellites_to_parse; y++) {
 				nmeaNextField(bufptr, sat[y].svid);
 
-				nmeaNextField(bufptr, sat[y].elevation);
+				// Empty while the receiver has no orbit for the satellite
+				sat[y].position_known = nmeaNextField(bufptr, sat[y].elevation);
 
-				nmeaNextField(bufptr, sat[y].azimuth);
+				sat[y].position_known &= nmeaNextField(bufptr, sat[y].azimuth);
 
 				nmeaNextField(bufptr, sat[y].snr);
 
 				const uint64_t satellite_index = page_start + y;
+				uint8_t gnss_id = 0;
+				uint8_t prn = 0;
 
-				if (satellite_index < satellite_info_s::SAT_INFO_MAX_SATELLITES) {
-					_satellite_info->svid[satellite_index]      = sat[y].svid;
-					_satellite_info->used[satellite_index]      = (sat[y].snr > 0);
-					_satellite_info->snr[satellite_index]       = sat[y].snr;
-					_satellite_info->elevation[satellite_index] = sat[y].elevation;
-					_satellite_info->azimuth[satellite_index]   = sat[y].azimuth;
+				if (satellite_index < satellite_info_s::SAT_INFO_MAX_SATELLITES
+				    && nmeaSatellite(_rx_buffer, sat[y].svid, gnss_id, prn)) {
+					// GSV has no used flag (GSA lists those) and gives no carrier lock
+					_satellite_info->gnss_id[satellite_index]   = gnss_id;
+					_satellite_info->prn[satellite_index]       = prn;
+					_satellite_info->band[satellite_index]      = 0;
+					_satellite_info->elevation[satellite_index] = sat[y].position_known
+							? static_cast<int8_t>(MIN(MAX(sat[y].elevation, -90), 90)) : satellite_info_s::ELEVATION_UNKNOWN;
+					_satellite_info->azimuth[satellite_index]   = sat[y].position_known
+							? static_cast<uint16_t>(MIN(MAX(sat[y].azimuth, 0), 359)) : satellite_info_s::AZIMUTH_UNKNOWN;
+					_satellite_info->cn0[satellite_index]       = static_cast<uint8_t>(MIN(MAX(sat[y].snr, 0), 99));
+					_satellite_info->tracking[satellite_index]  = sat[y].snr > 0 ? satellite_info_s::TRACKING_CODE :
+							satellite_info_s::TRACKING_NONE;
+					_satellite_info->flags[satellite_index]     = 0;
 				}
 			}
 		}

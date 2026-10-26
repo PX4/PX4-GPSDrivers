@@ -93,21 +93,56 @@ public:
 		queue(bytes);
 	}
 
-	// NAV-SAT: 8-byte header with numSvs at offset 5, then 12 bytes per satellite, gnssId and svId first.
-	void satellites(const std::vector<std::pair<uint8_t, uint8_t>> &gnss_sv_ids)
+	struct Satellite {
+		uint8_t gnss_id;
+		uint8_t sv_id;
+		uint8_t cno{0};
+		int8_t elev{0};
+		int16_t azim{0};
+		uint32_t flags{0};
+	};
+
+	// NAV-SAT: 8-byte header with numSvs at offset 5, then 12 bytes per satellite:
+	// gnssId, svId, cno, elev, azim (2), prRes (2), flags (4).
+	void satellites(const std::vector<Satellite> &list)
 	{
 		Bytes payload(8, 0);
 		payload[4] = 1;
-		payload[5] = uint8_t(gnss_sv_ids.size());
+		payload[5] = uint8_t(list.size());
 
-		for (const auto &[gnss_id, sv_id] : gnss_sv_ids) {
-			Bytes satellite(12, 0);
-			satellite[0] = gnss_id;
-			satellite[1] = sv_id;
+		for (const Satellite &sat : list) {
+			const Bytes satellite{sat.gnss_id, sat.sv_id, sat.cno, uint8_t(sat.elev),
+					      uint8_t(sat.azim), uint8_t(uint16_t(sat.azim) >> 8), 0, 0,
+					      uint8_t(sat.flags), uint8_t(sat.flags >> 8), uint8_t(sat.flags >> 16), uint8_t(sat.flags >> 24)};
 			payload.insert(payload.end(), satellite.begin(), satellite.end());
 		}
 
 		queue(packet(UBX_MSG_NAV_SAT, payload));
+	}
+
+	struct Signal {
+		uint8_t gnss_id;
+		uint8_t sv_id;
+		uint8_t sig_id;
+		uint8_t cno{0};
+		uint8_t quality{0};
+		uint16_t flags{0};
+	};
+
+	// NAV-SIG: 8-byte header with numSigs at offset 5, then 16 bytes per signal: gnssId, svId, sigId,
+	// freqId, prRes (2), cno, qualityInd, corrSource, ionoModel, sigFlags (2), reserved (4).
+	void signals(const std::vector<Signal> &list)
+	{
+		Bytes payload(8, 0);
+		payload[5] = uint8_t(list.size());
+
+		for (const Signal &sig : list) {
+			const Bytes signal{sig.gnss_id, sig.sv_id, sig.sig_id, 0, 0, 0, sig.cno, sig.quality, 0, 0,
+					   uint8_t(sig.flags), uint8_t(sig.flags >> 8), 0, 0, 0, 0};
+			payload.insert(payload.end(), signal.begin(), signal.end());
+		}
+
+		queue(packet(UBX_MSG_NAV_SIG, payload));
 	}
 
 private:
@@ -234,14 +269,27 @@ private:
 	}
 };
 
+// GPSHelper keeps its NMEA helpers protected
+struct NmeaHelpers : GPSHelper {
+	using GPSHelper::nmeaSatellite;
+};
+
+static GPSDriverUBX::Settings settings(bool sat_info_per_signal)
+{
+	GPSDriverUBX::Settings settings{};
+	settings.sat_info_per_signal = sat_info_per_signal;
+	return settings;
+}
+
 struct Fixture {
 	Receiver receiver;
 	sensor_gnss_s position{};
 	satellite_info_s satellite_info{};
-	GPSDriverUBX driver{GPSHelper::Interface::UART, Receiver::callback, &receiver,
-			     &position, &satellite_info, GPSDriverUBX::Settings{}};
+	GPSDriverUBX driver;
 
-	Fixture()
+	explicit Fixture(bool sat_info_per_signal = false) :
+		driver{GPSHelper::Interface::UART, Receiver::callback, &receiver, &position, &satellite_info,
+		       settings(sat_info_per_signal)}
 	{
 		gps_test_time = 0;
 		driver.setSurveyInSpecs(12500, 60);
@@ -390,15 +438,114 @@ int main()
 			}
 		},
 		{
-			"nav-sat-svid-numbering", [] {
+			"nav-sat-identity", [] {
 				Fixture f;
 				f.success(1);
-				// BeiDou C1-C5 -> 159-163 and C6-C37 -> 33-64; GLONASS R1 -> 65 follows C37.
-				f.receiver.satellites({{3, 1}, {3, 5}, {3, 6}, {3, 37}, {6, 1}, {0, 32}, {2, 1}, {5, 1}});
+				// BeiDou above C37 and QZSS keep their own numbers; IMES (gnssId 4) has no satellites.
+				f.receiver.satellites({{3, 1}, {3, 5}, {3, 6}, {3, 37}, {3, 45}, {6, 1}, {0, 32}, {2, 1}, {5, 1}, {4, 1}});
 				f.driver.receive(100); // Returns only for a position; the satellites are parsed on the way.
-				const std::vector<uint8_t> expected{159, 163, 33, 64, 65, 32, 211, 193};
-				CHECK(f.satellite_info.count == expected.size());
-				CHECK(std::equal(expected.begin(), expected.end(), f.satellite_info.svid));
+				const std::vector<uint8_t> gnss_ids{3, 3, 3, 3, 3, 6, 0, 2, 5};
+				const std::vector<uint8_t> prns{1, 5, 6, 37, 45, 1, 32, 1, 193};
+				CHECK(f.satellite_info.count == gnss_ids.size());
+				CHECK(std::equal(gnss_ids.begin(), gnss_ids.end(), f.satellite_info.gnss_id));
+				CHECK(std::equal(prns.begin(), prns.end(), f.satellite_info.prn));
+			}
+		},
+		{
+			"nav-sat-entries", [] {
+				Fixture f;
+				f.success(1);
+				// flags: bits 2..0 qualityInd, bit 3 svUsed, bits 5..4 health, bit 17 rtcmCorrUsed
+				f.receiver.satellites({
+					{0, 5, 42, 45, 360, 7u | 1u << 3 | 1u << 4 | 1u << 17},
+					{6, 255, 30, -91, 100, 4u | 2u << 4},
+					{5, 2, 0, -5, 200, 1u},
+				});
+				f.driver.receive(100);
+				const satellite_info_s &s = f.satellite_info;
+				CHECK(s.count == 3);
+				CHECK(s.gnss_id[0] == 0 && s.prn[0] == 5 && s.band[0] == 0);
+				CHECK(s.elevation[0] == 45 && s.azimuth[0] == 0 && s.cn0[0] == 42);
+				CHECK(s.tracking[0] == satellite_info_s::TRACKING_CARRIER);
+				CHECK(s.flags[0] == (satellite_info_s::FLAG_USED | satellite_info_s::FLAG_CORRECTIONS));
+				CHECK(s.gnss_id[1] == 6 && s.prn[1] == 0);
+				CHECK(s.elevation[1] == satellite_info_s::ELEVATION_UNKNOWN &&s.azimuth[1] == satellite_info_s::AZIMUTH_UNKNOWN);
+				CHECK(s.tracking[1] == satellite_info_s::TRACKING_CODE &&s.flags[1] == satellite_info_s::FLAG_UNHEALTHY);
+				CHECK(s.gnss_id[2] == 5 && s.prn[2] == 194 && s.elevation[2] == -5 && s.azimuth[2] == 200);
+				CHECK(s.cn0[2] == 0 && s.tracking[2] == satellite_info_s::TRACKING_NONE &&s.flags[2] == 0);
+			}
+		},
+		{
+			"nav-sig-entries", [] {
+				Fixture f(true);
+				f.success(1);
+				f.receiver.satellites({{0, 5, 40, 45, 90}, {2, 11, 25, -91, 0}});
+				f.driver.receive(100);
+				CHECK(f.satellite_info.count == 0); // per signal, NAV-SAT only gives the geometry
+				// sigFlags: bits 1..0 health, bit 3 prUsed, bit 7 crCorrUsed
+				f.receiver.signals({
+					{0, 5, 0, 40, 7, 1u << 3},  // GPS L1 C/A
+					{0, 5, 6, 30, 4},           // GPS L5 I
+					{0, 5, 7, 33, 5, 1u << 7},  // GPS L5 Q, merges with L5 I
+					{2, 11, 5, 25, 0, 2u},      // Galileo E5b I, unhealthy
+					{3, 20, 4, 28},             // BeiDou B3I, no NAV-SAT geometry
+					{6, 3, 1, 20},              // unknown GLONASS sigId
+				});
+				f.driver.receive(100);
+				const satellite_info_s &s = f.satellite_info;
+				CHECK(s.count == 4);
+				CHECK(s.gnss_id[0] == 0 && s.prn[0] == 5 && s.band[0] == 1 && s.elevation[0] == 45 && s.azimuth[0] == 90);
+				CHECK(s.cn0[0] == 40 && s.tracking[0] == satellite_info_s::TRACKING_CARRIER &&s.flags[0] == satellite_info_s::FLAG_USED);
+				CHECK(s.gnss_id[1] == 0 && s.prn[1] == 5 && s.band[1] == 5 && s.cn0[1] == 33);
+				CHECK(s.tracking[1] == satellite_info_s::TRACKING_CARRIER &&s.flags[1] == satellite_info_s::FLAG_CORRECTIONS);
+				CHECK(s.gnss_id[2] == 2 && s.prn[2] == 11 && s.band[2] == 7 && s.elevation[2] == satellite_info_s::ELEVATION_UNKNOWN);
+				CHECK(s.flags[2] == satellite_info_s::FLAG_UNHEALTHY);
+				CHECK(s.gnss_id[3] == 3 && s.prn[3] == 20 && s.band[3] == 6 && s.azimuth[3] == satellite_info_s::AZIMUTH_UNKNOWN);
+			}
+		},
+		{
+			"nmea-satellite-numbering", [] {
+				struct Case {
+					const char *sentence;
+					int id;
+					uint8_t gnss_id;
+					uint8_t prn;
+				};
+
+				// NMEA 4.10+ restarts the IDs per talker (Galileo 11 is not GPS 11); NMEA 4.0 uses one range under GN
+				const Case cases[] {
+					{"$GPGSV", 5, satellite_info_s::GNSS_ID_GPS, 5},
+					{"$GPGSV", 46, satellite_info_s::GNSS_ID_SBAS, 133},
+					{"$GLGSV", 70, satellite_info_s::GNSS_ID_GLONASS, 6},
+					{"$GLGSV", 6, satellite_info_s::GNSS_ID_GLONASS, 6},
+					{"$GAGSV", 11, satellite_info_s::GNSS_ID_GALILEO, 11},
+					{"$GBGSV", 45, satellite_info_s::GNSS_ID_BEIDOU, 45},
+					{"$GQGSV", 2, satellite_info_s::GNSS_ID_QZSS, 194},
+					{"$GNGSV", 305, satellite_info_s::GNSS_ID_GALILEO, 5},
+					{"$GNGSV", 410, satellite_info_s::GNSS_ID_BEIDOU, 10},
+				};
+
+				for (const Case &c : cases)
+				{
+					uint8_t gnss_id = 255;
+					uint8_t prn = 0;
+					CHECK(NmeaHelpers::nmeaSatellite(reinterpret_cast<const uint8_t *>(c.sentence), c.id, gnss_id, prn));
+					CHECK(gnss_id == c.gnss_id && prn == c.prn);
+				}
+
+				uint8_t gnss_id = 0;
+				uint8_t prn = 0;
+				CHECK(!NmeaHelpers::nmeaSatellite(reinterpret_cast<const uint8_t *>("$GAGSV"), 40, gnss_id, prn));
+			}
+		},
+		{
+			"nav-sig-not-requested", [] {
+				Fixture f;
+				f.success(1);
+				f.receiver.signals({{0, 5, 0, 40, 7}});
+				f.receiver.satellites({{0, 5, 40, 45, 90}});
+				f.driver.receive(100);
+				CHECK(f.satellite_info.count == 1 && f.satellite_info.band[0] == 0);
 			}
 		},
 	};

@@ -125,20 +125,8 @@ int GPSDriverFemto::handleMessage(int len)
 		ret = 1;
 
 	} else if (_satellite_info && messageid == FEMTO_MSG_ID_UAVSTATUS) {	/**< set satellite info */
-		const femto_uav_status_t *uav_status = (const femto_uav_status_t *)_femto_msg.data;
-
-		_satellite_info->count = MIN(uav_status->sat_number, satellite_info_s::SAT_INFO_MAX_SATELLITES);
-
-		for (int8_t i = 0; i < _satellite_info->count; i++) {
-			_satellite_info->svid[i] = uav_status->sat_status[i].svid;
-			_satellite_info->used[i] = 1;
-			_satellite_info->elevation[i] = uav_status->sat_status[i].ele;
-			_satellite_info->azimuth[i] = uav_status->sat_status[i].azi;
-			_satellite_info->snr[i] = uav_status->sat_status[i].cn0;
-			_satellite_info->prn[i] = uav_status->sat_status[i].system_id;
-		}
-
-		ret = 2;
+		// UAVSTATUS gives each satellite's constellation as the receiver's own system_id code, which is not
+		// mapped to satellite_info's gnss_id, so nothing is published rather than mislabeled satellites
 
 	} else if (OutputMode::RTCM == _output_mode
 		   && messageid == FEMTO_MSG_ID_GPGGA

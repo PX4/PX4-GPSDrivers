@@ -394,6 +394,14 @@ protected:
 	 */
 	static double nmeaToDegrees(double ddmm);
 
+	/**
+	 * Constellation and PRN, as satellite_info carries them, of a satellite ID in an NMEA sentence
+	 * @param sentence the sentence, from the $ of its talker ID
+	 * @param id satellite ID from the sentence
+	 * @return false if the talker or ID is not known
+	 */
+	static bool nmeaSatellite(const uint8_t *sentence, int id, uint8_t &gnss_id, uint8_t &prn);
+
 	GPSCallbackPtr _callback{nullptr};
 	void *_callback_user{};
 

@@ -158,15 +158,35 @@ struct sensor_gnss_relative_s {
 
 struct satellite_info_s {
 	uint64_t timestamp;
-	static constexpr uint8_t SAT_INFO_MAX_SATELLITES = 40;
+	uint32_t device_id;
+	static constexpr uint8_t SAT_INFO_MAX_SATELLITES = 128;
+
+	static constexpr uint8_t GNSS_ID_GPS = 0;
+	static constexpr uint8_t GNSS_ID_SBAS = 1;
+	static constexpr uint8_t GNSS_ID_GALILEO = 2;
+	static constexpr uint8_t GNSS_ID_BEIDOU = 3;
+	static constexpr uint8_t GNSS_ID_QZSS = 5;
+	static constexpr uint8_t GNSS_ID_GLONASS = 6;
+	static constexpr uint8_t GNSS_ID_NAVIC = 7;
+	static constexpr int8_t ELEVATION_UNKNOWN = -128;
+	static constexpr uint16_t AZIMUTH_UNKNOWN = 511;
+	static constexpr uint8_t TRACKING_NONE = 0;
+	static constexpr uint8_t TRACKING_SIGNAL = 1;
+	static constexpr uint8_t TRACKING_CODE = 2;
+	static constexpr uint8_t TRACKING_CARRIER = 3;
+	static constexpr uint8_t FLAG_USED = 1;
+	static constexpr uint8_t FLAG_UNHEALTHY = 2;
+	static constexpr uint8_t FLAG_CORRECTIONS = 4;
 
 	uint8_t count;
-	uint8_t svid[SAT_INFO_MAX_SATELLITES];
-	uint8_t used[SAT_INFO_MAX_SATELLITES];
-	uint8_t elevation[SAT_INFO_MAX_SATELLITES];
-	uint8_t azimuth[SAT_INFO_MAX_SATELLITES];
-	uint8_t snr[SAT_INFO_MAX_SATELLITES];
+	uint8_t gnss_id[SAT_INFO_MAX_SATELLITES];
 	uint8_t prn[SAT_INFO_MAX_SATELLITES];
+	uint8_t band[SAT_INFO_MAX_SATELLITES];
+	int8_t elevation[SAT_INFO_MAX_SATELLITES];
+	uint16_t azimuth[SAT_INFO_MAX_SATELLITES];
+	uint8_t cn0[SAT_INFO_MAX_SATELLITES];
+	uint8_t tracking[SAT_INFO_MAX_SATELLITES];
+	uint8_t flags[SAT_INFO_MAX_SATELLITES];
 };
 
 struct sensor_gnss_rf_s {

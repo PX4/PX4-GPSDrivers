@@ -90,6 +90,7 @@
 #define UBX_ID_NAV_TIMEUTC    0x21
 #define UBX_ID_NAV_SVINFO     0x30
 #define UBX_ID_NAV_SAT        0x35
+#define UBX_ID_NAV_SIG        0x43
 #define UBX_ID_NAV_STATUS     0x03
 #define UBX_ID_NAV_SVIN       0x3B
 #define UBX_ID_NAV_RELPOSNED  0x3C
@@ -149,6 +150,7 @@
 #define UBX_MSG_NAV_TIMEGPS   ((UBX_CLASS_NAV) | UBX_ID_NAV_TIMEGPS << 8)
 #define UBX_MSG_NAV_SVINFO    ((UBX_CLASS_NAV) | UBX_ID_NAV_SVINFO << 8)
 #define UBX_MSG_NAV_SAT       ((UBX_CLASS_NAV) | UBX_ID_NAV_SAT << 8)
+#define UBX_MSG_NAV_SIG       ((UBX_CLASS_NAV) | UBX_ID_NAV_SIG << 8)
 #define UBX_MSG_NAV_STATUS    ((UBX_CLASS_NAV) | UBX_ID_NAV_STATUS << 8)
 #define UBX_MSG_NAV_SVIN      ((UBX_CLASS_NAV) | UBX_ID_NAV_SVIN << 8)
 #define UBX_MSG_NAV_RELPOSNED ((UBX_CLASS_NAV) | UBX_ID_NAV_RELPOSNED << 8)
@@ -390,6 +392,7 @@
 #define UBX_CFG_KEY_MSGOUT_UBX_SEC_SIG_I2C       0x20910634
 #define UBX_CFG_KEY_MSGOUT_UBX_NAV_SVIN_I2C      0x20910088
 #define UBX_CFG_KEY_MSGOUT_UBX_NAV_SAT_I2C       0x20910015
+#define UBX_CFG_KEY_MSGOUT_UBX_NAV_SIG_I2C       0x20910345
 #define UBX_CFG_KEY_MSGOUT_UBX_NAV_STATUS_I2C    0x2091001a
 #define UBX_CFG_KEY_MSGOUT_UBX_NAV_DOP_I2C       0x20910038
 #define UBX_CFG_KEY_MSGOUT_UBX_NAV_PVT_I2C       0x20910006
@@ -625,8 +628,31 @@ typedef struct {
 	int8_t   elev;           /**< Elevation [deg] range: +/-90 */
 	int16_t  azim;           /**< Azimuth [deg] range: 0-360 */
 	int16_t  prRes;          /**< Pseudo range residual [0.1 m] */
-	uint32_t flags;          /**< bits 2..0 qualityInd, bit 3 svUsed, bits 5..4 health, bit 6 diffCorr, bit 7 smoothed */
+	uint32_t flags;          /**< bits 2..0 qualityInd, bit 3 svUsed, bits 5..4 health, bit 6 diffCorr, bit 7 smoothed, bits 23..16 corrections used */
 } ubx_payload_rx_nav_sat_part2_t;
+
+/* Rx NAV-SIG Part 1 */
+typedef struct {
+	uint32_t iTOW;           /**< GPS Time of Week [ms] */
+	uint8_t  version;        /**< Message version (0) */
+	uint8_t  numSigs;        /**< Number of signals */
+	uint16_t reserved0;
+} ubx_payload_rx_nav_sig_part1_t;
+
+/* Rx NAV-SIG Part 2 (repeated) */
+typedef struct {
+	uint8_t  gnssId;         /**< GNSS identifier */
+	uint8_t  svId;           /**< Satellite ID */
+	uint8_t  sigId;          /**< Signal identifier, per gnssId */
+	uint8_t  freqId;         /**< GLONASS frequency slot + 7 */
+	int16_t  prRes;          /**< Pseudo range residual [0.1 m] */
+	uint8_t  cno;            /**< Carrier to Noise Ratio (Signal Strength) [dbHz] */
+	uint8_t  qualityInd;     /**< 0..7, as NAV-SAT qualityInd */
+	uint8_t  corrSource;     /**< Correction source */
+	uint8_t  ionoModel;      /**< Ionospheric model */
+	uint16_t sigFlags;       /**< bits 1..0 health, bit 2 prSmoothed, bits 5..3 pr/cr/do used, bits 8..6 pr/cr/do corrections used */
+	uint8_t  reserved1[4];
+} ubx_payload_rx_nav_sig_part2_t;
 
 /* Rx NAV-STATUS */
 typedef struct {
@@ -1024,6 +1050,8 @@ typedef union {
 	ubx_payload_rx_nav_svinfo_part2_t payload_rx_nav_svinfo_part2;
 	ubx_payload_rx_nav_sat_part1_t    payload_rx_nav_sat_part1;
 	ubx_payload_rx_nav_sat_part2_t    payload_rx_nav_sat_part2;
+	ubx_payload_rx_nav_sig_part1_t    payload_rx_nav_sig_part1;
+	ubx_payload_rx_nav_sig_part2_t    payload_rx_nav_sig_part2;
 	ubx_payload_rx_nav_status_t       payload_rx_nav_status;
 	ubx_payload_rx_nav_svin_t         payload_rx_nav_svin;
 	ubx_payload_rx_nav_velned_t       payload_rx_nav_velned;
@@ -1119,6 +1147,8 @@ public:
 #endif
 		bool jam_det_sensitivity_hi;
 		UBXMode mode;
+		// satellite_info gets one entry per signal (NAV-SIG) instead of one per satellite (NAV-SAT)
+		bool sat_info_per_signal;
 	};
 
 	GPSDriverUBX(Interface gpsInterface, GPSCallbackPtr callback, void *callback_user,
@@ -1352,6 +1382,7 @@ private:
 	int payloadRxAdd(const uint8_t b);
 	int payloadRxAddMonVer(const uint8_t b);
 	int payloadRxAddNavSat(const uint8_t b);
+	int payloadRxAddNavSig(const uint8_t b);
 	int payloadRxAddNavSvinfo(const uint8_t b);
 
 	/**
@@ -1394,6 +1425,7 @@ private:
 	bool _got_sec_sig{false}; ///< SEC-SIG jammingState supersedes deprecated MON-RF flags
 	bool _proto_ver_27_or_higher{false}; ///< true if protocol version 27 or higher detected
 	bool _use_nav_pvt{false};
+	bool _use_nav_sig{false}; ///< per-signal satellite info requested and the receiver accepted NAV-SIG
 
 	uint8_t _rx_ck_a{0};
 	uint8_t _rx_ck_b{0};
@@ -1430,4 +1462,16 @@ private:
 	const bool _spectrum_analyzer {};
 #endif
 	const bool _jam_det_sensitivity_hi {};
+	const bool _sat_info_per_signal {};
+
+	// NAV-SIG carries no elevation or azimuth: per-signal entries take them from the latest NAV-SAT
+	struct SatelliteGeometry {
+		uint8_t gnss_id;
+		uint8_t sv_id;
+		int8_t elevation;
+		uint16_t azimuth;
+	};
+
+	SatelliteGeometry *_sat_geometry{nullptr};
+	uint8_t _sat_geometry_count{0};
 };

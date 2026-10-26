@@ -150,6 +150,60 @@ double GPSHelper::nmeaToDegrees(double ddmm)
 	return int(ddmm * 0.01) + (ddmm * 0.01 - int(ddmm * 0.01)) * 100.0 / 60.0;
 }
 
+bool GPSHelper::nmeaSatellite(const uint8_t *sentence, int id, uint8_t &gnss_id, uint8_t &prn)
+{
+	struct Range {
+		char talker[3];
+		int first;
+		int last;
+		uint8_t gnss_id;
+		int prn_offset;
+	};
+
+	// NMEA 4.10 and later restart the IDs for each constellation's talker; NMEA 4.0 numbers them all in one range,
+	// under the constellation's talker or GN
+	static constexpr Range ranges[] {
+		{"GP", 1, 32, satellite_info_s::GNSS_ID_GPS, 0},
+		{"GP", 33, 64, satellite_info_s::GNSS_ID_SBAS, 87},
+		{"GP", 120, 158, satellite_info_s::GNSS_ID_SBAS, 0},
+		{"GP", 193, 202, satellite_info_s::GNSS_ID_QZSS, 0},
+		{"GL", 1, 32, satellite_info_s::GNSS_ID_GLONASS, 0},
+		{"GL", 65, 96, satellite_info_s::GNSS_ID_GLONASS, -64},
+		{"GA", 1, 36, satellite_info_s::GNSS_ID_GALILEO, 0},
+		{"GA", 301, 336, satellite_info_s::GNSS_ID_GALILEO, -300},
+		{"GB", 1, 63, satellite_info_s::GNSS_ID_BEIDOU, 0},
+		{"GB", 401, 463, satellite_info_s::GNSS_ID_BEIDOU, -400},
+		{"BD", 1, 63, satellite_info_s::GNSS_ID_BEIDOU, 0},
+		{"BD", 401, 463, satellite_info_s::GNSS_ID_BEIDOU, -400},
+		{"GQ", 1, 10, satellite_info_s::GNSS_ID_QZSS, 192},
+		{"GQ", 193, 202, satellite_info_s::GNSS_ID_QZSS, 0},
+		{"QZ", 1, 10, satellite_info_s::GNSS_ID_QZSS, 192},
+		{"QZ", 193, 202, satellite_info_s::GNSS_ID_QZSS, 0},
+		{"GI", 1, 14, satellite_info_s::GNSS_ID_NAVIC, 0},
+		{"GN", 1, 32, satellite_info_s::GNSS_ID_GPS, 0},
+		{"GN", 33, 64, satellite_info_s::GNSS_ID_SBAS, 87},
+		{"GN", 65, 96, satellite_info_s::GNSS_ID_GLONASS, -64},
+		{"GN", 120, 158, satellite_info_s::GNSS_ID_SBAS, 0},
+		{"GN", 193, 202, satellite_info_s::GNSS_ID_QZSS, 0},
+		{"GN", 301, 336, satellite_info_s::GNSS_ID_GALILEO, -300},
+		{"GN", 401, 463, satellite_info_s::GNSS_ID_BEIDOU, -400},
+	};
+
+	if (sentence == nullptr || sentence[0] != '$' || sentence[1] == '\0' || sentence[2] == '\0') {
+		return false;
+	}
+
+	for (const Range &range : ranges) {
+		if (range.talker[0] == sentence[1] && range.talker[1] == sentence[2] && id >= range.first && id <= range.last) {
+			gnss_id = range.gnss_id;
+			prn = static_cast<uint8_t>(id + range.prn_offset);
+			return true;
+		}
+	}
+
+	return false;
+}
+
 uint64_t GPSHelper::timeFromUtc(tm &utc, int32_t nsec, bool set_clock)
 {
 #ifndef NO_MKTIME
