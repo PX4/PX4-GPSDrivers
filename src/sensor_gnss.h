@@ -53,6 +53,14 @@
 // regardless of what any other project's in-memory struct looks like.
 #pragma pack(push, 1)
 
+// pack(1) above only pins layout/padding, not byte order - every real target
+// (PX4-Autopilot, QGroundControl) is little-endian, so fail loudly at compile
+// time rather than silently producing corrupt GPS data on a hypothetical
+// big-endian build.
+#if defined(__BYTE_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__)
+static_assert(__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__, "big-endian targets are not supported by this packed layout");
+#endif
+
 struct sensor_gnss_s {
 	uint64_t timestamp;
 	uint64_t timestamp_sample;

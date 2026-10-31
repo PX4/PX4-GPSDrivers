@@ -49,6 +49,11 @@
 // regardless of what any other project's in-memory struct looks like.
 #pragma pack(push, 1)
 
+// pack(1) only pins layout/padding, not byte order - see sensor_gnss.h.
+#if defined(__BYTE_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__)
+static_assert(__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__, "big-endian targets are not supported by this packed layout");
+#endif
+
 struct sensor_gnss_relative_s {
 	uint64_t timestamp;
 	uint64_t timestamp_sample;
