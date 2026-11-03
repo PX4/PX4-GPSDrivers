@@ -7,8 +7,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_executable(gps-parser-test
     gps-parser-test.cpp
-    src/unicore.cpp
+    src/gps_helper.cpp
+    src/rtcm.cpp
+    src/ubx.cpp
     src/crc.cpp
+    src/unicore.cpp
 )
 
 target_compile_options(gps-parser-test
@@ -19,8 +22,14 @@ target_compile_options(gps-parser-test
     -Wpedantic
 )
 
+target_compile_definitions(gps-parser-test
+    PRIVATE
+    GPS_DEFINITIONS_HEADER="ubx-test-definitions.h"
+)
+
 target_include_directories(gps-parser-test
     PRIVATE
+    .
     src/
 )
 

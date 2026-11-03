@@ -1,6 +1,11 @@
 #include "unicore.h"
+#include "ubx.h"
 #include <cassert>
+#include <chrono>
+#include <cstdarg>
 #include <cstdio>
+#include <cstring>
+#include <vector>
 
 void test_empty()
 {
@@ -151,9 +156,163 @@ void test_unicore()
 	test_agrica();
 }
 
+/******************************************************************************
+ * GPSDriverUBX tests
+ ******************************************************************************/
+
+extern "C" uint64_t hrt_absolute_time()
+{
+	using namespace std::chrono;
+	return duration_cast<microseconds>(steady_clock::now().time_since_epoch()).count();
+}
+
+void test_gps_log(const char *fmt, ...)
+{
+	va_list args;
+	va_start(args, fmt);
+	vfprintf(stderr, fmt, args);
+	va_end(args);
+}
+
+static std::vector<uint8_t> g_ubx_stream;
+static size_t g_ubx_pos = 0;
+static unsigned g_ubx_write_count = 0;
+
+static int ubxTestCallback(GPSCallbackType type, void *data1, int data2, void *user)
+{
+	(void)user;
+
+	switch (type) {
+	case GPSCallbackType::readDeviceData: {
+		uint8_t *buf = (uint8_t *)data1;
+		size_t remaining = g_ubx_stream.size() - g_ubx_pos;
+		size_t n = (data2 < (int)remaining) ? (size_t)data2 : remaining;
+		memcpy(buf, g_ubx_stream.data() + g_ubx_pos, n);
+		g_ubx_pos += n;
+		return (int)n;
+	}
+
+	case GPSCallbackType::writeDeviceData:
+		++g_ubx_write_count;
+		return data2;
+
+	default:
+		return 0;
+	}
+}
+
+static void appendUbxFrame(std::vector<uint8_t> &stream, uint8_t msg_class, uint8_t msg_id,
+			   const std::vector<uint8_t> &payload)
+{
+	stream.push_back(0xB5);
+	stream.push_back(0x62);
+	stream.push_back(msg_class);
+	stream.push_back(msg_id);
+	stream.push_back((uint8_t)(payload.size() & 0xFF));
+	stream.push_back((uint8_t)((payload.size() >> 8) & 0xFF));
+
+	uint8_t ck_a = 0;
+	uint8_t ck_b = 0;
+
+	for (size_t i = 2; i < stream.size(); i++) {
+		ck_a = (uint8_t)(ck_a + stream[i]);
+		ck_b = (uint8_t)(ck_b + ck_a);
+	}
+
+	for (uint8_t b : payload) {
+		stream.push_back(b);
+		ck_a = (uint8_t)(ck_a + b);
+		ck_b = (uint8_t)(ck_b + ck_a);
+	}
+
+	stream.push_back(ck_a);
+	stream.push_back(ck_b);
+}
+
+// Unknown class/id: payloadRxInit() routes this to UBX_RXMSG_DISABLE and the
+// driver answers with a CFG-MSG rate command, which is observable through
+// writeDeviceData. Fails the rate limit only once per driver instance.
+static void appendDisableProbe(std::vector<uint8_t> &stream)
+{
+	appendUbxFrame(stream, 0xFF, 0xFF, std::vector<uint8_t> {});
+}
+
+static unsigned runUbxDriver(const std::vector<uint8_t> &stream)
+{
+	g_ubx_stream = stream;
+	g_ubx_pos = 0;
+	g_ubx_write_count = 0;
+
+	GPSDriverUBX::Settings settings {};
+	settings.dynamic_model = 7;
+	settings.dgnss_timeout = 0;
+	settings.min_cno = 0;
+	settings.min_elev = 0;
+	settings.output_rate = 0;
+	settings.heading_offset = 0.f;
+	settings.uart2_baudrate = 0;
+	settings.ppk_output = false;
+	settings.jam_det_sensitivity_hi = false;
+	settings.mode = GPSDriverUBX::UBXMode::Normal;
+
+	sensor_gps_s gps_position {};
+	satellite_info_s satellite_info {};
+
+	GPSDriverUBX *driver = new GPSDriverUBX(GPSDriverUBX::Interface::UART, ubxTestCallback,
+						nullptr, &gps_position, &satellite_info, settings);
+	driver->receive(100);
+	delete driver;
+
+	return g_ubx_write_count;
+}
+
+void test_ubx_probe_reaches_driver()
+{
+	std::vector<uint8_t> stream;
+	appendDisableProbe(stream);
+
+	assert(runUbxDriver(stream) > 0);
+}
+
+// payloadRxInit() accepts any MON-RF payload of 4 + 24*n blocks, and
+// payloadRxAdd() used to store every byte into the 92-byte ubx_buf_t without
+// a bounds check. The marching write hits the parser's own state fields and
+// wedges the driver: it swallows all further bytes without parsing anything,
+// so the probe frame after the oversized one gets no response. With the fix,
+// excess bytes are skipped and the driver keeps working.
+void test_ubx_oversized_mon_rf()
+{
+	std::vector<uint8_t> stream;
+	appendUbxFrame(stream, 0x0A, 0x38, std::vector<uint8_t>(988, 'A')); // 4 + 24*41 blocks
+	appendDisableProbe(stream);
+
+	assert(runUbxDriver(stream) > 0);
+}
+
+// A receiver with two RF blocks legitimately sends 52-byte MON-RF frames.
+// The excess bytes of oversized payloads need to be skipped while still
+// consuming the announced length, so multi-block frames stay
+// checksum-delimited and the parser keeps alignment.
+void test_ubx_mon_rf_multiblock()
+{
+	std::vector<uint8_t> stream;
+	appendUbxFrame(stream, 0x0A, 0x38, std::vector<uint8_t>(52, 0));
+	appendDisableProbe(stream);
+
+	assert(runUbxDriver(stream) > 0);
+}
+
+void test_ubx()
+{
+	test_ubx_probe_reaches_driver();
+	test_ubx_oversized_mon_rf();
+	test_ubx_mon_rf_multiblock();
+}
+
 int main(int, char **)
 {
 	test_unicore();
+	test_ubx();
 
 	return 0;
 }

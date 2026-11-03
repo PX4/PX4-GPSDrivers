@@ -1946,7 +1946,9 @@ GPSDriverUBX::payloadRxAdd(const uint8_t b)
 	int ret = 0;
 	uint8_t *p_buf = (uint8_t *)&_buf;
 
-	p_buf[_rx_payload_index] = b;
+	if (_rx_payload_index < sizeof(ubx_buf_t)) {
+		p_buf[_rx_payload_index] = b; //avoid buffer overflow with oversized payloads
+	}
 
 	if (++_rx_payload_index >= _rx_payload_length) {
 		ret = 1;	// payload received completely
