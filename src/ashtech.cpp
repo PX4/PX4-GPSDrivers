@@ -31,6 +31,7 @@
  *
  ****************************************************************************/
 
+#include <cmath>
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
@@ -119,6 +120,14 @@ int GPSDriverAshtech::handleMessage(int len)
 		nmeaNextField(bufptr, local_time_off_hour);
 
 		nmeaNextField(bufptr, local_time_off_min);
+
+		// ashtech_time is an hhmmss.ss time field. If it is out of range the arithmetic
+		// below drives ashtech_sec negative, and converting a negative double to
+		// uint64_t (line with `usecs`) is undefined behaviour. Reject it here, the same
+		// way nmea.cpp's setTimeUtc() does.
+		if (!std::isfinite(ashtech_time) || ashtech_time < 0.0 || ashtech_time >= 240000.0) {
+			return 0;
+		}
 
 		int ashtech_hour = static_cast<int>(ashtech_time / 10000);
 		int ashtech_minute = static_cast<int>((ashtech_time - ashtech_hour * 10000) / 100);
