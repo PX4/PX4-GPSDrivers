@@ -31,6 +31,7 @@
  *
  ****************************************************************************/
 
+#include <cstddef>
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
@@ -96,6 +97,17 @@ int GPSDriverFemto::handleMessage(int len)
 
 	if (messageid == FEMTO_MSG_ID_UAVGPS) { /**< uavgpsB*/
 		memcpy(&_femto_uav_gps, _femto_msg.data, sizeof(femto_uav_gps_t));
+
+		// vel_ned_valid is a bool, and a bool may only hold 0 or 1. The payload byte is
+		// arbitrary, so the copied member is already an invalid bool and *reading* it is
+		// undefined behaviour (UBSan: "load of value 136, which is not a valid value for
+		// type 'bool'"). Re-derive it from the source byte instead.
+		{
+			uint8_t vel_ned_raw = 0;
+			memcpy(&vel_ned_raw,
+			       _femto_msg.data + offsetof(femto_uav_gps_t, vel_ned_valid), 1);
+			_femto_uav_gps.vel_ned_valid = (vel_ned_raw != 0);
+		}
 
 		_gps_position->time_utc_usec = _femto_uav_gps.time_utc_usec;
 		_gps_position->latitude = _femto_uav_gps.lat / 1e7;
