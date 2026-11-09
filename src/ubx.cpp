@@ -2408,8 +2408,12 @@ GPSDriverUBX::payloadRxAddNavSat(const uint8_t b)
 				// negatives wrap. Needs SatelliteInfo.msg to carry signed angles and an unknown
 				// marker; its elevation comment is inverted too.
 				_satellite_info->elevation[sat_index] = static_cast<uint8_t>(_buf.payload_rx_nav_sat_part2.elev);
-				_satellite_info->azimuth[sat_index]	  = static_cast<uint8_t>(static_cast<float>(_buf.payload_rx_nav_sat_part2.azim) *
-						255.0f / 360.0f);
+				// azim is a signed 16-bit wire field, so it can carry values outside
+				// [0, 360]. Scaling such a value and casting the float to uint8_t
+				// is undefined behaviour, so clamp into the representable range first.
+				_satellite_info->azimuth[sat_index] = static_cast<uint8_t>(
+						std::fmin(255.0f, std::fmax(0.0f,
+								static_cast<float>(_buf.payload_rx_nav_sat_part2.azim) * 255.0f / 360.0f)));
 				_satellite_info->snr[sat_index]		  = static_cast<uint8_t>(_buf.payload_rx_nav_sat_part2.cno);
 				_satellite_info->prn[sat_index]		  = svinfo_svid;
 				UBX_TRACE_SVINFO("SAT #%02u  svid %3u  used %u  elevation %3u  azimuth %3u  snr %3u  prn %3u",
@@ -2469,8 +2473,12 @@ GPSDriverUBX::payloadRxAddNavSvinfo(const uint8_t b)
 				_satellite_info->used[sat_index]      = static_cast<uint8_t>(_buf.payload_rx_nav_svinfo_part2.flags & 0x01);
 				// TODO: same elev/azim wrap as NAV-SAT above
 				_satellite_info->elevation[sat_index] = static_cast<uint8_t>(_buf.payload_rx_nav_svinfo_part2.elev);
-				_satellite_info->azimuth[sat_index]   = static_cast<uint8_t>(static_cast<float>(_buf.payload_rx_nav_svinfo_part2.azim) *
-									255.0f / 360.0f);
+				// azim is a signed 16-bit wire field, so it can carry values outside
+				// [0, 360]. Scaling such a value and casting the float to uint8_t
+				// is undefined behaviour, so clamp into the representable range first.
+				_satellite_info->azimuth[sat_index] = static_cast<uint8_t>(
+						std::fmin(255.0f, std::fmax(0.0f,
+								static_cast<float>(_buf.payload_rx_nav_svinfo_part2.azim) * 255.0f / 360.0f)));
 				_satellite_info->snr[sat_index]       = static_cast<uint8_t>(_buf.payload_rx_nav_svinfo_part2.cno);
 				_satellite_info->prn[sat_index]       = static_cast<uint8_t>(_buf.payload_rx_nav_svinfo_part2.svid);
 
