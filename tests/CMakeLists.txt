@@ -48,3 +48,16 @@ target_compile_definitions(gps-ubx-test PRIVATE
 target_compile_options(gps-ubx-test PRIVATE -Wall -Wextra)
 add_test(NAME GPSUbxSurveyIn COMMAND gps-ubx-test)
 set_tests_properties(GPSUbxSurveyIn PROPERTIES TIMEOUT 10)
+
+add_executable(gps-skytraq-test
+    gps-skytraq-test.cpp
+    ${gps_driver_source_dir}/skytraq.cpp
+    ${gps_driver_source_dir}/gps_helper.cpp
+)
+target_include_directories(gps-skytraq-test PRIVATE ${gps_driver_source_dir}/)
+target_compile_definitions(gps-skytraq-test PRIVATE
+    GPS_DEFINITIONS_HEADER="${CMAKE_CURRENT_SOURCE_DIR}/definitions.h"
+)
+target_compile_options(gps-skytraq-test PRIVATE -Wall -Wextra)
+add_test(NAME GPSSkyTraq COMMAND gps-skytraq-test)
+set_tests_properties(GPSSkyTraq PROPERTIES TIMEOUT 10)
