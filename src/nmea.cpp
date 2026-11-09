@@ -42,6 +42,7 @@
  *
  */
 
+#include <cmath>
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
@@ -86,6 +87,14 @@ GPSDriverNMEA::~GPSDriverNMEA()
 
 void GPSDriverNMEA::setTimeUtc(int year, int month, int day, double utc_hhmmss)
 {
+	// utc_hhmmss is a parsed NMEA field. If it is not a finite hhmmss.sss value the
+	// conversions below leave the range of int, and the arithmetic that follows then
+	// overflows on the out-of-range result (UBSan: -2147483648 * 10000). Reject it
+	// here so the rest of the function only sees a value it can handle.
+	if (!std::isfinite(utc_hhmmss) || utc_hhmmss < 0.0 || utc_hhmmss >= 240000.0) {
+		return;
+	}
+
 	int utc_hour = static_cast<int>(utc_hhmmss / 10000);
 	int utc_minute = static_cast<int>((utc_hhmmss - utc_hour * 10000) / 100);
 	double utc_sec = static_cast<double>(utc_hhmmss - utc_hour * 10000 - utc_minute * 100);

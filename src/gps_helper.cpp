@@ -31,6 +31,7 @@
  *
  ****************************************************************************/
 
+#include <cmath>
 #include "gps_helper.h"
 #include "gps_time.h"
 #include <math.h>
@@ -147,6 +148,13 @@ bool GPSHelper::nmeaNextField(char *&p, char &value)
 
 double GPSHelper::nmeaToDegrees(double ddmm)
 {
+	// ddmm is the raw latitude/longitude field, so a usable value is well under 18000
+	// (degrees and decimal minutes). Beyond that, ddmm * 0.01 leaves the range of int
+	// and the int() conversions below would be undefined behaviour.
+	if (!std::isfinite(ddmm) || ddmm < -18000.0 || ddmm > 18000.0) {
+		return NAN;
+	}
+
 	return int(ddmm * 0.01) + (ddmm * 0.01 - int(ddmm * 0.01)) * 100.0 / 60.0;
 }
 
