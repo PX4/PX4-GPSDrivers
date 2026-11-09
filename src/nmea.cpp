@@ -121,6 +121,12 @@ int GPSDriverNMEA::handleMessage(int len)
 	char *bufptr = (char *)(_rx_buffer + 6);
 	int ret = 0;
 
+	if ((memcmp(_rx_buffer + 3, "GGA,", 4) == 0) || (memcmp(_rx_buffer + 3, "RMC,", 4) == 0)
+	    || (memcmp(_rx_buffer + 3, "GNS,", 4) == 0)) {
+		// A position sentence separates epochs: the next GSA group replaces the used-satellite set
+		_gsa_epoch_open = false;
+	}
+
 	if ((memcmp(_rx_buffer + 3, "ZDA,", 4) == 0) && (fieldCount == 6)) {
 		/*
 		UTC day, month, and year, and local time zone offset
@@ -635,6 +641,29 @@ int GPSDriverNMEA::handleMessage(int len)
 
 		nmeaNextField(bufptr, vdop);
 
+		// NMEA 4.10 adds the GNSS system ID, older receivers only identify the system by talker
+		int system_id = 0;
+		GnssSystem gsa_system = systemFromTalker(_rx_buffer);
+
+		if (fieldCount >= 18 && nmeaNextField(bufptr, system_id) && systemFromId(system_id) != GnssSystem::Unknown) {
+			gsa_system = systemFromId(system_id);
+		}
+
+		if (!_gsa_epoch_open) {
+			memset(_gsa_used, 0, sizeof(_gsa_used));
+			_gsa_epoch_open = true;
+		}
+
+		_gsa_received = true;
+
+		for (int y = 0; y < 12; y++) {
+			const uint8_t svid = svidFromNmea(gsa_system, sat_id[y]);
+
+			if (svid != 0 && svid != 255) {
+				markSatelliteUsed(svid);
+			}
+		}
+
 		if (fix_mode <= 1) {
 			_gps_position->fix_type = 0;
 
@@ -709,33 +738,45 @@ int GPSDriverNMEA::handleMessage(int len)
 
 		}
 
-		if (this_page_num == 0 && _satellite_info) {
-			memset(_satellite_info->svid,     0, sizeof(_satellite_info->svid));
-			memset(_satellite_info->used,     0, sizeof(_satellite_info->used));
-			memset(_satellite_info->snr,      0, sizeof(_satellite_info->snr));
-			memset(_satellite_info->elevation, 0, sizeof(_satellite_info->elevation));
-			memset(_satellite_info->azimuth,  0, sizeof(_satellite_info->azimuth));
-		}
-
 		const int remaining_satellites = tot_sv_visible - static_cast<int>(page_start);
 		const int satellites_in_message = (fieldCount - 3) / 4;
 		const int satellites_in_page = remaining_satellites < satellites_in_message ?
 					       remaining_satellites : satellites_in_message;
 		const int satellites_to_parse = satellites_in_page < 4 ? satellites_in_page : 4;
 
-		if (this_page_num == all_page_num) {
-			_SVNUM_received = true;
-			_SVINFO_received = true;
+		const GnssSystem gsv_system = systemFromTalker(_rx_buffer);
 
-			if (_satellite_info) {
-				_satellite_info->count = tot_sv_visible < satellite_info_s::SAT_INFO_MAX_SATELLITES ?
-							 tot_sv_visible : satellite_info_s::SAT_INFO_MAX_SATELLITES;
-				_satellite_info->timestamp = gps_absolute_time();
-				ret |= 2;
+		// NMEA 4.10 appends a signal ID after the satellite records, and receivers tracking several signals send
+		// one GSV sequence per signal. The first signal of a constellation starts a new round for it, later ones
+		// merge into it.
+		char signal_id = 0;
+
+		if ((fieldCount - 3) % 4 == 1) {
+			const char *last_comma = static_cast<const char *>(memchr(_rx_buffer, '*', static_cast<size_t>(len)));
+
+			while (last_comma && last_comma > reinterpret_cast<const char *>(_rx_buffer) && *last_comma != ',') {
+				last_comma--;
+			}
+
+			if (last_comma && *last_comma == ',' && last_comma[1] != '*') {
+				signal_id = last_comma[1];
 			}
 		}
 
+		if (this_page_num == all_page_num) {
+			_SVNUM_received = true;
+			_SVINFO_received = true;
+		}
+
 		if (_satellite_info) {
+			const int system_index = static_cast<int>(gsv_system);
+
+			if (this_page_num == 1 && (signal_id == 0 || _gsv_round_signal[system_index] == 0
+						   || _gsv_round_signal[system_index] == signal_id)) {
+				removeSatellites(gsv_system);
+				_gsv_round_signal[system_index] = signal_id;
+			}
+
 			for (int y = 0; y < satellites_to_parse; y++) {
 				nmeaNextField(bufptr, sat[y].svid);
 
@@ -745,15 +786,12 @@ int GPSDriverNMEA::handleMessage(int len)
 
 				nmeaNextField(bufptr, sat[y].snr);
 
-				const uint64_t satellite_index = page_start + y;
+				addSatellite(gsv_system, svidFromNmea(gsv_system, sat[y].svid), sat[y].elevation, sat[y].azimuth, sat[y].snr);
+			}
 
-				if (satellite_index < satellite_info_s::SAT_INFO_MAX_SATELLITES) {
-					_satellite_info->svid[satellite_index]      = sat[y].svid;
-					_satellite_info->used[satellite_index]      = (sat[y].snr > 0);
-					_satellite_info->snr[satellite_index]       = sat[y].snr;
-					_satellite_info->elevation[satellite_index] = sat[y].elevation;
-					_satellite_info->azimuth[satellite_index]   = sat[y].azimuth;
-				}
+			if (this_page_num == all_page_num) {
+				finishSatelliteInfo();
+				ret |= 2;
 			}
 		}
 
@@ -1151,4 +1189,205 @@ int GPSDriverNMEA::configure(unsigned &baudrate, const GPSConfig &config)
 	}
 
 	return setBaudrate(NMEA_DEFAULT_BAUDRATE);
+}
+
+GPSDriverNMEA::GnssSystem GPSDriverNMEA::systemFromTalker(const uint8_t *sentence)
+{
+	if (memcmp(sentence, "$GP", 3) == 0) { return GnssSystem::GPS; }
+
+	if (memcmp(sentence, "$GL", 3) == 0) { return GnssSystem::GLONASS; }
+
+	if (memcmp(sentence, "$GA", 3) == 0) { return GnssSystem::Galileo; }
+
+	if (memcmp(sentence, "$GB", 3) == 0 || memcmp(sentence, "$BD", 3) == 0) { return GnssSystem::BeiDou; }
+
+	if (memcmp(sentence, "$GQ", 3) == 0 || memcmp(sentence, "$QZ", 3) == 0) { return GnssSystem::QZSS; }
+
+	if (memcmp(sentence, "$GI", 3) == 0) { return GnssSystem::NavIC; }
+
+	return GnssSystem::Unknown; // $GN and anything else: infer from the satellite number
+}
+
+GPSDriverNMEA::GnssSystem GPSDriverNMEA::systemFromId(int system_id)
+{
+	switch (system_id) {
+	case 1: return GnssSystem::GPS;
+
+	case 2: return GnssSystem::GLONASS;
+
+	case 3: return GnssSystem::Galileo;
+
+	case 4: return GnssSystem::BeiDou;
+
+	case 5: return GnssSystem::QZSS;
+
+	case 6: return GnssSystem::NavIC;
+
+	default: return GnssSystem::Unknown;
+	}
+}
+
+uint8_t GPSDriverNMEA::svidFromNmea(GnssSystem system, int prn)
+{
+	// BeiDou C1-C5 -> 159-163, C6-C37 -> 33-64, matching GPSDriverUBX's NAV-SAT conversion
+	auto beidou = [](int number) -> uint8_t {
+		if (number >= 1 && number <= 5) { return static_cast<uint8_t>(number + 158); }
+
+		if (number >= 6 && number <= 37) { return static_cast<uint8_t>(number + 27); }
+
+		return (number >= 38 && number <= 63) ? 255 : 0;
+	};
+
+	switch (system) {
+	case GnssSystem::GPS:
+		if (prn >= 1 && prn <= 32) { return static_cast<uint8_t>(prn); }
+
+		if (prn >= 33 && prn <= 64) { return static_cast<uint8_t>(prn + 87); } // SBAS 120-151
+
+		if ((prn >= 120 && prn <= 158) || (prn >= 193 && prn <= 202)) { return static_cast<uint8_t>(prn); } // SBAS, QZSS
+
+		return 0;
+
+	case GnssSystem::GLONASS:
+		if (prn >= 65 && prn <= 96) { return static_cast<uint8_t>(prn); }
+
+		if (prn >= 1 && prn <= 32) { return static_cast<uint8_t>(prn + 64); } // slot number
+
+		return prn == 0 ? 0 : 255; // unknown slot
+
+	case GnssSystem::Galileo:
+		if (prn >= 1 && prn <= 36) { return static_cast<uint8_t>(prn + 210); }
+
+		if (prn >= 301 && prn <= 336) { return static_cast<uint8_t>(prn - 90); }
+
+		return 0;
+
+	case GnssSystem::BeiDou:
+		if (prn >= 401) { return beidou(prn - 400); }
+
+		if (prn >= 201) { return beidou(prn - 200); }
+
+		return beidou(prn);
+
+	case GnssSystem::QZSS:
+		if (prn >= 1 && prn <= 10) { return static_cast<uint8_t>(prn + 192); }
+
+		if (prn >= 193 && prn <= 202) { return static_cast<uint8_t>(prn); }
+
+		return 0;
+
+	case GnssSystem::NavIC:
+		return prn > 0 ? 255 : 0; // no NAV-SVINFO number
+
+	default:
+
+		// Combined talker: NMEA 4.0 and u-blox extended numbering ranges
+		if (prn >= 1 && prn <= 64) { return svidFromNmea(GnssSystem::GPS, prn); }
+
+		if (prn >= 65 && prn <= 96) { return static_cast<uint8_t>(prn); }
+
+		if (prn >= 120 && prn <= 158) { return static_cast<uint8_t>(prn); }
+
+		if (prn >= 193 && prn <= 202) { return static_cast<uint8_t>(prn); }
+
+		if (prn >= 301 && prn <= 336) { return static_cast<uint8_t>(prn - 90); }
+
+		if (prn >= 401 && prn <= 463) { return beidou(prn - 400); }
+
+		return 0;
+	}
+}
+
+void GPSDriverNMEA::removeSatellites(GnssSystem system)
+{
+	uint8_t kept = 0;
+
+	for (uint8_t i = 0; i < _satellite_info->count; i++) {
+		if (_satellite_system[i] == static_cast<uint8_t>(system)) {
+			continue;
+		}
+
+		_satellite_info->svid[kept] = _satellite_info->svid[i];
+		_satellite_info->prn[kept] = _satellite_info->prn[i];
+		_satellite_info->snr[kept] = _satellite_info->snr[i];
+		_satellite_info->elevation[kept] = _satellite_info->elevation[i];
+		_satellite_info->azimuth[kept] = _satellite_info->azimuth[i];
+		_satellite_system[kept] = _satellite_system[i];
+		kept++;
+	}
+
+	_satellite_info->count = kept;
+}
+
+void GPSDriverNMEA::addSatellite(GnssSystem system, uint8_t svid, int elevation, int azimuth, int snr)
+{
+	if (svid == 0) {
+		return;
+	}
+
+	const uint8_t snr_db = static_cast<uint8_t>(snr < 0 ? 0 : (snr > 255 ? 255 : snr));
+	unsigned index = _satellite_info->count;
+
+	// The same satellite is reported once per signal: keep one entry with the strongest signal
+	for (unsigned i = 0; svid != 255 && i < _satellite_info->count; i++) {
+		if (_satellite_info->svid[i] == svid) {
+			if (snr_db <= _satellite_info->snr[i]) {
+				return;
+			}
+
+			index = i;
+			break;
+		}
+	}
+
+	if (index == satellite_info_s::SAT_INFO_MAX_SATELLITES) {
+		// Table full: replace the lowest ranked satellite if this one ranks higher (used in the fix, then signal)
+		auto rank = [this](uint8_t sat_svid, uint8_t sat_snr) {
+			return (_gsa_received && satelliteUsed(sat_svid) ? 256u : 0u) + sat_snr;
+		};
+
+		unsigned weakest = 0;
+
+		for (unsigned i = 1; i < satellite_info_s::SAT_INFO_MAX_SATELLITES; i++) {
+			if (rank(_satellite_info->svid[i], _satellite_info->snr[i]) <
+			    rank(_satellite_info->svid[weakest], _satellite_info->snr[weakest])) {
+				weakest = i;
+			}
+		}
+
+		if (rank(svid, snr_db) <= rank(_satellite_info->svid[weakest], _satellite_info->snr[weakest])) {
+			return;
+		}
+
+		index = weakest;
+
+	} else if (index == _satellite_info->count) {
+		_satellite_info->count++;
+	}
+
+	_satellite_info->svid[index] = svid;
+	_satellite_info->prn[index] = svid;
+	_satellite_info->snr[index] = snr_db;
+	_satellite_info->elevation[index] = static_cast<uint8_t>(elevation);
+	_satellite_info->azimuth[index] = static_cast<uint8_t>(static_cast<float>(azimuth) * 255.0f / 360.0f);
+	_satellite_system[index] = static_cast<uint8_t>(system);
+}
+
+void GPSDriverNMEA::finishSatelliteInfo()
+{
+	for (unsigned i = 0; i < _satellite_info->count; i++) {
+		// Without GSA, fall back to treating every tracked satellite as used
+		_satellite_info->used[i] = _gsa_received ? satelliteUsed(_satellite_info->svid[i]) : (_satellite_info->snr[i] > 0);
+	}
+
+	for (unsigned i = _satellite_info->count; i < satellite_info_s::SAT_INFO_MAX_SATELLITES; i++) {
+		_satellite_info->svid[i] = 0;
+		_satellite_info->prn[i] = 0;
+		_satellite_info->used[i] = 0;
+		_satellite_info->snr[i] = 0;
+		_satellite_info->elevation[i] = 0;
+		_satellite_info->azimuth[i] = 0;
+	}
+
+	_satellite_info->timestamp = gps_absolute_time();
 }

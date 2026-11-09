@@ -89,6 +89,22 @@ private:
 	double read_float();
 	char read_char();
 
+	/** GNSS constellation a GSV/GSA sentence reports, from its talker ID or NMEA 4.10 system ID */
+	enum class GnssSystem : uint8_t { Unknown = 0, GPS, GLONASS, Galileo, BeiDou, QZSS, NavIC, Count };
+
+	static GnssSystem systemFromTalker(const uint8_t *sentence);
+	static GnssSystem systemFromId(int system_id);
+
+	/** Convert an NMEA satellite number to the u-blox NAV-SVINFO numbering the UBX driver publishes, 0 if invalid */
+	static uint8_t svidFromNmea(GnssSystem system, int prn);
+
+	bool satelliteUsed(uint8_t svid) const { return _gsa_used[svid / 8] & (1u << (svid % 8)); }
+	void markSatelliteUsed(uint8_t svid) { _gsa_used[svid / 8] |= static_cast<uint8_t>(1u << (svid % 8)); }
+
+	void removeSatellites(GnssSystem system);
+	void addSatellite(GnssSystem system, uint8_t svid, int elevation, int azimuth, int snr);
+	void finishSatelliteInfo();
+
 	sensor_gnss_s *_gps_position {nullptr};
 	satellite_info_s *_satellite_info {nullptr};
 	double _last_POS_timeUTC{0};
@@ -105,6 +121,14 @@ private:
 	uint8_t _sat_num_bdgsv{0};
 
 	bool _clock_set {false};
+
+	// satellite_info is merged across constellations: each talker's GSV sequence replaces only that talker's
+	// satellites, and when there are more than fit, satellites used in the fix and then the strongest are kept.
+	uint8_t _satellite_system[satellite_info_s::SAT_INFO_MAX_SATELLITES] {};
+	char _gsv_round_signal[static_cast<int>(GnssSystem::Count)] {}; ///< GSV signal ID that starts a new round per system
+	uint8_t _gsa_used[32] {}; ///< bitset of satellites GSA reports as used in the current epoch
+	bool _gsa_received{false};
+	bool _gsa_epoch_open{false};
 
 //  check if we got all basic essential packages we need
 	bool _TIME_received{false};

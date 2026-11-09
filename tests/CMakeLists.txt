@@ -48,3 +48,19 @@ target_compile_definitions(gps-ubx-test PRIVATE
 target_compile_options(gps-ubx-test PRIVATE -Wall -Wextra)
 add_test(NAME GPSUbxSurveyIn COMMAND gps-ubx-test)
 set_tests_properties(GPSUbxSurveyIn PROPERTIES TIMEOUT 10)
+
+add_executable(gps-nmea-test
+    gps-nmea-test.cpp
+    ${gps_driver_source_dir}/nmea.cpp
+    ${gps_driver_source_dir}/gps_helper.cpp
+    ${gps_driver_source_dir}/rtcm.cpp
+    ${gps_driver_source_dir}/unicore.cpp
+    ${gps_driver_source_dir}/crc.cpp
+)
+target_include_directories(gps-nmea-test PRIVATE ${gps_driver_source_dir}/)
+target_compile_definitions(gps-nmea-test PRIVATE
+    GPS_DEFINITIONS_HEADER="${CMAKE_CURRENT_SOURCE_DIR}/definitions.h"
+)
+target_compile_options(gps-nmea-test PRIVATE -Wall -Wextra)
+add_test(NAME GPSNmeaSatelliteInfo COMMAND gps-nmea-test)
+set_tests_properties(GPSNmeaSatelliteInfo PROPERTIES TIMEOUT 10)
