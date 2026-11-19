@@ -43,10 +43,9 @@ check_dependencies() {
     command -v abidiff &>/dev/null || missing+=("abigail-tools")
     command -v cmake &>/dev/null || missing+=("cmake")
 
-    # Deduplicate
-    mapfile -t missing < <(printf "%s\n" "${missing[@]}" | sort -u)
-
     if [ ${#missing[@]} -ne 0 ]; then
+        # Deduplicate. Only when non-empty: printf on an empty array still prints one empty line.
+        mapfile -t missing < <(printf "%s\n" "${missing[@]}" | sort -u)
         error "Missing dependencies: ${missing[*]}"
         echo "Install with: sudo apt-get install ${missing[*]}"
         exit 1
