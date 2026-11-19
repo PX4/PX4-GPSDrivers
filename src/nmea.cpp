@@ -179,7 +179,7 @@ int GPSDriverNMEA::handleMessage(int len)
 
 		nmeaNextField(bufptr, ew);
 
-		nmeaNextField(bufptr, utc_time);
+		const bool utc_valid = nmeaNextField(bufptr, utc_time);
 
 		nmeaNextField(bufptr, dvalid);
 
@@ -199,7 +199,7 @@ int GPSDriverNMEA::handleMessage(int len)
 			_gps_position->longitude = nmeaToDegrees(lon);
 			_gps_position->latitude = nmeaToDegrees(lat);
 
-			if (!_POS_received && (_last_POS_timeUTC < utc_time)) {
+			if (!_POS_received && utc_valid && isNewEpoch(utc_time, _last_POS_timeUTC)) {
 				_last_POS_timeUTC = utc_time;
 				_POS_received = true;
 				_rate_count_lat_lon++;
@@ -253,7 +253,7 @@ int GPSDriverNMEA::handleMessage(int len)
 
 		NMEA_UNUSED(dgps_age);
 
-		nmeaNextField(bufptr, utc_time);
+		const bool utc_valid = nmeaNextField(bufptr, utc_time);
 
 		nmeaNextField(bufptr, lat);
 
@@ -312,7 +312,7 @@ int GPSDriverNMEA::handleMessage(int len)
 			_gps_position->fix_type = 3 + fix_quality - 1;
 		}
 
-		if (!_POS_received && (_last_POS_timeUTC < utc_time)) {
+		if (!_POS_received && utc_valid && isNewEpoch(utc_time, _last_POS_timeUTC)) {
 			_last_POS_timeUTC = utc_time;
 			_gps_position->timestamp = gps_absolute_time();
 			_POS_received = true;
@@ -367,7 +367,7 @@ int GPSDriverNMEA::handleMessage(int len)
 		int i = 0;
 		NMEA_UNUSED(pos_Mode);
 
-		nmeaNextField(bufptr, utc_time);
+		const bool utc_valid = nmeaNextField(bufptr, utc_time);
 
 		nmeaNextField(bufptr, lat);
 
@@ -407,7 +407,7 @@ int GPSDriverNMEA::handleMessage(int len)
 		_gps_position->altitude_ellipsoid = (double)(alt + geoid_h);
 		_sat_num_gns = static_cast<int>(num_of_sv);
 
-		if (!_POS_received && (_last_POS_timeUTC < utc_time)) {
+		if (!_POS_received && utc_valid && isNewEpoch(utc_time, _last_POS_timeUTC)) {
 			_last_POS_timeUTC = utc_time;
 			_gps_position->timestamp = gps_absolute_time();
 			_POS_received = true;
@@ -451,7 +451,7 @@ int GPSDriverNMEA::handleMessage(int len)
 		char ns = '?', ew = '?';
 		NMEA_UNUSED(Mag_var);
 
-		nmeaNextField(bufptr, utc_time);
+		const bool utc_valid = nmeaNextField(bufptr, utc_time);
 
 		nmeaNextField(bufptr, Status);
 
@@ -503,7 +503,7 @@ int GPSDriverNMEA::handleMessage(int len)
 			_gps_position->latitude = nmeaToDegrees(lat);
 			_gps_position->longitude = nmeaToDegrees(lon);
 
-			if (!_POS_received && (_last_POS_timeUTC < utc_time)) {
+			if (!_POS_received && utc_valid && isNewEpoch(utc_time, _last_POS_timeUTC)) {
 				_gps_position->timestamp = gps_absolute_time();
 				_last_POS_timeUTC = utc_time;
 				_POS_received = true;
@@ -516,7 +516,7 @@ int GPSDriverNMEA::handleMessage(int len)
 			_gps_position->vel_ned_valid = true; /**< Flag to indicate if NED speed is valid */
 			_gps_position->speed_accuracy = 0;
 
-			if (!_VEL_received && (_last_VEL_timeUTC < utc_time)) {
+			if (!_VEL_received && utc_valid && isNewEpoch(utc_time, _last_VEL_timeUTC)) {
 				_last_VEL_timeUTC = utc_time;
 				_VEL_received = true;
 				_rate_count_vel++;

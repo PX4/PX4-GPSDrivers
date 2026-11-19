@@ -85,6 +85,16 @@ private:
 	/** Set time_utc_usec from a UTC date and an NMEA hhmmss.ss time, and the system clock the first time */
 	void setTimeUtc(int year, int month, int day, double utc_hhmmss);
 
+	/**
+	 * Whether an NMEA hhmmss.ss time starts a new epoch after last_hhmmss. The time has no date and wraps
+	 * from 235959.99 to 000000.00 at midnight UTC, so a jump back of more than 12 hours is a day rollover,
+	 * not an older epoch.
+	 */
+	static bool isNewEpoch(double utc_hhmmss, double last_hhmmss)
+	{
+		return (utc_hhmmss > last_hhmmss) || (last_hhmmss - utc_hhmmss > 120000.0);
+	}
+
 	int32_t read_int();
 	double read_float();
 	char read_char();
