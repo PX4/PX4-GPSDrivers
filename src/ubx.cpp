@@ -138,6 +138,7 @@ GPSDriverUBX::configure(unsigned &baudrate, const GPSConfig &config)
 				memset(&_buf.payload_tx_cfg_cfg, 0, sizeof(_buf.payload_tx_cfg_cfg));
 				_buf.payload_tx_cfg_cfg.clearMask = 0xFFFFFFFF;
 				_buf.payload_tx_cfg_cfg.loadMask = 0xFFFFFFFF;
+				_buf.payload_tx_cfg_cfg.deviceMask = UBX_TX_CFG_CFG_DEVICE_ALL;
 
 				if (!sendMessage(UBX_MSG_CFG_CFG, (uint8_t *)&_buf, sizeof(_buf.payload_tx_cfg_cfg))) {
 					continue;
@@ -257,6 +258,7 @@ GPSDriverUBX::configure(unsigned &baudrate, const GPSConfig &config)
 			memset(&_buf.payload_tx_cfg_cfg, 0, sizeof(_buf.payload_tx_cfg_cfg));
 			_buf.payload_tx_cfg_cfg.clearMask = 0xFFFFFFFF;
 			_buf.payload_tx_cfg_cfg.loadMask = 0xFFFFFFFF;
+			_buf.payload_tx_cfg_cfg.deviceMask = UBX_TX_CFG_CFG_DEVICE_ALL;
 
 			if (!sendMessage(UBX_MSG_CFG_CFG, (uint8_t *)&_buf, sizeof(_buf.payload_tx_cfg_cfg))) {
 				return -1;

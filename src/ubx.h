@@ -245,6 +245,18 @@
 #define UBX_TX_CFG_RST_MODE_HARDWARE            0
 #define UBX_TX_CFG_RST_MODE_SOFTWARE            1
 
+/* TX CFG-CFG message contents
+ * deviceMask selects the non-volatile storage the clear/save/load masks act on.
+ * Sending deviceMask = 0 was observed not to clear stored configuration on a ZED-F9P (HPG 1.32),
+ * so the devices are selected explicitly.
+ */
+#define UBX_TX_CFG_CFG_DEVICE_BBR               (1 << 0)
+#define UBX_TX_CFG_CFG_DEVICE_FLASH             (1 << 1)
+#define UBX_TX_CFG_CFG_DEVICE_EEPROM            (1 << 2)
+#define UBX_TX_CFG_CFG_DEVICE_SPIFLASH          (1 << 4)
+#define UBX_TX_CFG_CFG_DEVICE_ALL               (UBX_TX_CFG_CFG_DEVICE_BBR | UBX_TX_CFG_CFG_DEVICE_FLASH | \
+		UBX_TX_CFG_CFG_DEVICE_EEPROM | UBX_TX_CFG_CFG_DEVICE_SPIFLASH)
+
 /* TX CFG-GNSS message contents
  */
 #define UBX_TX_CFG_GNSS_GNSSID_GPS              0       /**< gnssId of GPS */
